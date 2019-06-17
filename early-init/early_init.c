@@ -28,6 +28,9 @@
  */
 
 #define _GNU_SOURCE
+#define TEMP_SOLUTION
+#define DEBUG
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -46,13 +49,15 @@
 #define END_TAG                 "<end>"
 #define LINE_MAX                2048
 #define WHITESPACE              " \t\n\r"
-#define KPI_VALUE_PATH          "/debug/bootkpi/kpi_values"
+#define KPI_VALUE_PATH          "/sys/kernel/debug/bootkpi/kpi_values"
 #define GPIO_EXPORT             "/sys/class/gpio/export"
 #define DRM_CARD_PATH           "/dev/dri/card0"
 #define VIDEO_CARD_PATH         "/dev/video32"
-#define DISPLAY_XDG_RUNTIME_DIR "/run/platform/weston"
+#define AUDIO_FW_PATH           "/vendor/firmware_mnt"
+//#define DISPLAY_XDG_RUNTIME_DIR "/run/platform/weston"
 #define SMACK_LABEL_PATH        "/proc/self/attr/current"
 #define SMACK_LABEL             "System"
+#define	DEFAULT_PATH		"/sbin:/system/sbin:/system/bin:/system/xbin:/odm/bin:/vendor/bin:/vendor/xbin"
 
 #define STR_EXPAND(tok) #tok
 #define TO_STRING(tok) STR_EXPAND(tok)
@@ -100,7 +105,7 @@ static void inline write_marker(const char* name)
 
 	fd = open(KPI_VALUE_PATH, O_WRONLY);
 	if (fd > 0) {
-		write(fd, name, strlen(name));
+		(void)write(fd, name, strlen(name));
 	} else {
 		printf("open bootkpi for name %s failed %s\r\n", name, strerror(errno));
 	}
@@ -115,7 +120,7 @@ static void inline write_smack_label(char* label)
 
 	fd = open(SMACK_LABEL_PATH, O_WRONLY);
 	if (fd > 0) {
-		write(fd, label, strlen(label));
+		(void)write(fd, label, strlen(label));
 	} else {
 		printf("write label  %s failed %s\r\n", label, strerror(errno));
 	}
@@ -131,7 +136,7 @@ static inline void mkdirs(char* p, mode_t mode)
 {
 	char str[1024] = {0};
 	struct stat st = {0};
-	int i = 0, len = 0;
+	int i = 0, len = 0, ret = 0;
 
 	len = strlen(p);
 	if (len > 1024)
@@ -151,14 +156,18 @@ static inline void mkdirs(char* p, mode_t mode)
 		if (str[i] == '/') {
 			str[i] = '\0';
 			if (stat(str, &st) == -1) {
-				mkdir(str, 0755);
+				ret = mkdir(str, 0755);
+				if (ret < 0)
+					perror("mkdir failed");
 			}
 			str[i] = '/';
 		}
 	}
 
 	if (stat(str, &st) == -1) {
-		mkdir(str, mode);
+		ret = mkdir(str, mode);
+		if (ret < 0)
+			perror("mkdir failed");
 	}
 
 	return;
@@ -170,18 +179,45 @@ static inline void prepare_dir(char* p)
 	int ret = 0;
 
 	switch (*p) {
+		case 'a':
+			if (0 == strncmp(p + 1, "udio_fw", strlen("udio_fw"))) {
+				/*
+				 * Mount audio firmware partition
+				 */
+				if (stat(AUDIO_FW_PATH, &st) == -1) {
+					perror("AUDIO_FW_PATH doesn't exist");
+					mkdirs(AUDIO_FW_PATH, 0755);
+				}
+
+				/* TODO: Do not hard code dev node, sde4 is modem_a/adsp firmware  partition */
+				ret = mount("/dev/sde4", AUDIO_FW_PATH, "vfat", MS_RDONLY, NULL);
+				if (ret < 0) {
+					perror("mount /dev/sde4 failed");
+				}
+			}
+			break;
 		case 'd':
 			if (0 == strncmp(p + 1, "ebugfs", strlen("ebugfs"))) {
 				/*
 				 * Mount debugfs
 				 */
-				if (stat("/debug", &st) == -1) {
-					mkdir("/debug", 0755);
+				if (stat("/sys/kernel/debug", &st) == -1) {
+					perror("/sys/kernel/debug folder doesn't exist");
+					mkdirs("/sys/kernel/debug", 0755);
 				}
 
-				ret = mount("debugfs", "/debug", "debugfs", 0, NULL);
+				ret = mount("debugfs", "/sys/kernel/debug", "debugfs", 0, NULL);
 				if (ret < 0) {
 					perror("mount debugfs failed");
+				}
+			} else if(0 == strncmp(p + 1, "ev", strlen("ev"))) {
+				if (stat("/dev", &st) == -1) {
+					perror("/dev folder doesn't exist");
+					mkdir("/dev", 0755);
+				}
+				ret = mount("devtmpfs", "/dev", "devtmpfs", 0, NULL);
+				if (ret < 0) {
+					perror("mount devtmpfs failed");
 				}
 			}
 			break;
@@ -191,14 +227,20 @@ static inline void prepare_dir(char* p)
 				 * Prepare dir for weston socket
 				 */
 				if (stat("/run", &st) == -1) {
-					mkdir("/run", 0700);
+					perror("/run folder doesn't exist");
+					ret = mkdir("/run", 0700);
+					if (ret < 0)
+						perror("mkdir failed");
 				}
 
+#ifdef LV_CODE
 				ret = mount("tmpfs", "/run", "tmpfs", MS_NOSUID|MS_NODEV|MS_STRICTATIME, "mode=755,smackfsroot=*");
+#endif
+				ret = mount("tmpfs", "/run", "tmpfs", MS_NOSUID|MS_NODEV|MS_STRICTATIME, "mode=755");
 				if (ret < 0) {
 					perror("mount tmpfs failed");
 				}
-
+#ifdef LV_CODE
 				mkdirs(DISPLAY_XDG_RUNTIME_DIR, 0775);
 
 				struct passwd *pw;
@@ -206,8 +248,9 @@ static inline void prepare_dir(char* p)
 				if (!pw) {
 					perror("username is not exist\r\n");
 				} else {
-					chown(DISPLAY_XDG_RUNTIME_DIR, pw->pw_uid, pw->pw_gid);
+					(void)chown(DISPLAY_XDG_RUNTIME_DIR, pw->pw_uid, pw->pw_gid);
 				}
+#endif
 				mkdirs("/run/early", 0775);
 			}
 			break;
@@ -230,6 +273,16 @@ static inline void prepare_dir(char* p)
 				if (ret < 0) {
 					perror("mount sysfs failed");
 				}
+			} else if (0 == strncmp(p + 1, "elinuxfs", strlen("elinuxfs"))) {
+				/*
+				 * Mount selinuxfs
+				 */
+				ret = mount("selinuxfs", "/sys/fs/selinux", "selinuxfs", 0, NULL);
+				if (ret < 0) {
+					perror("mount sysfs failed");
+				} else {
+					printf("selinuxfs is mounted \r\n");
+				}
 			} else {
 				printf("warning unknown input string %s for prepare_dir", p);
 			}
@@ -248,8 +301,6 @@ static inline void prepare_dir(char* p)
 		default:
 			printf("warning unknown input string %s for prepare_dir", p);
 	}
-
-out:
 	return;
 }
 
@@ -365,11 +416,13 @@ static void inline app_launcher_start_over(void)
  */
 static inline int parse_line(char* p)
 {
-	int i = 0;
+	size_t i = 0;
 	char* t;
 	pid_t pid;
 	int fd;
+	int ret = 0;
 	char pid_file[10] = {0};
+	static char marker[50];
 
 	/*
 	 * Skip whitespace and comment line
@@ -487,7 +540,7 @@ static inline int parse_line(char* p)
 				 * Handle log redirect
 				 */
 				if (app_launcher.applog) {
-					fd = open(app_launcher.applog, O_RDWR | O_CREAT);
+					fd = open(app_launcher.applog, O_RDWR | O_CREAT, 0666);
 					if (fd > 0) {
 						dup2(fd, fileno(stdout));
 						dup2(fd, fileno(stderr));
@@ -527,7 +580,7 @@ static inline int parse_line(char* p)
 				}
 
 				if (app_launcher.pidfile) {
-					fd = open(app_launcher.pidfile, O_WRONLY | O_CREAT);
+					fd = open(app_launcher.pidfile, O_WRONLY | O_CREAT, 0666);
 					if (fd < 0)
 						perror("open pid file failed \r\n");
 					else {
@@ -543,7 +596,8 @@ static inline int parse_line(char* p)
 				 */
 				if (app_launcher.wait) {
 					printf("app %s waiting for %s ...\r\n", app_launcher.appname, app_launcher.wait);
-					for (i = 0; i < 30; i++) {
+//					for (i = 0; i < 30; i++) {
+					while(1) { /* TODO: find a finite value for wait */
 						if (-1 != access(app_launcher.wait, F_OK))
 							break;
 						usleep(5000);
@@ -556,14 +610,23 @@ static inline int parse_line(char* p)
 				app_launcher.argv[app_launcher.argv_used] = NULL;
 				app_launcher.env[app_launcher.env_used] = NULL;
 
-				write_smack_label(SMACK_LABEL);
+			//	write_smack_label(SMACK_LABEL);
 
 				if (app_launcher.username) {
 					enforce_user(app_launcher.username);
 				}
+				memset(marker, 0, 50);
+				snprintf(marker, 49 ,"M - Launch %s app", app_launcher.appname);
+				write_marker(marker);
 
 				if (app_launcher.cmd) {
-					execvpe(app_launcher.cmd, app_launcher.argv, app_launcher.env);
+					ret = execvp(app_launcher.cmd, app_launcher.argv); /* TODO: change to execvpe */
+					if(ret < 0) {
+						printf("App launch failed %s \r\n", app_launcher.appname);
+						memset(marker, 0, 50);
+						snprintf(marker, 49 ,"M - Launch %s app failed", app_launcher.appname);
+						write_marker(marker);
+					}
 				}
 				exit(0);
 			}
@@ -584,7 +647,7 @@ static inline bool is_empty_line(const char* p)
 {
 	return (strspn(p, WHITESPACE) == strlen(p));
 }
-
+#ifdef LV_CODE
 static inline void trigger_firmware_loading(const char* path)
 {
 	int i = 0;
@@ -619,20 +682,100 @@ static inline void trigger_firmware_loading(const char* path)
 	}
 	return;
 }
+#endif
 
-int main(int argc, char* argv[])
+static void insert_audio_modules(void)
+{
+	const char modprobe_command[256] = "modprobe -a -d /vendor/lib/modules audio_adsp_loader audio_q6 audio_native audio_swr audio_platform audio_stub audio_machine_talos audio_apr audio_q6_notifier";
+	struct stat st = {0};
+	int fd = -1;
+	pid_t pid;
+	static char marker[50];
+
+	pid = fork();
+	if (pid < 0) {
+		perror("fork child process failed \r\n");
+		return;
+	}
+	if (pid == 0) {
+		memset(marker, 0, 50);
+		snprintf(marker, 49 ,"M - Insert Audio modules - Start");
+		write_marker(marker);
+
+		system(modprobe_command);
+
+		memset(marker, 0, 50);
+		snprintf(marker, 49 ,"M - Insert Audio modules - End");
+		write_marker(marker);
+
+		do{
+			printf("Waiting for sys entry to set boot_adsp flag\n");
+			usleep(2000);
+			/* Do Nothing */
+		}while(stat("/sys/kernel/boot_adsp/boot",&st) == -1);
+
+		fd = open("/sys/kernel/boot_adsp/boot", O_WRONLY);
+		if (fd < 0) {
+			perror("open sys entry failed \r\n");
+		} else if(-1 == write(fd, "1", 1)) {
+			perror("Write to sys entry failed\n");
+		} else {
+			printf("ADSP firmware loading triggered\n");
+			memset(marker, 0, 50);
+			snprintf(marker, 49 ,"M - ADSP firmware loading triggered");
+			write_marker(marker);
+		}
+		exit(0);
+	}
+
+	return;
+}
+
+int early_init(void)
 {
 	FILE* f;
 	char line[LINE_MAX];
 	int fd;
+#ifdef TEMP_SOLUTION
+	int ret;
+	struct stat st = {0};
 
+	clearenv();
+	setenv("PATH", DEFAULT_PATH, 1);
+
+	/* Mount early_services partition */
+	/* TODO: Do not hard code dev node, sde54 is early_services_a partition */
+	ret = mount("/dev/sde54", "/early_services", "ext4", MS_RDONLY, NULL);
+	if (ret < 0) {
+		perror("Mount early_serviecs partition failed");
+		if (stat("/early_services", &st) == -1) {
+			printf("/early_services directory doesn't exist\r\n");
+		}
+		if (stat("/dev/sde53", &st) == -1) {
+			printf("/dev/sde53 doesn't exist \r\n");
+		}
+		/* Do not continue further */
+		exit(-1);
+	} else {
+		printf("early_services partition mounted\r\n");
+	}
+	/* Chroot to early_services */
+	ret = chroot("/early_services");
+	if (ret < 0) {
+		perror("chroot to /early_services failed");
+	} else {
+		printf("chroot to /early_services successful\n");
+	}
+	prepare_dir("dev");
+#endif
+	prepare_dir("sysfs");
 	prepare_dir("debugfs");
 	prepare_dir("xdg_runtime_dir");
 	prepare_dir("shm");
-	prepare_dir("sysfs");
 	prepare_dir("procfs");
+	//prepare_dir("audio_fw");
 
-	fd = open("/run/early_init.log", O_RDWR | O_CREAT);
+	fd = open("/run/early_init.log", O_RDWR | O_CREAT, 0666);
 	if (fd < 0)
 		perror("open log file failed");
 
@@ -642,13 +785,13 @@ int main(int argc, char* argv[])
 	safe_close(fd);
 
 	f = fopen(DEFAULT_CONF, "re");
-	if (f < 0) {
+	if (f == NULL) {
 		perror("open early_init.conf failed.\r\n");
 		return -1;
 	}
 
-	write_marker("early-init-start-up");
-
+	write_marker("M - early-init-start-up");
+#ifdef LV_CODE
 	/* Trigger firmware loading parallelly */
 	trigger_firmware_loading(DRM_CARD_PATH);
 #ifdef EARLY_ETHERNET
@@ -656,7 +799,8 @@ int main(int argc, char* argv[])
 		perror("mount persist(mmcblk0p42) failed");
 	trigger_firmware_loading(VIDEO_CARD_PATH);
 #endif
-
+#endif
+	insert_audio_modules();
 	while (1) {
 
 		if (!fgets(line, sizeof(line), f)) {
@@ -677,6 +821,63 @@ int main(int argc, char* argv[])
 	}
 out:
 	fclose(f);
-	write_marker("early-init-exit");
+	write_marker("M - early-init-exit");
+
+	return 0;
+}
+
+int main(int argc, char* argv[])
+{
+	int pid = 0;
+	char *android_init_argv[2];
+#ifndef TEMP_SOLUTION
+	int ret;
+	struct stat st = {0};
+#endif
+
+#ifdef DEBUG
+	printf("Welcome to Early Userspace solution\n");
+#endif
+	pid = fork();
+	if (pid < 0) {
+		printf("Fork failed\n");
+		exit(-1);
+	} else if (0 == pid) { //child process
+		early_init();
+	} else {
+	#ifndef TEMP_SOLUTION
+		/* Final solution */
+		/* Mount system partition */
+		/* TODO: Do not hard code dev node, sda6 is system  partition */
+		ret = mount("/dev/sda6", "/system", "ext4", MS_RDONLY, NULL); //sda6 is system partition
+		if (ret < 0) {
+			perror("Mount system partition failed");
+			if (stat("/system", &st) == -1) {
+				printf("/system directory doesn't exist\r\n");
+			}
+			if (stat("/dev/sda6", &st) == -1) {
+				printf("/dev/sda6 doesn't exist \r\n");
+			}
+		} else {
+			printf("system partition mounted\r\n");
+		}
+
+		/* Chroot to system */
+		ret = chroot("/system");
+		if (ret < 0) {
+			perror("chroot to /system failed");
+		} else {
+			printf("chroot to /system successful\r\n");
+		}
+
+		/* Exec Android init */
+	#endif
+		printf("Start Android init \r\n");
+
+		android_init_argv[0] = "/init";
+		android_init_argv[1] = NULL;
+		execv("/init",android_init_argv);
+		printf("exec failed\n");
+	}
 	return 0;
 }
