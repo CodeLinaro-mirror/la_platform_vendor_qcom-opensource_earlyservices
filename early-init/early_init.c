@@ -745,7 +745,10 @@ int early_init(void)
 
 	/* Mount early_services partition */
 	/* TODO: Do not hard code dev node, sde54 is early_services_a partition */
-	ret = mount("/dev/sde54", "/early_services", "ext4", MS_RDONLY, NULL);
+	if (0 == access("/dev/sde54", F_OK))
+		ret = mount("/dev/sde54", "/early_services", "ext4", MS_RDONLY, NULL);
+	else
+		ret = mount("/dev/mmcblk0p66", "/early_services", "ext4", MS_RDONLY, NULL);
 	if (ret < 0) {
 		perror("Mount early_serviecs partition failed");
 		if (stat("/early_services", &st) == -1) {
