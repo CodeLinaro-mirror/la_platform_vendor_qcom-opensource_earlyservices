@@ -44,6 +44,9 @@
 #include <fcntl.h>
 #include <sched.h>
 #include <errno.h>
+#include <signal.h>
+#include <sys/wait.h>
+#include <time.h>
 
 #define DEFAULT_CONF            "/etc/early_init.conf"
 #define END_TAG                 "<end>"
@@ -62,7 +65,7 @@
 #define STR_EXPAND(tok) #tok
 #define TO_STRING(tok) STR_EXPAND(tok)
 
-static struct {
+static struct appinfo {
   char* appname;
   char* cmd;
   char* applog;
@@ -78,6 +81,9 @@ static struct {
   char* username;
   char* wait;
 } app_launcher;
+
+static int list;
+static struct appinfo **wlist_app;
 
 #define BIT_SET(p,n) ((p) & (1 << (n)))
 #define uid_is_valid(uid) ((uid != (uid_t) UINT32_C(0xFFFFFFFF)) && \
@@ -412,6 +418,64 @@ static void inline app_launcher_start_over(void)
 	return;
 }
 
+static void inline app_launcher_dup(struct appinfo *dup)
+{
+	int i = 0;
+
+	if (app_launcher.appname) {
+		dup->appname = strdup(app_launcher.appname);
+	}
+	if (app_launcher.cmd) {
+		dup->cmd = strdup(app_launcher.cmd);
+	}
+	if (app_launcher.applog) {
+		dup->applog = strdup(app_launcher.applog);
+	}
+	if (app_launcher.gpio) {
+		dup->gpio = strdup(app_launcher.gpio);
+	}
+	if (app_launcher.pidfile) {
+		dup->pidfile = strdup(app_launcher.pidfile);
+	}
+	if (app_launcher.wait) {
+		dup->wait = strdup(app_launcher.wait);
+	}
+	if (app_launcher.username) {
+		dup->username = strdup(app_launcher.username);
+	}
+	if (app_launcher.usleep > 0) {
+		dup->usleep = app_launcher.usleep;
+	}
+
+	if (app_launcher.argv_used > 0) {
+		for (i = 0; i < app_launcher.argv_used; i++) {
+			dup->argv[i] = strdup(app_launcher.argv[i]);
+		}
+	}
+
+	if (app_launcher.env_used > 0) {
+		for (i = 0; i < app_launcher.env_used; i++) {
+			dup->env[i] = strdup(app_launcher.env[i]);
+		}
+	}
+
+	if (app_launcher.argv_used > 0) {
+		dup->argv_used = app_launcher.argv_used;
+	}
+	if (app_launcher.env_used > 0) {
+		dup->env_used = app_launcher.env_used;
+	}
+	if (app_launcher.bindcpumask != 0) {
+		dup->bindcpumask = app_launcher.bindcpumask;
+	}
+	if (app_launcher.priority > 0) {
+		dup->priority = app_launcher.priority;
+	}
+	dup->env[dup->env_used++] = DEFAULT_PATH; //set DEFAULT_PATH as static env[0] path for all ES app's
+
+	return;
+}
+
 /*
  * Remove redundant whitespace
  */
@@ -521,6 +585,15 @@ static inline int parse_line(char* p)
 			if (0 == strncmp(p + 1, "ser", strlen("ser")) && 0 == find_rvalue(&p)) {
 				app_launcher.username = strdup(p);
 				printf("username is %s \r\n", app_launcher.username);
+			}
+			break;
+		case 'r':
+			if (0 == strncmp(p + 1, "estart", strlen("estart")) && 0 == find_rvalue(&p)) {
+				if (0 == strncmp(p, "true", strlen("true"))) {
+					wlist_app = (struct appinfo **)realloc(wlist_app, (list + 1) * sizeof(struct appinfo *));
+					wlist_app[list] = (struct appinfo *)malloc(sizeof(struct appinfo));
+					app_launcher_dup(wlist_app[list++]);
+				}
 			}
 			break;
 		case '<':/* end */
@@ -732,11 +805,164 @@ static void insert_audio_modules(void)
 	return;
 }
 
+static void sigchild_handler(int sig, siginfo_t *siginfo, void *context)
+{
+	int i = 0, fd = 0, pid = 0, ret = 0;
+	char pid_str[10] = {0};
+	static char marker[50] = {0};
+	time_t now = time(NULL);
+	struct tm *t = localtime(&now);
+	char timestr[10] = {0};
+
+	if (list == 0) {
+		return;
+	}
+
+	for(i = 0; i < list; i++) {
+		if (!wlist_app[i]->pidfile) {
+			continue;
+		}
+
+		fd = open(wlist_app[i]->pidfile, O_RDONLY);
+		if(fd < 0) {
+			perror("open");
+		}
+		ret = read(fd, pid_str, 10);
+		if(ret < 0) {
+			perror("read");
+		}
+		safe_close(fd);
+		pid = atoi(pid_str);
+
+		if(siginfo->si_pid == pid) {
+			printf("Child of pid %d terminated; Restarting it...\n", siginfo->si_pid);
+
+			pid = fork();
+
+			if (pid < 0) {
+				perror("fork child process failed \r\n");
+			} else if (0 == pid) {
+				if (wlist_app[i]->applog) {
+					strftime(timestr, sizeof(timestr)-1, "%H%M%S", t);
+					strlcat(wlist_app[i]->applog, timestr, 6);
+					fd = open(wlist_app[i]->applog, O_RDWR | O_CREAT, 0666);
+					if (fd > 0) {
+						dup2(fd, fileno(stdout));
+						dup2(fd, fileno(stderr));
+						safe_close(fd);
+						safe_close(fd);
+					}
+				}
+
+				if (wlist_app[i]->bindcpumask != -1) {
+					cpu_set_t mask;
+					CPU_ZERO(&mask);
+					for (i = 0; i < 4; i++) {
+						if (BIT_SET(wlist_app[i]->bindcpumask, i))
+							CPU_SET(i, &mask);
+					}
+					if (0 != sched_setaffinity(0, sizeof(mask), &mask))
+						printf("sched_setaffinity failed %d %s\r\n", wlist_app[i]->bindcpumask, strerror(errno));
+				}
+
+				if (wlist_app[i]->priority > 0) {
+					struct sched_param sp;
+					memset( &sp, 0, sizeof(sp) );
+					sp.sched_priority = wlist_app[i]->priority;
+					if (0 != sched_setscheduler( 0, SCHED_FIFO, &sp))
+						printf("sched_setparam failed %d %s\r\n", wlist_app[i]->priority, strerror(errno));
+				}
+
+				if (wlist_app[i]->gpio) {
+					fd = open(GPIO_EXPORT, O_WRONLY);
+					if (fd < 0) {
+						perror("open gpio export node failed \r\n");
+					} else {
+						if (-1 == write(fd, wlist_app[i]->gpio,strlen(wlist_app[i]->gpio))) {
+							printf("config gpio to %s failed: %s\n", wlist_app[i]->gpio, strerror(errno));
+						}
+					}
+					safe_close(fd);
+				}
+
+				memset(pid_str, 0, 10);
+				if (wlist_app[i]->pidfile) {
+					remove(wlist_app[i]->pidfile);
+					snprintf(pid_str, 10, "%d" ,getpid());
+
+					fd = open(wlist_app[i]->pidfile, O_CREAT | O_RDWR, 0666);
+					if(fd < 0) {
+						perror("open");
+					}
+					if (-1 == write(fd, pid_str, 10)) {
+						printf("write pidfile %s failed: %s\n", wlist_app[i]->pidfile, strerror(errno));
+					}
+					safe_close(fd);
+#ifdef DEBUG
+					memset(pid_str, 0, 10);
+					fd = open(wlist_app[i]->pidfile, O_RDONLY);
+					if(fd < 0) {
+						perror("open");
+					}
+					ret = read(fd, pid_str, 10);
+					if(ret < 0) {
+						perror("read");
+					}
+					printf("changed pid %s\n", pid_str);
+					safe_close(fd);
+#endif
+				}
+
+				/*
+				 * Wait for early_driver
+				 */
+				if (wlist_app[i]->wait) {
+					printf("app %s waiting for %s ...\r\n", wlist_app[i]->appname, wlist_app[i]->wait);
+					//					for (i = 0; i < 30; i++) {
+					while(1) { /* TODO: find a finite value for wait */
+						if (-1 != access(wlist_app[i]->wait, F_OK)){
+							break;
+						}
+						usleep(5000);
+					}
+				}
+
+				wlist_app[i]->argv[wlist_app[i]->argv_used] = NULL;
+				wlist_app[i]->env[wlist_app[i]->env_used] = NULL;
+
+				//	write_smack_label(SMACK_LABEL);
+
+				if (wlist_app[i]->username) {
+					enforce_user(wlist_app[i]->username);
+				}
+				memset(marker, 0, 50);
+				snprintf(marker, 49 ,"M - Relaunch %s app", wlist_app[i]->appname);
+				write_marker(marker);
+
+				if (wlist_app[i]->cmd) {
+					ret = execvpe(wlist_app[i]->cmd, wlist_app[i]->argv, wlist_app[i]->env);
+					if(ret < 0) {
+						printf("App launch failed %s \r\n", wlist_app[i]->appname);
+						memset(marker, 0, 50);
+						snprintf(marker, 49 ,"M - Relaunch %s app failed", wlist_app[i]->appname);
+						write_marker(marker);
+					}
+				}
+				printf("Restarted %s \r\n", wlist_app[i]->appname);
+				exit(0);
+			}
+			break;
+		}
+	}
+}
+
+
 int early_init(void)
 {
 	FILE* f;
 	char line[LINE_MAX];
 	int fd;
+	struct sigaction sig;
 #ifdef TEMP_SOLUTION
 	int ret;
 	struct stat st = {0};
@@ -826,6 +1052,20 @@ int early_init(void)
 out:
 	fclose(f);
 	write_marker("M - early-init-exit");
+
+	sig.sa_sigaction = &sigchild_handler;
+	sig.sa_flags = SA_SIGINFO;
+	if(sigaction(SIGCHLD, &sig, NULL) < 0) {
+		perror("sigaction");
+	}
+
+	while (1) {
+		ret = wait(NULL);
+		if(ret < 0) {
+			perror("wait");
+			break;
+		}
+	}
 
 	return 0;
 }
