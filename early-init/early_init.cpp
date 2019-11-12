@@ -427,7 +427,7 @@ static void inline app_launcher_start_over(void)
   for (i = 0; i < app_launcher.argv_used; i++)
     safe_free(&app_launcher.argv[i]);
 
-  for (i = 0; i < app_launcher.env_used; i++)
+  for (i = 1; i < app_launcher.env_used; i++)
     safe_free(&app_launcher.env[i]);
 
   app_launcher.argv_used = 0;
