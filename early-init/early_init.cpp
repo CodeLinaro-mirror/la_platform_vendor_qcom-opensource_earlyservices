@@ -876,6 +876,9 @@ int early_init(const char* stage)
   sehandle = selinux_android_file_context_handle();
   selinux_android_set_sehandle(sehandle);
   //insert_audio_modules();
+  /* Create ais_server socket dir and camera data dir */
+  mkdir("/early_services/dev/socket", 0775);
+  mkdir("/early_services/dev/socket/camera", 0775);
   while (1) {
        if (!fgets(line, sizeof(line), f)) {
            if (feof(f))
