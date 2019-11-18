@@ -828,7 +828,7 @@ int early_init(const char* stage)
       write_marker("M - EarlyInit FirstStage Start");
       mount("sysfs", "/sys", "sysfs", 0, NULL);
       mount("selinuxfs", "/sys/fs/selinux", "selinuxfs", 0, NULL);
-      mount("tmpfs", "/dev", "tmpfs", MS_NOSUID, "mode=0755");
+      mount("devtmpfs", "/early_services/dev", "devtmpfs", MS_NOSUID, "mode=0755");
       mknod("/dev/kmsg", S_IFCHR | 0600, makedev(1, 11));
       android::earlyinit::InitKernelLogging(NULL);
       LOG(INFO) << "ES : Logging enabled at early-services!";
