@@ -407,6 +407,7 @@ static void inline app_launcher_start_over(void)
 	app_launcher.env_used = 0;
 	app_launcher.bindcpumask = -1;
 	app_launcher.priority = -1;
+	app_launcher.env[app_launcher.env_used++] = DEFAULT_PATH; //set DEFAULT_PATH as static env[0] path for all ES app's
 
 	return;
 }
@@ -456,56 +457,56 @@ static inline int parse_line(char* p)
 			if (0 == strncmp(p + 1, "md", strlen("md")) && 0 == find_rvalue(&p)) {
 				app_launcher.cmd = strdup(p);
 				app_launcher.argv[app_launcher.argv_used] = strdup(p);
-				printf("argv[%d] is %s ", app_launcher.argv_used, p);
+				printf("argv[%d] is %s \r\n", app_launcher.argv_used, p);
 				app_launcher.argv_used++;
 			}
 			break;
 		case 'e':/* env */
 			if (0 == strncmp(p + 1, "nv", strlen("nv")) && 0 == find_rvalue(&p) && app_launcher.env_used < 31) {
 				app_launcher.env[app_launcher.env_used] = strdup(p);
-				printf("env[%d] is %s ", app_launcher.env_used, p);
+				printf("env[%d] is %s \r\n", app_launcher.env_used, p);
 				app_launcher.env_used++;
 			}
 			break;
 		case 'a':/* argv */
 			if (0 == strncmp(p + 1, "rgv", strlen("rgv")) && 0 == find_rvalue(&p) && app_launcher.argv_used < 31) {
 				app_launcher.argv[app_launcher.argv_used] = strdup(p);
-				printf("argv[%d] is %s ", app_launcher.argv_used, p);
+				printf("argv[%d] is %s \r\n", app_launcher.argv_used, p);
 				app_launcher.argv_used++;
 			}
 			break;
 		case 'l':/* applog */
 			if (0 == strncmp(p + 1, "og", strlen("og")) && 0 == find_rvalue(&p)) {
 				app_launcher.applog = strdup(p);
-				printf("applog is %s", app_launcher.applog);
+				printf("applog is %s \r\n", app_launcher.applog);
 			}
 			break;
 		case 'g':/* gpio */
 			if (0 == strncmp(p + 1, "pio", strlen("pio")) && 0 == find_rvalue(&p)) {
 				app_launcher.gpio = strdup(p);
-				printf("gpio is %s", app_launcher.gpio);
+				printf("gpio is %s \r\n", app_launcher.gpio);
 			}
 			break;
 		case 'w':/* wait */
 			if (0 == strncmp(p + 1, "ait", strlen("ait")) && 0 == find_rvalue(&p)) {
 				app_launcher.wait = strdup(p);
-				printf("wait is %s", app_launcher.wait);
+				printf("wait is %s \r\n", app_launcher.wait);
 			}
 			break;
 		case 'p':/* pidfile */
 			if (0 == strncmp(p + 1, "idfile", strlen("idfile")) && 0 == find_rvalue(&p)) {
 				app_launcher.pidfile = strdup(p);
-				printf("pidfile is %s", app_launcher.pidfile);
+				printf("pidfile is %s \r\n", app_launcher.pidfile);
 			}
 			if (0 == strncmp(p + 1, "riority", strlen("riority")) && 0 == find_rvalue(&p)) {
 				app_launcher.priority = atoi(p);
-				printf("priority is %d", app_launcher.priority);
+				printf("priority is %d \r\n", app_launcher.priority);
 			}
 			break;
 		case 'm':/* msleep */
 			if (0 == strncmp(p + 1, "sleep", strlen("sleep")) && 0 == find_rvalue(&p)) {
 				app_launcher.usleep = atoi(p) * 1000;
-				printf("usleep is %d", app_launcher.usleep);
+				printf("usleep is %d \r\n", app_launcher.usleep);
 			}
 			break;
 		case 'b':/* bindcpumask */
@@ -519,7 +520,7 @@ static inline int parse_line(char* p)
 		case 'u':
 			if (0 == strncmp(p + 1, "ser", strlen("ser")) && 0 == find_rvalue(&p)) {
 				app_launcher.username = strdup(p);
-				printf("username is %s", app_launcher.username);
+				printf("username is %s \r\n", app_launcher.username);
 			}
 			break;
 		case '<':/* end */
@@ -620,7 +621,7 @@ static inline int parse_line(char* p)
 				write_marker(marker);
 
 				if (app_launcher.cmd) {
-					ret = execvp(app_launcher.cmd, app_launcher.argv); /* TODO: change to execvpe */
+					ret = execvpe(app_launcher.cmd,app_launcher.argv,app_launcher.env);
 					if(ret < 0) {
 						printf("App launch failed %s \r\n", app_launcher.appname);
 						memset(marker, 0, 50);
