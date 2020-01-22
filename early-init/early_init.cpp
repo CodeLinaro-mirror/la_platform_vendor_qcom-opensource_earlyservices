@@ -48,7 +48,7 @@
 #include <stdarg.h>
 #include <sys/un.h>
 #include <android-base/file.h>
-
+#include <private/android_filesystem_config.h>
 
 #ifdef EARLYINIT_DEBUG
 #include <dirent.h>
@@ -780,6 +780,22 @@ bool IsEnforcing() {
 #define SECOND_STAGE "1"
 #define FIRST_STAGE  "0"
 
+void set_permissions(char *path, int permissions, int user, int group, char *context){
+  int ret;
+  ret = chmod(path, permissions);
+  if(ret){
+    LOG(INFO) << "ES: chmod failed for " << path << " errno: " << errno;
+  }
+  ret = chown(path, user, group);
+  if(ret){
+    LOG(INFO) << "ES: chown failed for " << path << " errno: " << errno;
+  }
+  ret = setfilecon(path, context);
+  if(ret){
+    LOG(INFO) << "ES: setfilecon failed for " << path << " errno: " << errno;
+  }
+}
+
 int early_init(const char* stage)
 {
   FILE* f;
@@ -867,6 +883,12 @@ int early_init(const char* stage)
   android::earlyinit::InitKernelLogging(NULL);
   LOG(INFO) << "ES : In Second Stage!";
   write_marker("M - Second Stage Start");
+
+  set_permissions("/early_services/dev/dri/card3", 0666, AID_ROOT, AID_GRAPHICS, "u:object_r:graphics_device:s0");
+  set_permissions("/dev/kmsg", 0620, AID_ROOT, AID_SYSTEM, "u:object_r:kmsg_device:s0");
+  set_permissions("/dev/null", 0666, AID_ROOT, AID_ROOT, "u:object_r:null_device:s0");
+  set_permissions("/dev/urandom", 0666, AID_ROOT, AID_ROOT, "u:object_r:random_device:s0");
+
   f = fopen("/early_services/etc/early_init.conf", "re");
   if (f == NULL) {
       perror("open early_init.conf failed.\r\n");
