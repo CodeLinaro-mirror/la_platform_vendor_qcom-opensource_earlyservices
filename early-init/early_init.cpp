@@ -886,9 +886,27 @@ int early_init(const char* stage)
   android::earlyinit::InitKernelLogging(NULL);
   LOG(INFO) << "ES : In Second Stage!";
 
+  /* Create ais_server socket dir and camera data dir */
+  mkdir("/early_services/dev/socket", 0775);
+  mkdir("/early_services/dev/socket/camera", 0775);
   set_permissions("/early_services/dev/dri/card3", 0666, AID_ROOT, AID_GRAPHICS, "u:object_r:graphics_device:s0");
+  set_permissions("/early_services/dev/dri/card2", 0666, AID_ROOT, AID_GRAPHICS, "u:object_r:graphics_device:s0");
   set_permissions("/dev/null", 0666, AID_ROOT, AID_ROOT, "u:object_r:null_device:s0");
   set_permissions("/dev/urandom", 0666, AID_ROOT, AID_ROOT, "u:object_r:random_device:s0");
+  set_permissions("/early_services/dev/media0", 0660, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
+  set_permissions("/early_services/dev/media1", 0660, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
+  set_permissions("/early_services/dev/video0", 0660, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
+  set_permissions("/early_services/dev/video1", 0660, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
+  set_permissions("/early_services/dev/v4l-subdev1", 0660, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
+  set_permissions("/early_services/dev/v4l-subdev3", 0660, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
+  set_permissions("/early_services/dev/v4l-subdev4", 0660, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
+  set_permissions("/early_services/dev/v4l-subdev5", 0660, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
+  set_permissions("/early_services/dev/v4l-subdev6", 0660, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
+  set_permissions("/early_services/dev/v4l-subdev7", 0660, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
+  set_permissions("/early_services/dev/v4l-subdev8", 0660, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
+  set_permissions("/early_services/dev/socket/camera", 0775, AID_ROOT, AID_CAMERA, "u:object_r:camera_socket_device:s0");
+  set_permissions("/early_services/dev/ion", 0664, AID_ROOT, AID_SYSTEM, "u:object_r:ion_device:s0");
+  set_permissions("/early_services/dev/kgsl-3d0", 0664, AID_ROOT, AID_SYSTEM, "u:object_r:gpu_device:s0");
 
   f = fopen("/early_services/etc/early_init.conf", "re");
   if (f == NULL) {
@@ -899,9 +917,6 @@ int early_init(const char* stage)
   sehandle = selinux_android_file_context_handle();
   selinux_android_set_sehandle(sehandle);
   //insert_audio_modules();
-  /* Create ais_server socket dir and camera data dir */
-  mkdir("/early_services/dev/socket", 0775);
-  mkdir("/early_services/dev/socket/camera", 0775);
   while (1) {
        if (!fgets(line, sizeof(line), f)) {
            if (feof(f))
