@@ -880,12 +880,13 @@ int early_init(const char* stage)
       trigger_firmware_loading(VIDEO_CARD_PATH);
 #endif
 #endif
+  write_marker("M - Second Stage Start");
+  mknod("/dev/sedone", S_IFREG | 0400, makedev(0,0));
+  set_permissions("/dev/kmsg", 0620, AID_ROOT, AID_SYSTEM, "u:object_r:kmsg_device:s0");
   android::earlyinit::InitKernelLogging(NULL);
   LOG(INFO) << "ES : In Second Stage!";
-  write_marker("M - Second Stage Start");
 
   set_permissions("/early_services/dev/dri/card3", 0666, AID_ROOT, AID_GRAPHICS, "u:object_r:graphics_device:s0");
-  set_permissions("/dev/kmsg", 0620, AID_ROOT, AID_SYSTEM, "u:object_r:kmsg_device:s0");
   set_permissions("/dev/null", 0666, AID_ROOT, AID_ROOT, "u:object_r:null_device:s0");
   set_permissions("/dev/urandom", 0666, AID_ROOT, AID_ROOT, "u:object_r:random_device:s0");
 
