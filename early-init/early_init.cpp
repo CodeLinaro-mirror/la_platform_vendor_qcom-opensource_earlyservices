@@ -171,7 +171,7 @@ static inline void mkdirs(char* p, mode_t mode)
 
   strlcpy(str, p, sizeof(str));
 
-  if (str[0] != '/')
+  if (len <= 0 || str[0] != '/')
     return;
 
   if (str[len - 1] == '/') {
@@ -360,6 +360,7 @@ static void inline enforce_user(char* username)
   pw = getpwnam(username);
   if (!pw) {
     perror("username is not exist\r\n");
+    return;
   }
   // Should set group first
   printf("gid is %d", pw->pw_gid);
