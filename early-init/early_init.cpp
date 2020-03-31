@@ -906,6 +906,7 @@ int early_init(const char* stage)
   set_permissions("/early_services/dev/v4l-subdev7", 0660, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
   set_permissions("/early_services/dev/v4l-subdev8", 0660, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
   set_permissions("/early_services/dev/socket/camera", 0775, AID_ROOT, AID_CAMERA, "u:object_r:camera_socket_device:s0");
+  selinux_android_restorecon("/early_services/dev/socket/camera", SELINUX_ANDROID_RESTORECON_RECURSE);
   set_permissions("/early_services/dev/ion", 0664, AID_ROOT, AID_SYSTEM, "u:object_r:ion_device:s0");
   set_permissions("/early_services/dev/kgsl-3d0", 0664, AID_ROOT, AID_SYSTEM, "u:object_r:gpu_device:s0");
 
