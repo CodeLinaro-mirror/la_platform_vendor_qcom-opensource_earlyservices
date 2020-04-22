@@ -478,7 +478,6 @@ static inline int parse_line(char* p)
         *t = '\0';
         p++;
         app_launcher.appname= strdup(p);
-        printf("appname is %s \r\n", app_launcher.appname);
       }
       break;
     case 'c':/* cmd */
@@ -506,25 +505,21 @@ static inline int parse_line(char* p)
     case 'l':/* applog */
       if (0 == strncmp(p + 1, "og", strlen("og")) && 0 == find_rvalue(&p)) {
         app_launcher.applog = strdup(p);
-        printf("applog is %s \r\n", app_launcher.applog);
       }
       break;
     case 'g':/* gpio */
       if (0 == strncmp(p + 1, "pio", strlen("pio")) && 0 == find_rvalue(&p)) {
         app_launcher.gpio = strdup(p);
-        printf("gpio is %s \r\n", app_launcher.gpio);
       }
       break;
     case 'w':/* wait */
       if (0 == strncmp(p + 1, "ait", strlen("ait")) && 0 == find_rvalue(&p)) {
         app_launcher.wait = strdup(p);
-        printf("wait is %s \r\n", app_launcher.wait);
       }
       break;
     case 'p':/* pidfile */
       if (0 == strncmp(p + 1, "idfile", strlen("idfile")) && 0 == find_rvalue(&p)) {
         app_launcher.pidfile = strdup(p);
-        printf("pidfile is %s \r\n", app_launcher.pidfile);
       }
       if (0 == strncmp(p + 1, "riority", strlen("riority")) && 0 == find_rvalue(&p)) {
         app_launcher.priority = atoi(p);
@@ -548,7 +543,6 @@ static inline int parse_line(char* p)
     case 'u':
       if (0 == strncmp(p + 1, "ser", strlen("ser")) && 0 == find_rvalue(&p)) {
         app_launcher.username = strdup(p);
-        printf("username is %s \r\n", app_launcher.username);
       }
       break;
     case '<':/* end */
