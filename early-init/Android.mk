@@ -10,7 +10,8 @@ LOCAL_MODULE := init_early
 LOCAL_STATIC_LIBRARIES := libc++_static
 LOCAL_FORCE_STATIC_EXECUTABLE := true
 LOCAL_MODULE_PATH := $(PRODUCT_OUT)/early_services
-LOCAL_POST_INSTALL_CMD := $(hide) mkdir -p $(TARGET_ROOT_OUT)/early_services;
+LOCAL_POST_INSTALL_CMD := $(hide) mkdir -p $(TARGET_ROOT_OUT)/early_services; \
+                          mkdir -p $(TARGET_RAMDISK_OUT)/early_services;
 LOCAL_STATIC_LIBRARIES := \
      libbase \
      libseccomp_policy \
@@ -29,6 +30,8 @@ LOCAL_MODULE := init_early_test
 LOCAL_SRC_FILES := test.c
 LOCAL_MODULE_CLASS = ETC
 LOCAL_MODULE_PATH := $(PRODUCT_OUT)/early_services/system/bin
+LOCAL_FORCE_STATIC_EXECUTABLE := true
+
 include $(BUILD_EXECUTABLE)
 
 include $(CLEAR_VARS)
