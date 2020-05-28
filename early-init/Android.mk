@@ -9,8 +9,8 @@ LOCAL_SRC_FILES:= early_init.cpp \
 LOCAL_MODULE := init_early
 LOCAL_STATIC_LIBRARIES := libc++_static
 LOCAL_FORCE_STATIC_EXECUTABLE := true
-LOCAL_MODULE_PATH := $(PRODUCT_OUT)/early_services
-LOCAL_POST_INSTALL_CMD := $(hide) mkdir -p $(TARGET_ROOT_OUT)/early_services;
+LOCAL_MODULE_PATH := $(TARGET_OUT_EARLY_SERVICES)
+LOCAL_POST_INSTALL_CMD := mkdir -p $(TARGET_ROOT_OUT)/$(TARGET_COPY_OUT_EARLY_SERVICES);
 ifneq ($(BOARD_BUILD_SYSTEM_ROOT_IMAGE),true)
   LOCAL_POST_INSTALL_CMD += mkdir -p $(TARGET_RAMDISK_OUT)/early_services;
 endif
@@ -53,7 +53,7 @@ LOCAL_LDFLAGS := -Wl,-rpath,'/early_services/system/lib64' -Wl,--dynamic-linker,
 LOCAL_MODULE := init_early_test
 LOCAL_SRC_FILES := test.c
 LOCAL_MODULE_CLASS = ETC
-LOCAL_MODULE_PATH := $(PRODUCT_OUT)/early_services/system/bin
+LOCAL_MODULE_PATH := $(TARGET_OUT_EARLY_SERVICES)/system/bin
 include $(BUILD_EXECUTABLE)
 
 include $(CLEAR_VARS)
@@ -61,7 +61,7 @@ LOCAL_MODULE_TAGS := optional
 LOCAL_MODULE := early_init.conf
 LOCAL_SRC_FILES := $(LOCAL_MODULE)
 LOCAL_MODULE_CLASS = ETC
-LOCAL_MODULE_PATH := $(PRODUCT_OUT)/early_services/etc
+LOCAL_MODULE_PATH := $(TARGET_OUT_EARLY_SERVICES)/etc
 #Prepare Early Rootfs structure
 LOCAL_POST_INSTALL_CMD := $(hide) mkdir -p $(LOCAL_MODULE_PATH)/../sbin; \
 			mkdir -p $(LOCAL_MODULE_PATH)/../system/bin; \
@@ -90,6 +90,6 @@ LOCAL_MODULE_TAGS := optional
 LOCAL_MODULE := early_init_eth.conf
 LOCAL_SRC_FILES := $(LOCAL_MODULE)
 LOCAL_MODULE_CLASS = ETC
-LOCAL_MODULE_PATH := $(PRODUCT_OUT)/early_services/etc
+LOCAL_MODULE_PATH := $(TARGET_OUT_EARLY_SERVICES)/etc
 include $(BUILD_PREBUILT)
 
