@@ -791,6 +791,34 @@ void set_permissions(char *path, int permissions, int user, int group, char *con
   }
 }
 
+#ifdef EARLYINIT_DEBUG
+int listDir(char *dirName)
+{
+       DIR* dir;
+       struct dirent *dirEntry;
+       struct stat inode;
+       char name[1000];
+       dir = opendir(dirName);
+       freopen("/dev/kmsg", "w", stdout);
+       if (dir == 0) {
+       perror ("Open failed");
+       return -1;
+       }
+       while ((dirEntry=readdir(dir)) != 0) {
+       snprintf(name,sizeof(name),"%s/%s",dirName,dirEntry->d_name);
+       lstat (name, &inode);
+       if (S_ISDIR(inode.st_mode))
+       printf("dir: ");
+       else if (S_ISREG(inode.st_mode))
+               printf ("file: ");
+       else if (S_ISLNK(inode.st_mode))
+               printf ("lnk: ");
+       else;
+       }
+return 0;
+}
+#endif
+
 int early_init(const char* stage)
 {
   FILE* f;
@@ -833,7 +861,6 @@ int early_init(const char* stage)
   if (strcmp(stage, FIRST_STAGE) == 0) {
       prepare_dir("sysfs");
       prepare_dir("debugfs");
-      prepare_dir("xdg_runtime_dir");
       prepare_dir("shm");
       prepare_dir("procfs");
       write_marker("M - EarlyInit FirstStage Start");
