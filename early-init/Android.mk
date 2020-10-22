@@ -28,13 +28,11 @@ include $(BUILD_EXECUTABLE)
 include $(CLEAR_VARS)
 #To be removed later
 LOCAL_MODULE_TAGS := optional
+LOCAL_LDFLAGS := -Wl,-rpath,'/early_services/system/lib64' -Wl,--dynamic-linker,/early_services/system/bin/bootstrap/linker64
 LOCAL_MODULE := init_early_test
 LOCAL_SRC_FILES := test.c
 LOCAL_MODULE_CLASS = ETC
 LOCAL_MODULE_PATH := $(PRODUCT_OUT)/early_services/system/bin
-ifneq ($(BOARD_BUILD_SYSTEM_ROOT_IMAGE),true)
-  LOCAL_FORCE_STATIC_EXECUTABLE := true
-endif
 include $(BUILD_EXECUTABLE)
 
 include $(CLEAR_VARS)

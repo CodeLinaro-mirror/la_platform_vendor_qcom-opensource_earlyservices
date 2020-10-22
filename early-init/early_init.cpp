@@ -89,6 +89,9 @@
 
 enum EnforcingStatus { SELINUX_PERMISSIVE, SELINUX_ENFORCING };
 
+  char   chipId[32]  = { 0 };
+  char   platformId[32]  = { 0 };
+
 static struct {
   char* appname;
   char* cmd;
@@ -819,6 +822,32 @@ return 0;
 }
 #endif
 
+int getSysInfo(char * fileName, char * strName) {
+  int fd,ret;
+
+  fd = open(fileName, O_RDONLY);
+
+  if (fd > 0)
+  {
+      ret = read(fd, strName, sizeof(strName) - 1);
+      if (-1 == ret)
+      {
+        perror("read getSysInfo failed.\r\n");
+        return -1;
+      }
+      close(fd);
+      if(ret > 3)
+        fd = open("/early_services/dev/socket/camera/soc_id", O_RDWR | O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+      else
+        fd = open("/early_services/dev/socket/camera/platform_subtype_id", O_RDWR | O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+
+      write(fd,strName, strlen(strName) -1 );
+      close(fd);
+  }
+
+  return 0;
+}
+
 int early_init(const char* stage)
 {
   FILE* f;
@@ -911,6 +940,10 @@ int early_init(const char* stage)
   /* Create ais_server socket dir and camera data dir */
   mkdir("/early_services/dev/socket", 0775);
   mkdir("/early_services/dev/socket/camera", 0775);
+
+  getSysInfo("/sys/devices/soc0/soc_id",chipId);
+  getSysInfo("/sys/devices/soc0/platform_subtype_id",platformId);
+
   set_permissions("/early_services/dev/dri/card3", 0666, AID_ROOT, AID_GRAPHICS, "u:object_r:graphics_device:s0");
   set_permissions("/early_services/dev/dri/card2", 0666, AID_ROOT, AID_GRAPHICS, "u:object_r:graphics_device:s0");
   set_permissions("/dev/null", 0666, AID_ROOT, AID_ROOT, "u:object_r:null_device:s0");
@@ -920,12 +953,15 @@ int early_init(const char* stage)
   set_permissions("/early_services/dev/video0", 0660, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
   set_permissions("/early_services/dev/video1", 0660, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
   set_permissions("/early_services/dev/v4l-subdev1", 0660, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
+  set_permissions("/early_services/dev/v4l-subdev2", 0660, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
   set_permissions("/early_services/dev/v4l-subdev3", 0660, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
   set_permissions("/early_services/dev/v4l-subdev4", 0660, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
   set_permissions("/early_services/dev/v4l-subdev5", 0660, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
   set_permissions("/early_services/dev/v4l-subdev6", 0660, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
   set_permissions("/early_services/dev/v4l-subdev7", 0660, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
   set_permissions("/early_services/dev/v4l-subdev8", 0660, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
+  set_permissions("/early_services/dev/v4l-subdev9", 0660, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
+  set_permissions("/early_services/dev/v4l-subdev10", 0660, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
   set_permissions("/early_services/dev/socket/camera", 0775, AID_ROOT, AID_CAMERA, "u:object_r:camera_socket_device:s0");
   selinux_android_restorecon("/early_services/dev/socket/camera", SELINUX_ANDROID_RESTORECON_RECURSE);
   set_permissions("/early_services/dev/ion", 0664, AID_ROOT, AID_SYSTEM, "u:object_r:ion_device:s0");
