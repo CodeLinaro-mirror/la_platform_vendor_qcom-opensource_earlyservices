@@ -932,7 +932,6 @@ int early_init(const char* stage)
 #endif
 #endif
   write_marker("M - Second Stage Start");
-  mknod("/dev/sedone", S_IFREG | 0400, makedev(0,0));
   set_permissions("/dev/kmsg", 0620, AID_ROOT, AID_SYSTEM, "u:object_r:kmsg_device:s0");
   android::earlyinit::InitKernelLogging(NULL);
   LOG(INFO) << "ES : In Second Stage!";
@@ -1001,6 +1000,7 @@ int early_init(const char* stage)
 out:
   fclose(f);
   write_marker("M - early-init-exit");
+  mknod("/dev/sedone", S_IFREG | 0400, makedev(0,0));
   return 0;
 }
 
