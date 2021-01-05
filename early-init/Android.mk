@@ -25,6 +25,27 @@ LOCAL_STATIC_LIBRARIES := \
 LOCAL_CPPFLAGS := -std=c++17
 include $(BUILD_EXECUTABLE)
 
+
+include $(CLEAR_VARS)
+#To be removed later
+LOCAL_MODULE_TAGS := optional
+LOCAL_LDFLAGS := -Wl,-rpath,'/early_services/system/lib64' -Wl,--dynamic-linker,/early_services/system/bin/bootstrap/linker64
+LOCAL_MODULE := init_early_gpio_test
+LOCAL_SRC_FILES := test_gpio.c
+LOCAL_MODULE_CLASS = ETC
+LOCAL_MODULE_PATH := $(PRODUCT_OUT)/early_services/system/bin
+include $(BUILD_EXECUTABLE)
+
+include $(CLEAR_VARS)
+#To be removed later
+LOCAL_MODULE_TAGS := optional
+LOCAL_LDFLAGS := -Wl,-rpath,'/early_services/system/lib64' -Wl,--dynamic-linker,/early_services/system/bin/bootstrap/linker64
+LOCAL_MODULE := init_early_spi_test
+LOCAL_SRC_FILES := test_spi.c
+LOCAL_MODULE_CLASS = ETC
+LOCAL_MODULE_PATH := $(PRODUCT_OUT)/early_services/system/bin
+include $(BUILD_EXECUTABLE)
+
 include $(CLEAR_VARS)
 #To be removed later
 LOCAL_MODULE_TAGS := optional
