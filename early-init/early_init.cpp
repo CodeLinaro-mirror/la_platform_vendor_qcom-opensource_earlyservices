@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -937,6 +937,17 @@ int early_init(const char* stage)
   android::earlyinit::InitKernelLogging(NULL);
   LOG(INFO) << "ES : In Second Stage!";
 
+  fd = open("/sys/kernel/boot_adsp/boot", O_WRONLY);
+  freopen("/dev/kmsg", "w", stdout);
+  if (fd < 0) {
+      printf("open sys entry failed\n");
+  } else if(-1 == write(fd, "1", 1)) {
+      printf("Write to sys entry failed\n");
+  } else {
+      printf("ADSP firmware loading triggered\n");
+  }
+  close(fd);
+
   /* Create ais_server socket dir and camera data dir */
   mkdir("/early_services/dev/socket", 0775);
   mkdir("/early_services/dev/socket/camera", 0775);
@@ -975,6 +986,10 @@ int early_init(const char* stage)
   set_permissions("/early_services/dev/v4l-subdev0", 0660, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
   set_permissions("/early_services/dev/spidev1.0", 0666, AID_ROOT, AID_SYSTEM, "u:object_r:kmsg_device:s0");
   set_permissions("/dev/spidev1.0", 0666, AID_ROOT, AID_SYSTEM, "u:object_r:kmsg_device:s0");
+  set_permissions("/early_services/dev/spidev2.0", 0666, AID_ROOT, AID_SYSTEM, "u:object_r:kmsg_device:s0");
+  set_permissions("/dev/spidev2.0", 0666, AID_ROOT, AID_SYSTEM, "u:object_r:kmsg_device:s0");
+  set_permissions("/dev/snd", 0777, AID_ROOT, AID_AUDIO, "u:object_r:audio_device:s0");
+  set_permissions("/dev/snd/controlC0", 0666, AID_ROOT, AID_AUDIO, "u:object_r:audio_device:s0");
 
   f = fopen("/early_services/etc/early_init.conf", "re");
   if (f == NULL) {
