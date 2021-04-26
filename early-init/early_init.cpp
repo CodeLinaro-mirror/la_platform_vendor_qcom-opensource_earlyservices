@@ -49,6 +49,7 @@
 #include <sys/un.h>
 #include <android-base/file.h>
 #include <private/android_filesystem_config.h>
+#include <sys/sysinfo.h>
 
 #ifdef EARLYINIT_DEBUG
 #include <dirent.h>
@@ -578,7 +579,7 @@ static inline int parse_line(char* p)
         if (app_launcher.bindcpumask != -1) {
           cpu_set_t mask;
           CPU_ZERO(&mask);
-          for (int i = 0; i < 4; i++) {
+          for (int i = 0; i < get_nprocs_conf(); i++) {
             if (BIT_SET(app_launcher.bindcpumask, i))
               CPU_SET(i, &mask);
           }
