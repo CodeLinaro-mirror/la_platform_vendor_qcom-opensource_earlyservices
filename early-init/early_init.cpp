@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -59,14 +59,15 @@
 #define END_TAG                 "<end>"
 #define LINE_MAX                2048
 #define WHITESPACE              " \t\n\r"
-#define KPI_VALUE_PATH          "/sys/kernel/debug/bootkpi/kpi_values"
+#define KPI_VALUE_PATH          "/sys/kernel/boot_kpi/kpi_values"
 #define GPIO_EXPORT             "/sys/class/gpio/export"
 #define DRM_CARD_PATH           "/dev/dri/card0"
 #define VIDEO_CARD_PATH         "/dev/video32"
 #define AUDIO_FW_PATH           "/vendor/firmware_mnt"
 #define SMACK_LABEL_PATH        "/proc/self/attr/current"
 #define SMACK_LABEL             "System"
-#define  DEFAULT_PATH    "/sbin:/system/sbin:/system/bin:/system/xbin:/odm/bin:/vendor/bin:/vendor/xbin"
+#define DEFAULT_PATH    "/sbin:/usr/sbin:/bin:/usr/bin:/system/sbin:/system/bin:/system/xbin:/odm/bin:/vendor/bin:/vendor/xbin:early_services/sbin:early_services/system/sbin:early_services/system/bin:early_services/system/xbin:early_services/odm/bin:early_services/vendor/bin:early_services/vendor/xbin"
+
 
 #define STR_EXPAND(tok) #tok
 #define TO_STRING(tok) STR_EXPAND(tok)
@@ -87,6 +88,29 @@
 #include <android-base/logging.h>
 #include "log.h"
 #include <selinux/selinux.h>
+#include <sys/syscall.h>
+#include <sys/resource.h>
+#include <sys/time.h>
+
+#define init_module(module_image, len, param_values) syscall(__NR_init_module, module_image, len, param_values)
+#define finit_module(fd, param_values, flags) syscall(__NR_finit_module, fd, param_values, flags)
+#define NUM_MODULE 10
+
+char audio_modules[NUM_MODULE][64] = {
+"/early_services/vendor/lib/modules/snd_event_dlkm.ko",
+"/early_services/vendor/lib/modules/q6_notifier_dlkm.ko",
+"/early_services/vendor/lib/modules/apr_dlkm.ko",
+"/early_services/vendor/lib/modules/adsp_loader_dlkm.ko",
+"/early_services/vendor/lib/modules/q6_dlkm.ko",
+"/early_services/vendor/lib/modules/platform_dlkm.ko",
+"/early_services/vendor/lib/modules/native_dlkm.ko",
+"/early_services/vendor/lib/modules/stub_dlkm.ko",
+"/early_services/vendor/lib/modules/hdmi_dlkm.ko",
+"/early_services/vendor/lib/modules/machine_dlkm.ko"};
+
+static inline bool is_empty_line(const char* p);
+static inline char *strstrip(char *s);
+static inline int parse_line(char* p);
 
 enum EnforcingStatus { SELINUX_PERMISSIVE, SELINUX_ENFORCING };
 
@@ -541,7 +565,7 @@ static inline int parse_line(char* p)
         app_launcher.bindcpumask = atoi(p);
         if (app_launcher.bindcpumask < -1 || app_launcher.bindcpumask > 15)
           app_launcher.bindcpumask = -1;
-        printf("bindcpumask is %d", app_launcher.bindcpumask);
+	 printf("bindcpumask is %d", app_launcher.bindcpumask);
       }
       break;
     case 'u':
@@ -634,6 +658,8 @@ static inline int parse_line(char* p)
         if (app_launcher.usleep > 0)
           usleep(app_launcher.usleep);
 
+        app_launcher.env[app_launcher.env_used] = "LD_LIBRARY_PATH=/early_services/system/lib64";
+        app_launcher.env_used++;
         app_launcher.argv[app_launcher.argv_used] = NULL;
         app_launcher.env[app_launcher.env_used] = NULL;
 
@@ -651,7 +677,7 @@ static inline int parse_line(char* p)
           if(ret < 0) {
             printf("App launch failed %s \r\n", app_launcher.appname);
             memset(marker, 0, 50);
-            snprintf(marker, 49 ,"M - Launch %s app failed", app_launcher.appname);
+            snprintf(marker, 49 ,"M - Launch %s app failed %d", app_launcher.appname, errno);
             write_marker(marker);
           }
         }
@@ -713,49 +739,52 @@ static inline void trigger_firmware_loading(const char* path)
 
 static void insert_audio_modules(void)
 {
-  const char modprobe_command[256] = "modprobe -a -d /vendor/lib/modules audio_adsp_loader audio_q6 audio_native audio_swr audio_platform audio_stub audio_machine_talos audio_apr audio_q6_notifier";
   struct stat st = {0};
+  struct stat st_mod = {0};
+  struct timeval tv;
+  char marker_time[64];
   int fd = -1;
-  pid_t pid;
+  int sret = 0, eret = 0;
+  size_t image_size;
   static char marker[50];
+  int i, ret = 0;
 
-  pid = fork();
-  if (pid < 0) {
-    perror("fork child process failed \r\n");
-    return;
-  }
-  if (pid == 0) {
+    /* Load Audio modules */
     memset(marker, 0, 50);
     snprintf(marker, 49 ,"M - Insert Audio modules - Start");
     write_marker(marker);
 
-    system(modprobe_command);
-
+    // Insert Modules using init_module()
+    for(i = 0; i < NUM_MODULE; i++ ) {
+    memset(marker, 0, 50);
+    snprintf(marker, 49 ,"M - Inserting %d %s",i,&audio_modules[i][32]);
+    write_marker(marker);
+        fd = open(audio_modules[i], O_RDONLY);
+        if (finit_module(fd, "", 0) != 0) {
+            freopen("/dev/kmsg", "w", stdout);
+            printf("init_module %d failed\n", errno);
+        }
+        else {
+            freopen("/dev/kmsg", "w", stdout);
+            printf("init_module success for %s \n", audio_modules[i]);
+        }
+        close(fd);
+        if(i == 3){
+            fd = open("/sys/kernel/boot_adsp/boot", O_WRONLY);
+            freopen("/dev/kmsg", "w", stdout);
+                if (fd < 0) {
+                    printf("open sys entry failed\n");
+                } else if(-1 == write(fd, "1", 1)) {
+                    printf("Write to sys entry failed\n");
+                } else {
+                    printf("ADSP firmware loading triggered\n");
+                }
+        close(fd);
+        }
+    }
     memset(marker, 0, 50);
     snprintf(marker, 49 ,"M - Insert Audio modules - End");
     write_marker(marker);
-
-    do{
-      printf("Waiting for sys entry to set boot_adsp flag\n");
-      usleep(2000);
-      /* Do Nothing */
-    }while(stat("/sys/kernel/boot_adsp/boot",&st) == -1);
-
-    fd = open("/sys/kernel/boot_adsp/boot", O_WRONLY);
-    if (fd < 0) {
-      perror("open sys entry failed \r\n");
-    } else if(-1 == write(fd, "1", 1)) {
-      perror("Write to sys entry failed\n");
-    } else {
-      printf("ADSP firmware loading triggered\n");
-      memset(marker, 0, 50);
-      snprintf(marker, 49 ,"M - ADSP firmware loading triggered");
-      write_marker(marker);
-    }
-    exit(0);
-  }
-
-  return;
 }
 
 EnforcingStatus StatusFromCmdline() {
@@ -853,7 +882,7 @@ int early_init(const char* stage)
 {
   FILE* f;
   char line[LINE_MAX];
-  int fd;
+  int fd,pid,fd1;
   clearenv();
   setenv("PATH", DEFAULT_PATH, 1);
 #ifdef TEMP_SOLUTION
@@ -902,13 +931,16 @@ int early_init(const char* stage)
       LOG(INFO) << "ES : Logging enabled at early-services!";
       std::string precompiled_sepolicy_file = "/early_services/vendor/etc/selinux/precompiled_early_sepolicy";
       write_marker("M - EarlyInit SEPolicyLoad Start");
-      android::base::unique_fd fd1(open(precompiled_sepolicy_file.c_str(), O_RDONLY | O_CLOEXEC | O_BINARY));
-      if (fd1 != -1) {
+      //android::base::unique_fd fd1(open(precompiled_sepolicy_file.c_str(), O_RDONLY | O_CLOEXEC | O_BINARY));
+      fd1 = open(precompiled_sepolicy_file.c_str(), O_RDONLY | O_CLOEXEC | O_BINARY, 0777);
+      LOG(INFO) << "ES: precompiled sepolicy open fd=" << fd1;
+      if (fd1 > 0) {
           if (selinux_android_load_policy_from_fd(fd1, precompiled_sepolicy_file.c_str()) < 0)
               LOG(INFO) << "Failed to load SELinux policy !";
           else
               LOG(INFO) << "ES : Successfully loaded precompiled sepolicy file";
       }
+      close(fd1);
       write_marker("M - EarlyInit SEPolicyLoad End");
       bool is_enforcing = IsEnforcing();
       printf("ES : is_enforcing = %d\n", is_enforcing);
@@ -946,8 +978,8 @@ int early_init(const char* stage)
 
   set_permissions("/early_services/dev/dri/card3", 0666, AID_ROOT, AID_GRAPHICS, "u:object_r:graphics_device:s0");
   set_permissions("/early_services/dev/dri/card2", 0666, AID_ROOT, AID_GRAPHICS, "u:object_r:graphics_device:s0");
-  set_permissions("/dev/null", 0666, AID_ROOT, AID_ROOT, "u:object_r:null_device:s0");
-  set_permissions("/dev/urandom", 0666, AID_ROOT, AID_ROOT, "u:object_r:random_device:s0");
+  set_permissions("/early_services/dev/null", 0666, AID_ROOT, AID_ROOT, "u:object_r:null_device:s0");
+  set_permissions("/early_services/dev/urandom", 0666, AID_ROOT, AID_ROOT, "u:object_r:random_device:s0");
   set_permissions("/early_services/dev/media0", 0660, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
   set_permissions("/early_services/dev/media1", 0660, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
   set_permissions("/early_services/dev/video0", 0660, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
@@ -962,7 +994,7 @@ int early_init(const char* stage)
   set_permissions("/early_services/dev/v4l-subdev8", 0660, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
   set_permissions("/early_services/dev/v4l-subdev9", 0660, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
   set_permissions("/early_services/dev/v4l-subdev10", 0660, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
-  set_permissions("/early_services/dev/socket/camera", 0775, AID_ROOT, AID_CAMERA, "u:object_r:camera_socket_device:s0");
+  set_permissions("/early_services/dev/socket/camera", 0775, AID_ROOT, AID_CAMERA, "u:object_r:vendor_camera_socket:s0");
   selinux_android_restorecon("/early_services/dev/socket/camera", SELINUX_ANDROID_RESTORECON_RECURSE);
   set_permissions("/early_services/dev/ion", 0664, AID_ROOT, AID_SYSTEM, "u:object_r:ion_device:s0");
   set_permissions("/early_services/dev/kgsl-3d0", 0664, AID_ROOT, AID_SYSTEM, "u:object_r:gpu_device:s0");
@@ -975,6 +1007,22 @@ int early_init(const char* stage)
   set_permissions("/early_services/dev/v4l-subdev0", 0660, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
   set_permissions("/early_services/dev/spidev1.0", 0666, AID_ROOT, AID_SYSTEM, "u:object_r:kmsg_device:s0");
   set_permissions("/dev/spidev1.0", 0666, AID_ROOT, AID_SYSTEM, "u:object_r:kmsg_device:s0");
+  set_permissions("/early_services/dev/spidev22.0", 0666, AID_ROOT, AID_SYSTEM, "u:object_r:kmsg_device:s0");
+  set_permissions("/dev/spidev22.0", 0666, AID_ROOT, AID_SYSTEM, "u:object_r:kmsg_device:s0");
+  set_permissions("/dev/snd", 0777, AID_ROOT, AID_AUDIO, "u:object_r:audio_device:s0");
+  set_permissions("/dev/snd/controlC0", 0666, AID_ROOT, AID_AUDIO, "u:object_r:audio_device:s0");
+
+  /* Audio module loading parallely */
+
+  pid = fork();
+  if (pid < 0) {
+    perror("fork insert audio modules failed \r\n");
+  }
+
+  if (0 == pid) {
+    insert_audio_modules();
+    exit(0);
+  }
 
   f = fopen("/early_services/etc/early_init.conf", "re");
   if (f == NULL) {
@@ -984,7 +1032,6 @@ int early_init(const char* stage)
   selabel_handle* sehandle = nullptr;
   sehandle = selinux_android_file_context_handle();
   selinux_android_set_sehandle(sehandle);
-  //insert_audio_modules();
   while (1) {
        if (!fgets(line, sizeof(line), f)) {
            if (feof(f))

@@ -53,7 +53,7 @@
 static uint8_t saved_mode;
 static uint32_t max_speed;
 
-#define KPI_VALUE_PATH          "/sys/kernel/debug/bootkpi/kpi_values"
+#define KPI_VALUE_PATH          "/sys/kernel/boot_kpi/kpi_values"
 static void inline write_marker(const char* name)
 {
     int fd = -1;

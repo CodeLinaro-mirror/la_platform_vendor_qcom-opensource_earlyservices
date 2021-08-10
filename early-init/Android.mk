@@ -6,6 +6,12 @@ LOCAL_SRC_FILES:= early_init.cpp \
                   util.cpp \
                   log.cpp
 
+ifneq ($(filter sdmshrike msmnile,$(TARGET_BOARD_PLATFORM)),)
+	LOCAL_CFLAGS := -DPLATFORM_MSMNILE
+endif
+ifneq ($(filter $(MSMSTEPPE),$(TARGET_BOARD_PLATFORM)),)
+	LOCAL_CFLAGS := -DPLATFORM_MSMSTEPPE
+endif
 LOCAL_MODULE := init_early
 LOCAL_STATIC_LIBRARIES := libc++_static
 LOCAL_FORCE_STATIC_EXECUTABLE := true
@@ -92,4 +98,28 @@ LOCAL_SRC_FILES := $(LOCAL_MODULE)
 LOCAL_MODULE_CLASS = ETC
 LOCAL_MODULE_PATH := $(PRODUCT_OUT)/early_services/etc
 include $(BUILD_PREBUILT)
+
+include $(CLEAR_VARS)
+LOCAL_MODULE_TAGS := optional
+LOCAL_MODULE_PATH := $(PRODUCT_OUT)/early_services/vendor/bin
+ifneq ($(filter sdmshrike msmnile,$(TARGET_BOARD_PLATFORM)),)
+	LOCAL_CFLAGS := -DPLATFORM_MSMNILE
+endif
+ifneq ($(filter $(MSMSTEPPE),$(TARGET_BOARD_PLATFORM)),)
+	LOCAL_CFLAGS := -DPLATFORM_MSMSTEPPE
+endif
+LOCAL_LDFLAGS := -Wl,-rpath,'/early_services/system/lib64' -Wl,--dynamic-linker,/early_services/system/bin/bootstrap/linker64
+LOCAL_C_INCLUDES:= hardware/libhardware/include \
+                    system/media/audio/include \
+                    external/tinycompress/include \
+                    $(call include-path-for, audio-route) \
+                    system/media/audio_utils/include \
+
+LOCAL_HEADER_LIBRARIES += libhardware_headers
+LOCAL_HEADER_LIBRARIES += libcutils_headers
+LOCAL_SRC_FILES:= early_chime_app.c \
+		  early_audiod.c
+LOCAL_MODULE := early_chime
+LOCAL_SHARED_LIBRARIES:=  libtinyalsa
+include $(BUILD_EXECUTABLE)
 

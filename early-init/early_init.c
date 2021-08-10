@@ -52,7 +52,7 @@
 #define END_TAG                 "<end>"
 #define LINE_MAX                2048
 #define WHITESPACE              " \t\n\r"
-#define KPI_VALUE_PATH          "/sys/kernel/debug/bootkpi/kpi_values"
+#define KPI_VALUE_PATH          "/sys/kernel/boot_kpi/kpi_values"
 #define GPIO_EXPORT             "/sys/class/gpio/export"
 #define DRM_CARD_PATH           "/dev/dri/card0"
 #define VIDEO_CARD_PATH         "/dev/video32"

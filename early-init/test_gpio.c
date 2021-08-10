@@ -105,7 +105,7 @@ int gpioread(int gpio_num) {
     printf(" gpio %d value is = %s\r\n",gpio_num,num_str);
     snprintf(print_str,sizeof(print_str),"M - ES GPIO %d VALUE IS = %c",gpio_num,num_str[0]);
 
-    fd_kpi = open("/sys/kernel/debug/bootkpi/kpi_values", O_RDWR);
+    fd_kpi = open("/sys/kernel/boot_kpi/kpi_values", O_RDWR);
     if(fd_kpi > 0) {
         write(fd_kpi , print_str,strlen(print_str));
         close(fd_kpi);
