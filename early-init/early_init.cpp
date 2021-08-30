@@ -1009,6 +1009,8 @@ int early_init(const char* stage)
   set_permissions("/dev/spidev1.0", 0666, AID_ROOT, AID_SYSTEM, "u:object_r:kmsg_device:s0");
   set_permissions("/early_services/dev/spidev22.0", 0666, AID_ROOT, AID_SYSTEM, "u:object_r:kmsg_device:s0");
   set_permissions("/dev/spidev22.0", 0666, AID_ROOT, AID_SYSTEM, "u:object_r:kmsg_device:s0");
+  set_permissions("/early_services/dev/spidev10.0", 0666, AID_ROOT, AID_SYSTEM, "u:object_r:kmsg_device:s0");
+  set_permissions("/dev/spidev10.0", 0666, AID_ROOT, AID_SYSTEM, "u:object_r:kmsg_device:s0");
   set_permissions("/dev/snd", 0777, AID_ROOT, AID_AUDIO, "u:object_r:audio_device:s0");
   set_permissions("/dev/snd/controlC0", 0666, AID_ROOT, AID_AUDIO, "u:object_r:audio_device:s0");
 
