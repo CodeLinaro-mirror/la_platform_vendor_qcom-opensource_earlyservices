@@ -246,26 +246,34 @@ int main(int argc, char **argv)
             if (*argv)
                 device = atoi(*argv);
         }
-        if (strcmp(*argv, "-p") == 0) {
-            argv++;
-            if (*argv)
+        if(*argv) {
+          if (strcmp(*argv, "-p") == 0) {
+             argv++;
+             if (*argv)
                 period_size = atoi(*argv);
+          }
         }
-        if (strcmp(*argv, "-n") == 0) {
+        if(*argv) {
+         if (strcmp(*argv, "-n") == 0) {
             argv++;
             if (*argv)
                 period_count = atoi(*argv);
+         }
         }
-        if (strcmp(*argv, "-D") == 0) {
-            argv++;
-            if (*argv)
+        if(*argv) {
+           if (strcmp(*argv, "-D") == 0) {
+              argv++;
+              if (*argv)
                 card = atoi(*argv);
+           }
         }
         if (*argv)
             argv++;
     }
 
     early_chime_pb(filename, card, device, period_size, period_count);
+
+    return 0;
 }
 
 int early_chime_pb(char *filename, unsigned int card, unsigned int device, unsigned int period_size, unsigned int period_count)
@@ -276,7 +284,12 @@ int early_chime_pb(char *filename, unsigned int card, unsigned int device, unsig
     FILE *file;
     struct riff_wave_header riff_wave_header;
     struct chunk_header chunk_header;
-    struct chunk_fmt chunk_fmt;
+    struct chunk_fmt chunk_fmt={
+           .num_channels=2,
+           .sample_rate=48000,
+           .bits_per_sample=16
+    };
+
     int more_chunks = 1;
     struct mixer_ctl *ctl;
     char *mixer_str = "TERT_TDM_RX_0 Audio Mixer MultiMedia23";
