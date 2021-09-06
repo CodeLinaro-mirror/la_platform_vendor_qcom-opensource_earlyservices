@@ -54,7 +54,7 @@ int gpioread(int gpio_num) {
 
     ret = write(fd,num_str,strlen(num_str));
     if(ret < 0 ){
-        freopen("/dev/kmsg", "w", stdout);
+        freopen("/early_services/dev/kmsg", "w", stdout);
         printf("Error writing gpio export \r\n");
         return -1;
     }
@@ -67,13 +67,13 @@ int gpioread(int gpio_num) {
 
     fd = open(num_str, O_WRONLY);
     if(fd < 0 ){
-        freopen("/dev/kmsg", "w", stdout);
+        freopen("/early_services/dev/kmsg", "w", stdout);
         printf("Error opening gpio direction \r\n");
         return -1;
     }
     ret = write(fd,"in",2);
     if(ret < 0 ){
-        freopen("/dev/kmsg", "w", stdout);
+        freopen("/early_services/dev/kmsg", "w", stdout);
         printf("Error writing gpio direction \r\n");
         return -1;
     }
@@ -88,20 +88,20 @@ int gpioread(int gpio_num) {
 
     fd = open(num_str, O_RDONLY);
     if(fd < 0 ){
-        freopen("/dev/kmsg", "w", stdout);
+        freopen("/early_services/dev/kmsg", "w", stdout);
         printf("Error opening gpio value \r\n");
         return -1;
     }
     memset(num_str,0,sizeof(num_str));
     ret = read(fd,num_str,2);
     if(ret < 0 ){
-        freopen("/dev/kmsg", "w", stdout);
+        freopen("/early_services/dev/kmsg", "w", stdout);
         printf("Error reading gpio value \r\n");
         return -1;
     }
     close(fd);
 
-    freopen("/dev/kmsg", "w", stdout);
+    freopen("/early_services/dev/kmsg", "w", stdout);
     printf(" gpio %d value is = %s\r\n",gpio_num,num_str);
     snprintf(print_str,sizeof(print_str),"M - ES GPIO %d VALUE IS = %c",gpio_num,num_str[0]);
 
