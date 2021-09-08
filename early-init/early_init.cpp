@@ -761,17 +761,17 @@ static void insert_audio_modules(void)
     write_marker(marker);
         fd = open(audio_modules[i], O_RDONLY);
         if (finit_module(fd, "", 0) != 0) {
-            freopen("/dev/kmsg", "w", stdout);
+            freopen("/early_services/dev/kmsg", "w", stdout);
             printf("init_module %d failed\n", errno);
         }
         else {
-            freopen("/dev/kmsg", "w", stdout);
+            freopen("/early_services/dev/kmsg", "w", stdout);
             printf("init_module success for %s \n", audio_modules[i]);
         }
         close(fd);
         if(i == 3){
             fd = open("/sys/kernel/boot_adsp/boot", O_WRONLY);
-            freopen("/dev/kmsg", "w", stdout);
+            freopen("/early_services/dev/kmsg", "w", stdout);
                 if (fd < 0) {
                     printf("open sys entry failed\n");
                 } else if(-1 == write(fd, "1", 1)) {
