@@ -113,6 +113,7 @@ static inline char *strstrip(char *s);
 static inline int parse_line(char* p);
 
 enum EnforcingStatus { SELINUX_PERMISSIVE, SELINUX_ENFORCING };
+enum BootStatus { NORMAL_BOOT, RECOVERY_BOOT };
 
   char   chipId[32]  = { 0 };
   char   platformId[32]  = { 0 };
@@ -805,6 +806,25 @@ bool IsEnforcing() {
     return StatusFromCmdline() == SELINUX_ENFORCING;
 }
 
+BootStatus BootStatusFromCmdline() {
+    BootStatus status = RECOVERY_BOOT;
+    android::earlyinit::import_kernel_cmdline(false,
+                          [&](const std::string& key, const std::string& value, bool in_qemu) {
+            printf("ES: BootStatusFromCmdline inside import_kernel_cmdline\n");
+                              if (key == "androidboot.force_normal_boot" && value == "1") {
+                printf("ES: BootStatusFromCmdline NORMAL if\n");
+                                  status = NORMAL_BOOT;
+                              }
+                          });
+    printf("ES: BootStatusFromCmdline return status = %d\n", status);
+    return status;
+}
+
+bool IsNormalBoot() {
+    return BootStatusFromCmdline() == NORMAL_BOOT;
+}
+
+
 #define SECOND_STAGE "1"
 #define FIRST_STAGE  "0"
 
@@ -969,6 +989,8 @@ int early_init(const char* stage)
   android::earlyinit::InitKernelLogging(NULL);
   LOG(INFO) << "ES : In Second Stage!";
 
+  bool is_normalBoot = IsNormalBoot();
+  LOG(INFO) << "ES: Is Normal Boot " << is_normalBoot;
   /* Create ais_server socket dir and camera data dir */
   mkdir("/early_services/dev/socket", 0775);
   mkdir("/early_services/dev/socket/camera", 0775);
@@ -1045,6 +1067,10 @@ int early_init(const char* stage)
        }
        if (is_empty_line(line))
            continue;
+
+       if(is_normalBoot == 0)
+           goto out;
+
        strstrip(line);
        parse_line(line);
        memset(line, 0, sizeof(line));

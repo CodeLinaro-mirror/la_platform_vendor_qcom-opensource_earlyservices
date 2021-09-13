@@ -235,14 +235,6 @@ int main(int argc, char **argv)
     unsigned int period_size = 1024;
     unsigned int period_count = 4;
 
-    /*Exit if device in Recovery mode*/
-    if((access("/system/bin/recovery", F_OK) == 0))
-    {
-        freopen("/early_services/dev/kmsg", "w", stdout);
-        printf("early-chime: Device in Recovery mode\n");
-        return 0;
-    }
-
     /* Set sound card and establish hostless pcm session */
     set_snd_card_enable_hostless(card);
     /* parse command line arguments */
