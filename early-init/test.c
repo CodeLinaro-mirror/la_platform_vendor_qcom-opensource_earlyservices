@@ -32,7 +32,7 @@
 #include <unistd.h>
 
 int main(int argc, char *argv[]){
-        freopen("/dev/kmsg", "w", stdout);
+        freopen("/early_services/dev/kmsg", "w", stdout);
         printf("Hello World \r\n");
 	return 0;
 }
