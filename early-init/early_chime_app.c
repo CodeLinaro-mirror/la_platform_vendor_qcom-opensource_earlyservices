@@ -97,7 +97,7 @@ int check_param(struct pcm_params *params, unsigned int param, unsigned int valu
 
     min = pcm_params_get_min(params, param);
     if (value < min) {
-        freopen("/dev/kmsg", "w", stdout);
+        freopen("/early_services/dev/kmsg", "w", stdout);
         printf("%s is %u%s, device only supports >= %u%s\n", param_name, value,
                 param_unit, min, param_unit);
         is_within_bounds = 0;
@@ -105,7 +105,7 @@ int check_param(struct pcm_params *params, unsigned int param, unsigned int valu
 
     max = pcm_params_get_max(params, param);
     if (value > max) {
-        freopen("/dev/kmsg", "w", stdout);
+        freopen("/early_services/dev/kmsg", "w", stdout);
         printf("%s is %u%s, device only supports <= %u%s\n", param_name, value,
                 param_unit, max, param_unit);
         is_within_bounds = 0;
@@ -124,7 +124,7 @@ int sample_is_playable(unsigned int card, unsigned int device, unsigned int chan
 try_again:
     params = pcm_params_get(card, device, PCM_OUT);
     if (params == NULL) {
-        freopen("/dev/kmsg", "w", stdout);
+        freopen("/early_services/dev/kmsg", "w", stdout);
         printf("params NULL, unable to open PCM device, %u. count = %d\n", device, count);
         count++;
         if(count < 5){
@@ -189,7 +189,7 @@ void play_sample(FILE *file, unsigned int card, unsigned int device, unsigned in
 
     pcm = pcm_open(card, device, PCM_OUT, &config);
     if (!pcm || !pcm_is_ready(pcm)) {
-        freopen("/dev/kmsg", "w", stdout);
+        freopen("/early_services/dev/kmsg", "w", stdout);
     printf("Unable to open PCM device");
         return;
     }
@@ -197,14 +197,14 @@ void play_sample(FILE *file, unsigned int card, unsigned int device, unsigned in
     size = pcm_frames_to_bytes(pcm, pcm_get_buffer_size(pcm));
     buffer = malloc(size);
     if (!buffer) {
-        freopen("/dev/kmsg", "w", stdout);
+        freopen("/early_services/dev/kmsg", "w", stdout);
         printf("Unable to allocate %d bytes\n");
         free(buffer);
         pcm_close(pcm);
         return;
     }
 
-    freopen("/dev/kmsg", "w", stdout);
+    freopen("/early_services/dev/kmsg", "w", stdout);
     printf("Playing sample: %u ch, %u hz, %u bit\n", channels, rate, bits);
 
     /* catch ctrl-c to shutdown cleanly */
@@ -214,7 +214,7 @@ void play_sample(FILE *file, unsigned int card, unsigned int device, unsigned in
         num_read = fread(buffer, 1, size, file);
         if (num_read > 0) {
             if (pcm_write(pcm, buffer, num_read)) {
-                freopen("/dev/kmsg", "w", stdout);
+                freopen("/early_services/dev/kmsg", "w", stdout);
                 printf("Error playing sample\n");
                 break;
             }
@@ -246,37 +246,50 @@ int main(int argc, char **argv)
             if (*argv)
                 device = atoi(*argv);
         }
-        if (strcmp(*argv, "-p") == 0) {
-            argv++;
-            if (*argv)
+        if(*argv) {
+          if (strcmp(*argv, "-p") == 0) {
+             argv++;
+             if (*argv)
                 period_size = atoi(*argv);
+          }
         }
-        if (strcmp(*argv, "-n") == 0) {
+        if(*argv) {
+         if (strcmp(*argv, "-n") == 0) {
             argv++;
             if (*argv)
                 period_count = atoi(*argv);
+         }
         }
-        if (strcmp(*argv, "-D") == 0) {
-            argv++;
-            if (*argv)
+        if(*argv) {
+           if (strcmp(*argv, "-D") == 0) {
+              argv++;
+              if (*argv)
                 card = atoi(*argv);
+           }
         }
         if (*argv)
             argv++;
     }
 
     early_chime_pb(filename, card, device, period_size, period_count);
+
+    return 0;
 }
 
 int early_chime_pb(char *filename, unsigned int card, unsigned int device, unsigned int period_size, unsigned int period_count)
 {
-    freopen("/dev/kmsg", "w", stdout);
+    freopen("/early_services/dev/kmsg", "w", stdout);
     printf("Starting Early Chime App\n");
     struct mixer *mixer;
     FILE *file;
     struct riff_wave_header riff_wave_header;
     struct chunk_header chunk_header;
-    struct chunk_fmt chunk_fmt;
+    struct chunk_fmt chunk_fmt={
+           .num_channels=2,
+           .sample_rate=48000,
+           .bits_per_sample=16
+    };
+
     int more_chunks = 1;
     struct mixer_ctl *ctl;
     char *mixer_str = "TERT_TDM_RX_0 Audio Mixer MultiMedia23";
@@ -287,7 +300,7 @@ int early_chime_pb(char *filename, unsigned int card, unsigned int device, unsig
     int ret = 0;
 
     int fd;
-    freopen("/dev/kmsg", "w", stdout);
+    freopen("/early_services/dev/kmsg", "w", stdout);
     printf("Starting Early Chime App : %d %d\n",card , device);
 
     while((mixerOpenDone == false) && (sleepRetry < MAX_SLEEP_RETRY))
@@ -295,7 +308,7 @@ int early_chime_pb(char *filename, unsigned int card, unsigned int device, unsig
         mixer = mixer_open(card);
         if (!mixer) {
            /*Failed to open mixer, wait 10ms, retry*/
-            freopen("/dev/kmsg", "w", stdout);
+            freopen("/early_services/dev/kmsg", "w", stdout);
             printf("Failed to open mixer, sleeping for 10ms\n");
             AUDIO_CHIME_SLEEP(AUDIO_CHIME_WAIT_TIME * 1000);
             sleepRetry++;
@@ -306,7 +319,7 @@ int early_chime_pb(char *filename, unsigned int card, unsigned int device, unsig
 
     if(mixerOpenDone == false)
     {
-        freopen("/dev/kmsg", "w", stdout);
+        freopen("/early_services/dev/kmsg", "w", stdout);
         printf("Mixer_open failed");
         return -ENODEV;
     }
@@ -314,14 +327,14 @@ int early_chime_pb(char *filename, unsigned int card, unsigned int device, unsig
     ctl = mixer_get_ctl_by_name(mixer, mixer_str);
     if(ctl == NULL)
     {
-        freopen("/dev/kmsg", "w", stdout);
+        freopen("/early_services/dev/kmsg", "w", stdout);
         printf("mixer_get_ctl failed");
         return -1;
     }
     ret = mixer_ctl_set_value(ctl, 0, 1);
     if(ret)
     {
-        freopen("/dev/kmsg", "w", stdout);
+        freopen("/early_services/dev/kmsg", "w", stdout);
         printf("mixer_ctl_set_value failed");
         return -1;
     }
@@ -329,7 +342,7 @@ int early_chime_pb(char *filename, unsigned int card, unsigned int device, unsig
 
     file = fopen(filename, "rb");
     if (!file) {
-        freopen("/dev/kmsg", "w", stdout);
+        freopen("/early_services/dev/kmsg", "w", stdout);
         printf("Unable to open file '%s'\n", filename);
         return -1;
     }
@@ -337,7 +350,7 @@ int early_chime_pb(char *filename, unsigned int card, unsigned int device, unsig
     fread(&riff_wave_header, sizeof(riff_wave_header), 1, file);
     if ((riff_wave_header.riff_id != ID_RIFF) ||
         (riff_wave_header.wave_id != ID_WAVE)) {
-        freopen("/dev/kmsg", "w", stdout);
+        freopen("/early_services/dev/kmsg", "w", stdout);
         printf("Error: '%s' is not a riff/wave file\n", filename);
         fclose(file);
         return -1;
@@ -370,7 +383,7 @@ int early_chime_pb(char *filename, unsigned int card, unsigned int device, unsig
 close_file:
     fclose(file);
 
-    freopen("/dev/kmsg", "w", stdout);
+    freopen("/early_services/dev/kmsg", "w", stdout);
     printf("Early Chime playback END\n");
     return rc;
 }
