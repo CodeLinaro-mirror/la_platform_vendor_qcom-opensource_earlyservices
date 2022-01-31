@@ -35,7 +35,6 @@
 #else
 #include "host_init_stubs.h"
 #endif
-
 #ifdef _INIT_INIT_H
 #error "Do not include init.h in files used by ueventd or watchdogd; it will expose init's globals"
 #endif

@@ -30,9 +30,77 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <dlfcn.h>
+#include <sys/stat.h>
+#include <errno.h>
+#include <sys/types.h>
+#include <fcntl.h>
+#include <string.h>
+/*
+int echoToFile(char *str, int cnt, char *path) {
+	int fd, ret1;
 
+	fd = open(path,O_RDWR| O_APPEND);
+	if( fd >= 0 ) {
+		ret1 = write(fd, str, cnt);
+		if( ret1 >= 0 ) {
+			freopen("/dev/kmsg", "w", stdout);
+			printf("Write successful %d  ->  %d\r\n",fd, ret1);
+		} else {
+			freopen("/dev/kmsg", "w", stdout);
+			printf("Write failed %d  ->  %d  %d\r\n",fd, ret1, errno);
+		}
+		close(fd);
+	} else {
+		creat(path, S_IRWXU);
+		freopen("/dev/kmsg", "w", stdout);
+		printf("File Created %d  \r\n",fd);
+	}
+	return fd;
+}
+*/
 int main(int argc, char *argv[]){
+
         freopen("/dev/kmsg", "w", stdout);
         printf("Hello World \r\n");
+#if 0
+	void *mylib;
+	int eret;
+	struct stat st = {0};
+	int acc_ret, acc_errno, count = 0;
+	char path[] = "/early_services/dev/socket/camera/test";
+	char msg[] = "This is test -> ";
+	char testmsg[256];
+
+        while(1) {
+		mylib = dlopen("/early_services/system/lib64/libc2d30_bltlib.so", RTLD_LOCAL | RTLD_LAZY);
+		if (!mylib) {
+		        /* fail to load the library */
+                        freopen("/dev/kmsg", "w", stdout);
+			printf("==== Swap_dbg dlopen Error: %s\n", dlerror());
+		} else {
+                        freopen("/dev/kmsg", "w", stdout);
+			printf("==== Swap_dbg dlopen Success: %s\n", dlerror());
+			dlclose(mylib);
+		}
+		if (stat("/early_services/dev/dri/card3", &st) == -1) {
+                        freopen("/dev/kmsg", "w", stdout);
+			printf("==== Swap_dbg stat /early_services/dev/dri/card3 fail\n");
+                } else {
+                        freopen("/dev/kmsg", "w", stdout);
+			printf("==== Swap_dbg stat /early_services/dev/dri/card3 success\n");
+		}
+		acc_ret = access("/early_services/dev/random", F_OK);
+		acc_errno = errno;
+		if(acc_ret) {
+			freopen("/dev/kmsg", "w", stdout);
+			printf(" Dev directory not accessable %d %d\r\n",acc_ret, acc_errno);
+		} else {
+			freopen("/dev/kmsg", "w", stdout);
+			printf("Dev Directory accessible %d %d\r\n",acc_ret, acc_errno);
+		}
+		sleep(1);
+	}
+#endif
 	return 0;
 }

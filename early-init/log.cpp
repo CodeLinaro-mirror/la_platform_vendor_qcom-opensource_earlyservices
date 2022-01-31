@@ -25,7 +25,7 @@
 #include <unistd.h>
 
 #include <android-base/logging.h>
-#include <cutils/android_reboot.h>
+//#include <cutils/android_reboot.h>
 #include <selinux/selinux.h>
 
 namespace android {
