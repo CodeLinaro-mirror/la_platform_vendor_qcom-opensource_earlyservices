@@ -15,9 +15,10 @@ endif
 LOCAL_MODULE := init_early
 #LOCAL_STATIC_LIBRARIES := libc++_static
 LOCAL_FORCE_STATIC_EXECUTABLE := true
-LOCAL_MODULE_PATH := $(TARGET_VENDOR_RAMDISK_OUT)/early_services
+LOCAL_MODULE_PATH := $(TARGET_RAMDISK_OUT)/early_services
 LOCAL_POST_INSTALL_CMD := $(hide) mkdir -p $(TARGET_ROOT_OUT)/early_services; \
-                                  mkdir -p $(TARGET_ROOT_OUT)/early_services/dev;
+                                  mkdir -p $(TARGET_ROOT_OUT)/early_services/dev; \
+                                  mkdir -p $(TARGET_RAMDISK_OUT)/early_services;
 
 LOCAL_STATIC_LIBRARIES := libc++_static \
      libbase \
