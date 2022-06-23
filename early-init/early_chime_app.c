@@ -161,12 +161,13 @@ void play_sample(FILE *file, unsigned int card, unsigned int device, unsigned in
                  unsigned int rate, unsigned int bits, unsigned int period_size,
                  unsigned int period_count)
 {
-    place_marker("Early Chime - Writing audio samples...");
     struct pcm_config config;
     struct pcm *pcm;
     char *buffer;
     int size;
     int num_read;
+    static char const *marker = "Early Chime - Writing audio samples...";
+    place_marker(marker);
 
     memset(&config, 0, sizeof(config));
     config.channels = channels;

@@ -171,6 +171,7 @@ static struct {
   int   bindcpumask;
   int   priority;
   char* username;
+  char* group;
   char* wait;
 } app_launcher;
 
@@ -445,14 +446,6 @@ static void inline enforce_user(char* username)
     perror("username is not exist\r\n");
     return;
   }
-  // Should set group first
-  printf("gid is %d", pw->pw_gid);
-  if (!gid_is_valid(pw->pw_gid)) {
-    perror("gid is not valid\r\n");
-  }
-  if (0 != setresgid(pw->pw_gid, pw->pw_gid, pw->pw_gid)) {
-    perror("setresgid failed\r\n");
-  }
 
   printf("uid is %d", pw->pw_uid);
   if (!uid_is_valid(pw->pw_uid)) {
@@ -460,6 +453,26 @@ static void inline enforce_user(char* username)
   }
   if (0 != setresuid(pw->pw_uid, pw->pw_uid, pw->pw_uid)) {
     perror("setresuid failed\r\n");
+  }
+}
+
+// enforce_group according to group settings
+// if fail, fallback to root group
+static void inline enforce_group(char* group)
+{
+  struct passwd *pw;
+  pw = getpwnam(group);
+  if (!pw) {
+    perror("group is not exist\r\n");
+    return;
+  }
+
+  printf("gid is %d", pw->pw_gid);
+  if (!gid_is_valid(pw->pw_gid)) {
+    perror("gid is not valid\r\n");
+  }
+  if (0 != setresgid(pw->pw_gid, pw->pw_gid, pw->pw_gid)) {
+    perror("setresgid failed\r\n");
   }
 }
 
@@ -506,6 +519,7 @@ static void inline app_launcher_start_over(void)
   safe_free(&app_launcher.pidfile);
   safe_free(&app_launcher.wait);
   safe_free(&app_launcher.username);
+  safe_free(&app_launcher.group);
   app_launcher.usleep = -1;
 
   for (i = 0; i < app_launcher.argv_used; i++)
@@ -593,6 +607,9 @@ static inline int parse_line(char* p)
     case 'g':/* gpio */
       if (0 == strncmp(p + 1, "pio", strlen("pio")) && 0 == find_rvalue(&p)) {
         app_launcher.gpio = strdup(p);
+      }
+      if (0 == strncmp(p + 1, "roup", strlen("roup")) && 0 == find_rvalue(&p)) {
+        app_launcher.group = strdup(p);
       }
       break;
     case 'w':/* wait */
@@ -724,6 +741,10 @@ static inline int parse_line(char* p)
         if (app_launcher.username) {
           enforce_user(app_launcher.username);
         }
+        if (app_launcher.group) {
+          enforce_group(app_launcher.group);
+        }
+
         memset(marker, 0, 50);
         snprintf(marker, 49 ,"M - Launch %s app", app_launcher.appname);
         write_marker(marker);
