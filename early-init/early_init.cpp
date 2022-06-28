@@ -688,7 +688,7 @@ static inline int parse_line(char* p)
           struct sched_param sp;
           memset( &sp, 0, sizeof(sp) );
           sp.sched_priority = app_launcher.priority;
-          if (0 != sched_setscheduler( 0, SCHED_FIFO, &sp))
+          if (0 != sched_setscheduler( pid, SCHED_FIFO, &sp))
             printf("sched_setparam failed %d %s\r\n", app_launcher.priority, strerror(errno));
         }
 
