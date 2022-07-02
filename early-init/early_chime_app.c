@@ -161,12 +161,13 @@ void play_sample(FILE *file, unsigned int card, unsigned int device, unsigned in
                  unsigned int rate, unsigned int bits, unsigned int period_size,
                  unsigned int period_count)
 {
-    place_marker("Early Chime - Writing audio samples...");
     struct pcm_config config;
     struct pcm *pcm;
     char *buffer;
     int size;
     int num_read;
+    static char const *marker = "Early Chime - Writing audio samples...";
+    place_marker(marker);
 
     memset(&config, 0, sizeof(config));
     config.channels = channels;
@@ -246,17 +247,17 @@ int main(int argc, char **argv)
             if (*argv)
                 device = atoi(*argv);
         }
-        if (strcmp(*argv, "-p") == 0) {
+        if (*argv && strcmp(*argv, "-p") == 0) {
             argv++;
             if (*argv)
                 period_size = atoi(*argv);
         }
-        if (strcmp(*argv, "-n") == 0) {
+        if (*argv && strcmp(*argv, "-n") == 0) {
             argv++;
             if (*argv)
                 period_count = atoi(*argv);
         }
-        if (strcmp(*argv, "-D") == 0) {
+        if (*argv && strcmp(*argv, "-D") == 0) {
             argv++;
             if (*argv)
                 card = atoi(*argv);
@@ -266,6 +267,7 @@ int main(int argc, char **argv)
     }
 
     early_chime_pb(filename, card, device, period_size, period_count);
+    return 0;
 }
 
 int early_chime_pb(char *filename, unsigned int card, unsigned int device, unsigned int period_size, unsigned int period_count)
@@ -276,7 +278,7 @@ int early_chime_pb(char *filename, unsigned int card, unsigned int device, unsig
     FILE *file;
     struct riff_wave_header riff_wave_header;
     struct chunk_header chunk_header;
-    struct chunk_fmt chunk_fmt;
+    struct chunk_fmt chunk_fmt = {0};
     int more_chunks = 1;
     struct mixer_ctl *ctl;
     char *mixer_str = "TERT_TDM_RX_0 Audio Mixer MultiMedia23";
