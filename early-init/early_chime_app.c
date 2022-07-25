@@ -166,7 +166,7 @@ void play_sample(FILE *file, unsigned int card, unsigned int device, unsigned in
     char *buffer;
     int size;
     int num_read;
-    static char const *marker = "Early Chime - Writing audio samples...";
+    static char const *marker = "M - Audio_Chime - Starting to write audio samples";
     place_marker(marker);
 
     memset(&config, 0, sizeof(config));
