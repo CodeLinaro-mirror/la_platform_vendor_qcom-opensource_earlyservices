@@ -972,10 +972,11 @@ int early_init(const char* stage)
 {
   FILE* f;
   char line[LINE_MAX];
-  int fd,pid,fd1;
+  int fd,pid,fd1,i;
   clearenv();
   setenv("PATH", DEFAULT_PATH, 1);
-  int ret1;
+  int ret1, ret = 0;
+  const int V4L_SUBDEV_WAIT_TIME = 5000;
   struct stat st = {0};
 
 #ifdef TEMP_SOLUTION
@@ -1057,6 +1058,15 @@ int early_init(const char* stage)
   set_permissions("/early_services/dev/media1", 0660, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
   set_permissions("/early_services/dev/video0", 0660, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
   set_permissions("/early_services/dev/video1", 0660, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
+  for (i = 0; i < 30; i++) {
+      if ((ret = access("/early_services/dev/v4l-subdev1", F_OK)) != -1) {
+          break;
+      }
+      usleep(V4L_SUBDEV_WAIT_TIME);
+  }
+  if (ret < 0) {
+      LOG(ERROR) << " ES : v4l doesn't exist, ret = " << ret << " errno = " << errno;
+  }
   set_permissions("/early_services/dev/v4l-subdev1", 0660, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
   set_permissions("/early_services/dev/v4l-subdev2", 0660, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
   set_permissions("/early_services/dev/v4l-subdev3", 0660, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
