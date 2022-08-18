@@ -50,6 +50,7 @@
 #include <android-base/file.h>
 #include <private/android_filesystem_config.h>
 #include <sys/sysinfo.h>
+#include <sys/wait.h>
 
 #ifdef EARLYINIT_DEBUG
 #include <dirent.h>
@@ -903,6 +904,8 @@ int early_init(const char* stage)
   FILE* f;
   char line[LINE_MAX];
   int fd,pid,fd1;
+  int wstatus;
+  pid_t wpid;
   clearenv();
   setenv("PATH", DEFAULT_PATH, 1);
 #ifdef TEMP_SOLUTION
@@ -1078,8 +1081,10 @@ int early_init(const char* stage)
   }
 out:
   fclose(f);
-  write_marker("M - early-init-exit");
+  wpid=wait(&wstatus);
   mknod("/dev/sedone", S_IFREG | 0400, makedev(0,0));
+  write_marker("M - early-init-exit");
+  while((wpid=wait(&wstatus)) > 0);
   return 0;
 }
 
