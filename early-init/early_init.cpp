@@ -272,7 +272,8 @@ static inline void mkdirs(char* p, mode_t mode)
 static inline void prepare_dir(char* p)
 {
   struct stat st = {0};
-  int ret = 0;
+  int ret = 0, i = 0;
+  const int MDM_MOUNT_WAIT_TIME = 5000;
 
   switch (*p) {
     case 'a':
@@ -293,12 +294,22 @@ static inline void prepare_dir(char* p)
           }
         });
 
+        for (i = 0; i < 30; i++) {
+          if ((ret = access(modemStr.c_str(), F_OK)) != -1) {
+            break;
+          }
+          usleep(MDM_MOUNT_WAIT_TIME);
+        }
+        if (ret < 0) {
+          LOG(ERROR) << " ES : modemStr "<< modemStr << " doesn't exist, ret = " << ret << " errno = " << errno;
+        }
+
         /* TODO: Do not hard code dev node, sde4 is modem_a/adsp firmware  partition */
         ret = mount(modemStr.c_str(), AUDIO_FW_PATH, "vfat", MS_RDONLY, "context=u:object_r:firmware_file:s0");
         if (ret < 0) {
           ret = mount("/dev/block/sde4", AUDIO_FW_PATH, "vfat", MS_RDONLY, "context=u:object_r:firmware_file:s0");
           if (ret < 0)
-          	LOG(INFO) << " ES : early_init mount /dev/block/sde4 failed";
+            LOG(ERROR) << " ES : early_init mount /dev/block/sde4 failed ret = " << ret << " errno = " << errno;
         } else
           LOG(INFO) << "ES : early_init modem mount success";
       }
