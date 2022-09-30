@@ -85,6 +85,8 @@
 #include <android-base/file.h>
 #include <cutils/android_filesystem_config.h>
 #include <sys/sysinfo.h>
+#include <pthread.h>
+#include <sys/wait.h>
 
 // for file copy
 #include <filesystem>
@@ -147,6 +149,7 @@ char audio_modules[NUM_MODULE][64] = {
 "/early_services/vendor/lib/modules/stub_dlkm.ko",
 "/early_services/vendor/lib/modules/hdmi_dlkm.ko",
 "/early_services/vendor/lib/modules/machine_dlkm.ko"};
+static pid_t lastpid;
 
 static inline bool is_empty_line(const char* p);
 static inline char *strstrip(char *s);
@@ -273,47 +276,8 @@ static inline void prepare_dir(char* p)
 {
   struct stat st = {0};
   int ret = 0, i = 0;
-  const int MDM_MOUNT_WAIT_TIME = 5000;
 
   switch (*p) {
-    case 'a':
-      if (0 == strncmp(p + 1, "udio_fw", strlen("udio_fw"))) {
-        /*
-         * Mount audio firmware partition
-         */
-        if (access(AUDIO_FW_PATH, F_OK) == -1) {
-          perror("AUDIO_FW_PATH doesn't exist");
-          mkdirs(AUDIO_FW_PATH, 0755);
-        }
-
-        std::string modemStr ;
-        android::earlyinit::import_kernel_cmdline(false,
-                      [&](const std::string& key, const std::string& value, bool in_qemu) {
-          if (key == "modem") {
-            modemStr =  value;
-          }
-        });
-
-        for (i = 0; i < 30; i++) {
-          if ((ret = access(modemStr.c_str(), F_OK)) != -1) {
-            break;
-          }
-          usleep(MDM_MOUNT_WAIT_TIME);
-        }
-        if (ret < 0) {
-          LOG(ERROR) << " ES : modemStr "<< modemStr << " doesn't exist, ret = " << ret << " errno = " << errno;
-        }
-
-        /* TODO: Do not hard code dev node, sde4 is modem_a/adsp firmware  partition */
-        ret = mount(modemStr.c_str(), AUDIO_FW_PATH, "vfat", MS_RDONLY, "context=u:object_r:firmware_file:s0");
-        if (ret < 0) {
-          ret = mount("/dev/block/sde4", AUDIO_FW_PATH, "vfat", MS_RDONLY, "context=u:object_r:firmware_file:s0");
-          if (ret < 0)
-            LOG(ERROR) << " ES : early_init mount /dev/block/sde4 failed ret = " << ret << " errno = " << errno;
-        } else
-          LOG(INFO) << "ES : early_init modem mount success";
-      }
-      break;
     case 'd':
       if (0 == strncmp(p + 1, "ebugfs", strlen("ebugfs"))) {
         /*
@@ -424,6 +388,47 @@ static inline void prepare_dir(char* p)
       printf("warning unknown input string %s for prepare_dir", p);
   }
   return;
+}
+
+static void* prepare_audio_fw_dir(void* vargp)
+{
+  int ret = 0, i = 0;
+  const int MDM_MOUNT_WAIT_TIME = 2000;
+  /*
+   * Mount audio firmware partition
+   */
+  if (access(AUDIO_FW_PATH, F_OK) == -1) {
+    perror("AUDIO_FW_PATH doesn't exist");
+    mkdirs(AUDIO_FW_PATH, 0755);
+  }
+
+  std::string modemStr ;
+  android::earlyinit::import_kernel_cmdline(false,
+		  [&](const std::string& key, const std::string& value, bool in_qemu) {
+    if (key == "modem") {
+      modemStr =  value;
+    }
+  });
+
+  while (1) {
+    if ((ret = access(modemStr.c_str(), F_OK)) != -1) {
+      break;
+    }
+    i++;
+    usleep(MDM_MOUNT_WAIT_TIME);
+  }
+  LOG(INFO) << " ES : access to modemStr "<< modemStr << " i " << i << " ret = " << ret << " errno = " << errno;
+
+  /* TODO: Do not hard code dev node, sde4 is modem_a/adsp firmware  partition */
+  ret = mount(modemStr.c_str(), AUDIO_FW_PATH, "vfat", MS_RDONLY, "context=u:object_r:firmware_file:s0");
+  if (ret < 0) {
+    ret = mount("/dev/block/sde4", AUDIO_FW_PATH, "vfat", MS_RDONLY, "context=u:object_r:firmware_file:s0");
+    if (ret < 0)
+      LOG(ERROR) << " ES : early_init mount /dev/block/sde4 failed ret = " << ret << " errno = " << errno;
+  } else {
+     LOG(INFO) << "ES : early_init modem mount success";
+  }
+  return NULL;
 }
 
 /*
@@ -671,6 +676,8 @@ static inline int parse_line(char* p)
       }
 
       if (0 == pid) {
+        lastpid = getpid();
+
         /*
          * Handle log redirect
          */
@@ -978,6 +985,9 @@ int early_init(const char* stage)
   int ret1, ret = 0;
   const int V4L_SUBDEV_WAIT_TIME = 5000;
   struct stat st = {0};
+  pthread_t audiofw_tid;
+  int wstatus;
+  pid_t wpid;
 
 #ifdef TEMP_SOLUTION
   int ret;
@@ -1039,7 +1049,7 @@ int early_init(const char* stage)
   set_permissions("/dev/kmsg", 0620, AID_ROOT, AID_SYSTEM, "u:object_r:kmsg_device:s0");
   android::earlyinit::InitKernelLogging(NULL);
   LOG(INFO) << "ES : In Second Stage!";
-  prepare_dir("audio_fw");
+  pthread_create(&audiofw_tid, NULL, prepare_audio_fw_dir, NULL);
 
   while(access("/early_services/dev/dri/card3", F_OK) == -1);
 
@@ -1122,6 +1132,13 @@ int early_init(const char* stage)
   }
 out:
   fclose(f);
+
+  do {
+    /* Waiting for last pid which is init_early_test and expecting it returns immediately. */
+    wpid = waitpid(lastpid, &wstatus, 0);
+    if (wpid == -1 || wpid != 0) break;
+  } while (wpid == 0);
+
   write_marker("M - early-init-exit");
   mknod("/dev/sedone", S_IFREG | 0400, makedev(0,0));
 
