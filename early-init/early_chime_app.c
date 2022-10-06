@@ -53,6 +53,9 @@
 #define ID_FMT  0x20746d66
 #define ID_DATA 0x61746164
 
+#define ENABLE_MIXER 1
+#define DISABLE_MIXER 0
+
 struct riff_wave_header {
     uint32_t riff_id;
     uint32_t riff_sz;
@@ -329,21 +332,25 @@ int early_chime_pb(char *filename, unsigned int card, unsigned int device, unsig
     {
         freopen("/early_services/dev/kmsg", "w", stdout);
         printf("mixer_get_ctl failed");
+        mixer_close(mixer);
         return -1;
     }
-    ret = mixer_ctl_set_value(ctl, 0, 1);
+    ret = mixer_ctl_set_value(ctl, 0, ENABLE_MIXER);
+
     if(ret)
     {
         freopen("/early_services/dev/kmsg", "w", stdout);
         printf("mixer_ctl_set_value failed");
+        mixer_close(mixer);
         return -1;
     }
-    mixer_close(mixer);
 
     file = fopen(filename, "rb");
     if (!file) {
         freopen("/early_services/dev/kmsg", "w", stdout);
         printf("Unable to open file '%s'\n", filename);
+        mixer_ctl_set_value(ctl, 0, DISABLE_MIXER);
+        mixer_close(mixer);
         return -1;
     }
 
@@ -380,8 +387,10 @@ int early_chime_pb(char *filename, unsigned int card, unsigned int device, unsig
 
     play_sample(file, card, device, chunk_fmt.num_channels, chunk_fmt.sample_rate,
                 chunk_fmt.bits_per_sample, period_size, period_count);
-close_file:
+
     fclose(file);
+    mixer_ctl_set_value(ctl, 0, DISABLE_MIXER);
+    mixer_close(mixer);
 
     freopen("/early_services/dev/kmsg", "w", stdout);
     printf("Early Chime playback END\n");
