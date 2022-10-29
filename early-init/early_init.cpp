@@ -154,6 +154,8 @@ static pid_t lastpid;
 static inline bool is_empty_line(const char* p);
 static inline char *strstrip(char *s);
 static inline int parse_line(char* p);
+static void insert_audio_modules(void);
+static void set_permissions(char *path, int permissions, int user, int group, char *context);
 
 enum EnforcingStatus { SELINUX_PERMISSIVE, SELINUX_ENFORCING };
 
@@ -428,6 +430,10 @@ static void* prepare_audio_fw_dir(void* vargp)
   } else {
      LOG(INFO) << "ES : early_init modem mount success";
   }
+  set_permissions("/dev/snd", 0777, AID_ROOT, AID_AUDIO, "u:object_r:audio_device:s0");
+  set_permissions("/dev/snd/controlC0", 0666, AID_ROOT, AID_AUDIO, "u:object_r:audio_device:s0");
+  insert_audio_modules();
+
   return NULL;
 }
 
@@ -1102,10 +1108,6 @@ int early_init(const char* stage)
   set_permissions("/dev/spidev1.0", 0666, AID_ROOT, AID_SYSTEM, "u:object_r:kmsg_device:s0");
   set_permissions("/early_services/dev/spidev22.0", 0666, AID_ROOT, AID_SYSTEM, "u:object_r:kmsg_device:s0");
   set_permissions("/dev/spidev22.0", 0666, AID_ROOT, AID_SYSTEM, "u:object_r:kmsg_device:s0");
-  set_permissions("/dev/snd", 0777, AID_ROOT, AID_AUDIO, "u:object_r:audio_device:s0");
-  set_permissions("/dev/snd/controlC0", 0666, AID_ROOT, AID_AUDIO, "u:object_r:audio_device:s0");
-
-  insert_audio_modules();
 
   f = fopen("/early_services/etc/early_init.conf", "re");
   if (f == NULL) {
@@ -1138,6 +1140,8 @@ out:
     wpid = waitpid(lastpid, &wstatus, 0);
     if (wpid == -1 || wpid != 0) break;
   } while (wpid == 0);
+
+  pthread_join(audiofw_tid, NULL);
 
   write_marker("M - early-init-exit");
   mknod("/dev/sedone", S_IFREG | 0400, makedev(0,0));
