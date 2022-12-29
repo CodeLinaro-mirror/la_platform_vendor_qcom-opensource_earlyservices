@@ -1074,6 +1074,7 @@ int early_init(const char* stage)
   set_permissions("/early_services/dev/media1", 0660, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
   set_permissions("/early_services/dev/video0", 0660, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
   set_permissions("/early_services/dev/video1", 0660, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
+  set_permissions("/early_services/dev/video32", 0666, AID_ROOT, AID_GRAPHICS, "u:object_r:video_device:s0");
   set_permissions("/early_services/dev/v4l-subdev1", 0660, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
   set_permissions("/early_services/dev/v4l-subdev2", 0660, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
   set_permissions("/early_services/dev/v4l-subdev3", 0660, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
