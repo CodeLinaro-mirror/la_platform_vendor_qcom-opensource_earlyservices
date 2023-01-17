@@ -12,13 +12,14 @@ endif
 ifneq ($(filter $(MSMSTEPPE),$(TARGET_BOARD_PLATFORM)),)
 	LOCAL_CFLAGS := -DPLATFORM_MSMSTEPPE
 endif
-LOCAL_MODULE := init_early
+
+LOCAL_MODULE := early_services_init
 #LOCAL_STATIC_LIBRARIES := libc++_static
 LOCAL_FORCE_STATIC_EXECUTABLE := true
-LOCAL_MODULE_PATH := $(TARGET_RAMDISK_OUT)/early_services
-LOCAL_POST_INSTALL_CMD := $(hide) mkdir -p $(TARGET_ROOT_OUT)/early_services; \
-                                  mkdir -p $(TARGET_ROOT_OUT)/early_services/dev; \
-                                  mkdir -p $(TARGET_RAMDISK_OUT)/early_services;
+LOCAL_MODULE_PATH := $(TARGET_RAMDISK_OUT)/vendor_early_services/bin
+LOCAL_POST_INSTALL_CMD := $(hide) mkdir -p $(TARGET_ROOT_OUT)/vendor_early_services; \
+                                  mkdir -p $(TARGET_ROOT_OUT)/vendor_early_services/dev; \
+                                  mkdir -p $(TARGET_RAMDISK_OUT)/vendor_early_services;
 
 LOCAL_STATIC_LIBRARIES := libc++_static \
      libbase \
@@ -28,6 +29,7 @@ LOCAL_STATIC_LIBRARIES := libc++_static \
      libseccomp_policy \
      libselinux \
      libfs_mgr \
+     libmodprobe \
 
 LOCAL_CPPFLAGS := -std=c++17
 include $(BUILD_EXECUTABLE)
@@ -36,21 +38,21 @@ include $(BUILD_EXECUTABLE)
 include $(CLEAR_VARS)
 #To be removed later
 LOCAL_MODULE_TAGS := optional
-LOCAL_LDFLAGS := -Wl,-rpath,'/early_services/system/lib64' -Wl,--dynamic-linker,/early_services/system/bin/bootstrap/linker64
+LOCAL_LDFLAGS := -Wl,-rpath,'/vendor_early_services/system/lib64' -Wl,--dynamic-linker,/vendor_early_services/system/bin/bootstrap/linker64
 LOCAL_MODULE := init_early_gpio_test
 LOCAL_SRC_FILES := test_gpio.c
 LOCAL_MODULE_CLASS = ETC
-LOCAL_MODULE_PATH := $(TARGET_VENDOR_RAMDISK_OUT)/early_services/system/bin
+LOCAL_MODULE_PATH := $(TARGET_VENDOR_RAMDISK_OUT)/vendor_early_services/system/bin
 include $(BUILD_EXECUTABLE)
 
 include $(CLEAR_VARS)
 #To be removed later
 LOCAL_MODULE_TAGS := optional
-LOCAL_LDFLAGS := -Wl,-rpath,'/early_services/system/lib64' -Wl,--dynamic-linker,/early_services/system/bin/bootstrap/linker64
+LOCAL_LDFLAGS := -Wl,-rpath,'/vendor_early_services/system/lib64' -Wl,--dynamic-linker,/vendor_early_services/system/bin/bootstrap/linker64
 LOCAL_MODULE := init_early_spi_test
 LOCAL_SRC_FILES := test_spi.c
 LOCAL_MODULE_CLASS = ETC
-LOCAL_MODULE_PATH := $(TARGET_VENDOR_RAMDISK_OUT)/early_services/system/bin
+LOCAL_MODULE_PATH := $(TARGET_VENDOR_RAMDISK_OUT)/vendor_early_services/system/bin
 include $(BUILD_EXECUTABLE)
 
 include $(CLEAR_VARS)
@@ -61,7 +63,7 @@ include $(CLEAR_VARS)
 #LOCAL_MODULE := init_early_test
 #LOCAL_STATIC_LIBRARIES := libc++_static
 #LOCAL_FORCE_STATIC_EXECUTABLE := true
-#LOCAL_MODULE_PATH := $(TARGET_VENDOR_RAMDISK_OUT)/early_services/system/bin
+#LOCAL_MODULE_PATH := $(TARGET_VENDOR_RAMDISK_OUT)/vendor_early_services/system/bin
 #LOCAL_CPPFLAGS := -std=c++17
 # static linking end
 
@@ -69,11 +71,12 @@ include $(CLEAR_VARS)
 
 #To be removed later
 LOCAL_MODULE_TAGS := optional
-LOCAL_LDFLAGS := -Wl,-rpath,'/early_services/system/lib64' -Wl,--dynamic-linker,/early_services/system/bin/bootstrap/linker64
+LOCAL_LDFLAGS := -Wl,-rpath,'/vendor_early_services/system/lib64' -Wl,--dynamic-linker,/vendor_early_services/system/bin/bootstrap/linker64
 LOCAL_MODULE := init_early_test
 LOCAL_SRC_FILES := test.c
-LOCAL_MODULE_CLASS = ETC
-LOCAL_MODULE_PATH := $(TARGET_VENDOR_RAMDISK_OUT)/early_services/system/bin
+LOCAL_HEADER_LIBRARIES += libcutils_headers
+LOCAL_SHARED_LIBRARIES:=  libselinux
+LOCAL_MODULE_PATH := $(TARGET_VENDOR_RAMDISK_OUT)/vendor_early_services/bin
 include $(BUILD_EXECUTABLE)
 
 include $(CLEAR_VARS)
@@ -81,7 +84,7 @@ LOCAL_MODULE_TAGS := optional
 LOCAL_MODULE := early_init.conf
 LOCAL_SRC_FILES := $(LOCAL_MODULE)
 LOCAL_MODULE_CLASS = ETC
-LOCAL_MODULE_PATH := $(TARGET_VENDOR_RAMDISK_OUT)/early_services/etc
+LOCAL_MODULE_PATH := $(TARGET_VENDOR_RAMDISK_OUT)/vendor_early_services/etc
 #Prepare Early Rootfs structure
 LOCAL_POST_INSTALL_CMD := $(hide) mkdir -p $(LOCAL_MODULE_PATH)/../sbin; \
                                   mkdir -p $(LOCAL_MODULE_PATH)/../system/bin; \
@@ -112,19 +115,19 @@ LOCAL_MODULE_TAGS := optional
 LOCAL_MODULE := early_init_eth.conf
 LOCAL_SRC_FILES := $(LOCAL_MODULE)
 LOCAL_MODULE_CLASS = ETC
-LOCAL_MODULE_PATH := $(TARGET_VENDOR_RAMDISK_OUT)/early_services/etc
+LOCAL_MODULE_PATH := $(TARGET_VENDOR_RAMDISK_OUT)/vendor_early_services/etc
 include $(BUILD_PREBUILT)
 
 include $(CLEAR_VARS)
 LOCAL_MODULE_TAGS := optional
-LOCAL_MODULE_PATH := $(TARGET_VENDOR_RAMDISK_OUT)/early_services/vendor/bin
+LOCAL_MODULE_PATH := $(TARGET_VENDOR_RAMDISK_OUT)/vendor_early_services/vendor/bin
 ifneq ($(filter sdmshrike msmnile,$(TARGET_BOARD_PLATFORM)),)
 	LOCAL_CFLAGS := -DPLATFORM_MSMNILE
 endif
 ifneq ($(filter $(MSMSTEPPE),$(TARGET_BOARD_PLATFORM)),)
 	LOCAL_CFLAGS := -DPLATFORM_MSMSTEPPE
 endif
-LOCAL_LDFLAGS := -Wl,-rpath,'/early_services/system/lib64' -Wl,--dynamic-linker,/early_services/system/bin/bootstrap/linker64
+LOCAL_LDFLAGS := -Wl,-rpath,'/vendor_early_services/system/lib64' -Wl,--dynamic-linker,/vendor_early_services/system/bin/bootstrap/linker64
 LOCAL_C_INCLUDES:= hardware/libhardware/include \
                     system/media/audio/include \
                     external/tinycompress/include \

@@ -27,6 +27,8 @@ namespace earlyinit {
 
 void import_kernel_cmdline(bool in_qemu,
                            const std::function<void(const std::string&, const std::string&, bool)>&);
+bool load_kernel_modules(int& loaded_count);
+
 }  // namespace earlyinit
 }  // namespace android
 

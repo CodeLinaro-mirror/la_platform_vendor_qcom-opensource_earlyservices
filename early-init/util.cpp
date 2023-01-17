@@ -25,9 +25,10 @@
 #include <string.h>
 #include <unistd.h>
 
-
 #include <android-base/file.h>
 #include <android-base/strings.h>
+#include <android-base/logging.h>
+#include <modprobe/modprobe.h>
 
 #if defined(__ANDROID__)
 #include <android-base/properties.h>
@@ -38,6 +39,9 @@
 #ifdef _INIT_INIT_H
 #error "Do not include init.h in files used by ueventd or watchdogd; it will expose init's globals"
 #endif
+
+#define MODULES_DIR "/lib/modules"
+#define MODULES_LOAD_FILE "modules.load"
 
 using namespace std::literals::string_literals;
 
@@ -55,5 +59,17 @@ void import_kernel_cmdline(bool in_qemu,
         }
     }
 }
+
+bool load_kernel_modules(int& loaded_count) {
+    Modprobe m({MODULES_DIR}, MODULES_LOAD_FILE);
+    bool ret = m.LoadListedModules(false);
+    loaded_count = m.GetModuleCount();
+    if (loaded_count > 0) {
+        return ret;
+    }
+
+    return true;
+}
+
 }  // namespace earlyinit
 }  // namespace android

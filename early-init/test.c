@@ -36,6 +36,8 @@
 #include <sys/types.h>
 #include <fcntl.h>
 #include <string.h>
+#include "selinux/android.h"
+
 /*
 int echoToFile(char *str, int cnt, char *path) {
 	int fd, ret1;
@@ -60,9 +62,8 @@ int echoToFile(char *str, int cnt, char *path) {
 }
 */
 int main(int argc, char *argv[]){
-
-        freopen("/dev/kmsg", "w", stdout);
-        printf("Hello World \r\n");
+	freopen("/dev/kmsg", "w", stdout);
+	printf("Hello World \r\n");
 #if 0
 	void *mylib;
 	int eret;

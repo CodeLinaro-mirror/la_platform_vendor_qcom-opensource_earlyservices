@@ -95,7 +95,7 @@
 #include <dirent.h>
 #endif
 
-#define DEFAULT_CONF            "/early_services/etc/early_init.conf"
+#define DEFAULT_CONF            "/vendor_early_services/etc/early_init.conf"
 #define END_TAG                 "<end>"
 #define LINE_MAX                2048
 #define WHITESPACE              " \t\n\r"
@@ -103,10 +103,10 @@
 #define GPIO_EXPORT             "/sys/class/gpio/export"
 #define DRM_CARD_PATH           "/dev/dri/card0"
 #define VIDEO_CARD_PATH         "/dev/video32"
-#define AUDIO_FW_PATH           "/early_services/vendor/firmware_mnt"
+#define AUDIO_FW_PATH           "/vendor_early_services/vendor/firmware_mnt"
 #define SMACK_LABEL_PATH        "/proc/self/attr/current"
 #define SMACK_LABEL             "System"
-#define DEFAULT_PATH    "/sbin:/usr/sbin:/bin:/usr/bin:/system/sbin:/system/bin:/system/xbin:/odm/bin:/vendor/bin:/vendor/xbin:early_services/sbin:early_services/system/sbin:early_services/system/bin:early_services/system/xbin:early_services/odm/bin:early_services/vendor/bin:early_services/vendor/xbin"
+#define DEFAULT_PATH            "/sbin:/usr/sbin:/bin:/usr/bin:/system/sbin:/system/bin:/system/xbin:/odm/bin:/vendor/bin:/vendor/xbin:vendor_early_services/sbin:vendor_early_services/system/sbin:vendor_early_services/system/bin:vendor_early_services/system/xbin:vendor_early_services/odm/bin:vendor_early_services/vendor/bin:vendor_early_services/vendor/xbin"
 
 
 #define STR_EXPAND(tok) #tok
@@ -136,19 +136,9 @@
 
 #define init_module(module_image, len, param_values) syscall(__NR_init_module, module_image, len, param_values)
 #define finit_module(fd, param_values, flags) syscall(__NR_finit_module, fd, param_values, flags)
-#define NUM_MODULE 10
+#define NUM_MODULE 24
+#define ADSP_LOADER_KO "/vendor_early_services/vendor/lib/modules/adsp_loader_dlkm.ko"
 
-char audio_modules[NUM_MODULE][64] = {
-"/early_services/vendor/lib/modules/snd_event_dlkm.ko",
-"/early_services/vendor/lib/modules/q6_notifier_dlkm.ko",
-"/early_services/vendor/lib/modules/apr_dlkm.ko",
-"/early_services/vendor/lib/modules/adsp_loader_dlkm.ko",
-"/early_services/vendor/lib/modules/q6_dlkm.ko",
-"/early_services/vendor/lib/modules/platform_dlkm.ko",
-"/early_services/vendor/lib/modules/native_dlkm.ko",
-"/early_services/vendor/lib/modules/stub_dlkm.ko",
-"/early_services/vendor/lib/modules/hdmi_dlkm.ko",
-"/early_services/vendor/lib/modules/machine_dlkm.ko"};
 static pid_t lastpid;
 
 static inline bool is_empty_line(const char* p);
@@ -295,18 +285,18 @@ static inline void prepare_dir(char* p)
           perror("mount debugfs failed");
         }
       } else if(0 == strncmp(p + 1, "ev", strlen("ev"))) {
-        if (stat("/early_services/dev", &st) == -1) {
-          perror("/early_services/dev folder doesn't exist");
-          mkdir("/early_services/dev", 0755);
+        if (stat("/vendor_early_services/dev", &st) == -1) {
+          perror("/vendor_early_services/dev folder doesn't exist");
+          mkdir("/vendor_early_services/dev", 0755);
         }
-	ret = mount("devtmpfs", "/early_services/dev", "devtmpfs", 0, NULL);
+	ret = mount("devtmpfs", "/vendor_early_services/dev", "devtmpfs", 0, NULL);
         if (ret < 0) {
             freopen("/dev/kmsg", "w", stdout);
-            printf(" /early_services/dev mount failed error = %d \n", errno);
-          perror(" mount /early_services/dev with devtmpfs failed ");
+            printf(" /vendor_early_services/dev mount failed error = %d \n", errno);
+          perror(" mount /vendor_early_services/dev with devtmpfs failed ");
         } else
             freopen("/dev/kmsg", "w", stdout);
-            printf("/early_services/dev mount success error = %d \n", errno);
+            printf("/vendor_early_services/dev mount success error = %d \n", errno);
       }
       break;
     case 'x':
@@ -695,6 +685,11 @@ static inline int parse_line(char* p)
             safe_close(fd);
             safe_close(fd);
           }
+        } else {
+          fd = open("/dev/kmsg", O_WRONLY | O_CLOEXEC);
+          dup2(fd, STDOUT_FILENO);
+          dup2(fd, STDERR_FILENO);
+          close(fd);
         }
 
         if (app_launcher.bindcpumask != -1) {
@@ -755,7 +750,7 @@ static inline int parse_line(char* p)
         if (app_launcher.usleep > 0)
           usleep(app_launcher.usleep);
 
-        app_launcher.env[app_launcher.env_used] = "LD_LIBRARY_PATH=/early_services/system/lib64";
+        app_launcher.env[app_launcher.env_used] = "LD_LIBRARY_PATH=/vendor_early_services/system/lib64";
         app_launcher.env_used++;
         app_launcher.argv[app_launcher.argv_used] = NULL;
         app_launcher.env[app_launcher.env_used] = NULL;
@@ -776,7 +771,7 @@ static inline int parse_line(char* p)
         if (app_launcher.cmd) {
           ret = execvpe(app_launcher.cmd,app_launcher.argv,app_launcher.env);
           if(ret < 0) {
-            printf("App launch failed %s \r\n", app_launcher.appname);
+            printf("App launch failed %s err %d \r\n", app_launcher.appname, errno);
             memset(marker, 0, 50);
             snprintf(marker, 49 ,"M - Launch %s app failed %d", app_launcher.appname, errno);
             write_marker(marker);
@@ -838,58 +833,6 @@ static inline void trigger_firmware_loading(const char* path)
 }
 #endif
 
-static void insert_audio_modules(void)
-{
-  struct stat st = {0};
-  struct stat st_mod = {0};
-  struct timeval tv;
-  char marker_time[64];
-  int fd = -1;
-  int sret = 0, eret = 0;
-  size_t image_size;
-  static char marker[50];
-  int i, ret = 0;
-
-    LOG(INFO) << "ES : insert_audio_modules";
-    /* Load Audio modules */
-    memset(marker, 0, 50);
-    snprintf(marker, 49 ,"M - Insert Audio modules - Start");
-    write_marker(marker);
-
-    // Insert Modules using init_module()
-    for(i = 0; i < NUM_MODULE; i++ ) {
-/*    memset(marker, 0, 50);
-    snprintf(marker, 49 ,"M - Inserting %d %s",i,&audio_modules[i][32]);
-    write_marker(marker); */
-        fd = open(audio_modules[i], O_RDONLY);
-            printf("fd = %d post-open audio-module\n", fd, errno);
-        if (finit_module(fd, "", 0) != 0) {
-            freopen("/dev/kmsg", "w", stdout);
-            printf("fd = %d init_module %d failed\n", fd, errno);
-        }
-        else {
-            freopen("/dev/kmsg", "w", stdout);
-            printf("init_module success for %s \n", audio_modules[i]);
-        }
-        close(fd);
-        if(i == 3){
-            fd = open("/sys/kernel/boot_adsp/boot", O_WRONLY);
-            freopen("/dev/kmsg", "w", stdout);
-                if (fd < 0) {
-    		    LOG(INFO) << "ES : insert_audio_modules open sys entry failed";
-                } else if(-1 == write(fd, "1", 1)) {
-    		    LOG(INFO) << "ES : insert_audio_modules Write to sys entry failed";
-                } else {
-    		    LOG(INFO) << "ES : insert_audio_modules ADSP firmware loading triggered";
-                }
-        close(fd);
-        }
-    }
-    memset(marker, 0, 50);
-    snprintf(marker, 49 ,"M - Insert Audio modules - End");
-    write_marker(marker);
-}
-
 EnforcingStatus StatusFromCmdline() {
     EnforcingStatus status = SELINUX_ENFORCING;
     android::earlyinit::import_kernel_cmdline(false,
@@ -907,9 +850,6 @@ EnforcingStatus StatusFromCmdline() {
 bool IsEnforcing() {
     return StatusFromCmdline() == SELINUX_ENFORCING;
 }
-
-#define SECOND_STAGE "1"
-#define FIRST_STAGE  "0"
 
 void set_permissions(char *path, int permissions, int user, int group, char *context){
   int ret;
@@ -970,9 +910,9 @@ int getSysInfo(char * fileName, char * strName) {
       }
       close(fd);
       if(ret > 3)
-        fd = open("/early_services/dev/socket/camera/soc_id", O_RDWR | O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+        fd = open("/vendor_early_services/dev/socket/camera/soc_id", O_RDWR | O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
       else
-        fd = open("/early_services/dev/socket/camera/platform_subtype_id", O_RDWR | O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+        fd = open("/vendor_early_services/dev/socket/camera/platform_subtype_id", O_RDWR | O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
 
       write(fd,strName, strlen(strName) -1 );
       close(fd);
@@ -981,171 +921,172 @@ int getSysInfo(char * fileName, char * strName) {
   return 0;
 }
 
-int early_init(const char* stage)
+static int wait_for_file(char* file, int sleep_msec, int count)
 {
+  int i, ret;
+  int delay = sleep_msec * 1000;
+
+  for(i = 0, ret = -1; i < count; i++) {
+    if (access(file, F_OK) == 0) {
+      ret = 0;
+      break;
+    }
+    usleep(delay);
+  }
+
+  if (ret < 0) {
+    LOG(INFO) << "ES File '" << file << "' not found!";
+  } else {
+    LOG(INFO) << "ES File '" << file << "' found!";
+  }
+
+  return ret;
+}
+
+static int load_modules()
+{
+  int i, ret, fd;
+  int count = 0;
+
+  android::earlyinit::load_kernel_modules(count);
+  LOG(INFO) << "ES : Modules loaded count " << count;
+
+  mknod("/dev/kmdone", S_IFREG | 0400, makedev(0,0));
+
+  if (access(AUDIO_FW_PATH, F_OK) == -1) {
+    LOG(WARNING) << "ES : AUDIO_FW_PATH doesn't exist";
+    mkdirs(AUDIO_FW_PATH, 0755);
+  }
+
+  if (wait_for_file("/dev/block/sde4", 50, 30) == 0) {
+    ret = mount("/dev/block/sde4", AUDIO_FW_PATH, "vfat", MS_RDONLY, NULL);
+    if (ret < 0) {
+      LOG(INFO) << "ES : modemstr mount failed, ret "  << ret << " err " << errno;
+    } else {
+      LOG(INFO) << "ES : modemstr mount success ";
+    }
+  }
+
   FILE* f;
   char line[LINE_MAX];
-  int fd,pid,fd1,i;
-  clearenv();
-  setenv("PATH", DEFAULT_PATH, 1);
-  int ret1, ret = 0;
-  const int V4L_SUBDEV_WAIT_TIME = 5000;
-  struct stat st = {0};
-  pthread_t audiofw_tid;
-  int wstatus;
-  pid_t wpid;
+  const char* MOD_PATH = "/vendor_early_services/vendor/lib/modules/";
+  std::string ko;
+  f = fopen("/vendor_early_services/vendor/lib/modules/modules.load", "re");
+  if (f == NULL) {
+    perror("open early_init.conf failed.\r\n");
+    goto out;
+  }
 
-#ifdef TEMP_SOLUTION
+  while (1) {
+    if (!fgets(line, sizeof(line), f)) {
+      if (feof(f))
+        goto out;
+      else {
+        perror("read conf file meet error");
+        goto out;
+      }
+    }
+    if (is_empty_line(line))
+      continue;
+    strstrip(line);
+    ko = MOD_PATH;
+    ko += line;
+    ret = -1;
+    fd = -1;
+
+    fd = open(ko.c_str(), O_RDONLY);
+    if (fd > 0) {
+      ret = finit_module(fd, "", 0);
+      if (ret < 0 && errno != EEXIST) {
+        LOG(INFO) << "fd = " << fd << "ES : init_module failed" << "errno: " << errno;
+      } else {
+        LOG(INFO) << "ES : init_module success for: " << ko;
+      }
+      close(fd);
+    } else {
+      LOG(WARNING) << "ES : Failed to open module " << ko;
+    }
+
+    if (ko == ADSP_LOADER_KO) {
+       fd = open("/sys/kernel/boot_adsp/boot", O_WRONLY);
+      if (fd < 0) {
+        LOG(INFO) << "ES : load_modules ADSP open sys entry failed";
+      } else if(-1 == write(fd, "1", 1)) {
+        LOG(INFO) << "ES : load_modules ADSP Write to sys entry failed";
+      } else {
+        LOG(INFO) << "ES : load_modules ADSP firmware loading triggered";
+      }
+      close(fd);
+    }
+
+    memset(line, 0, sizeof(line));
+  }
+out:
+  if (f != NULL)
+    fclose(f);
+
+  write_marker("M - ES modules loading done");
+  LOG(INFO) << "ES : load_modules done.";
+
+  return 0;
+}
+
+int early_init()
+{
   int ret;
 
   clearenv();
   setenv("PATH", DEFAULT_PATH, 1);
-#endif
-
-  prepare_dir("dev");
-  if (strcmp(stage, FIRST_STAGE) == 0) {
-      prepare_dir("sysfs");
-      prepare_dir("debugfs");
-      prepare_dir("shm");
-      prepare_dir("procfs");
-      write_marker("M - EarlyInit FirstStage Start");
-      mount("sysfs", "/sys", "sysfs", 0, NULL);
-      mount("selinuxfs", "/sys/fs/selinux", "selinuxfs", 0, NULL);
-      android::earlyinit::InitKernelLogging(NULL);
-      LOG(INFO) << "ES : Logging enabled at early-services!";
-      ret1 = mount("/early_services", "/aes_tmpfs", NULL , MS_BIND | MS_REC, NULL);
-
-      mknod("/dev/kmsg", S_IFCHR | 0600, makedev(1, 11));
-      std::string precompiled_sepolicy_file = "/early_services/vendor/etc/selinux/precompiled_early_sepolicy";
-      write_marker("M - EarlyInit SEPolicyLoad Start");
-      fd1 = open(precompiled_sepolicy_file.c_str(), O_RDONLY | O_CLOEXEC | O_BINARY, 0777);
-      LOG(INFO) << "ES: precompiled sepolicy open fd=" << fd1 << "errno: " << errno ;
-      if (fd1 > 0) {
-          if (selinux_android_load_policy_from_fd(fd1, precompiled_sepolicy_file.c_str()) < 0)
-              LOG(INFO) << "Failed to load SELinux policy !";
-          else
-              LOG(INFO) << "ES : Successfully loaded precompiled sepolicy file";
-      }
-      close(fd1);
-      write_marker("M - EarlyInit SEPolicyLoad End");
-      bool is_enforcing = IsEnforcing();
-      LOG(INFO) << "ES : is enforcing = " << is_enforcing;
-      if (security_setenforce(is_enforcing))
-          LOG(INFO) << "Es: security_setenforce failed!";
-      selinux_android_restorecon("/early_services/init_early",0);
-      selinux_android_restorecon("/early_services/", SELINUX_ANDROID_RESTORECON_RECURSE);
-      selabel_handle* sehandle = nullptr;
-      sehandle = selinux_android_file_context_handle();
-      selinux_android_set_sehandle(sehandle);
-      setexeccon("u:r:init:s0");
-      char *path = "/early_services/init_early";
-      char *args[] = { path, SECOND_STAGE, NULL };
-      execv(path,args);
-  }
-#ifdef LV_CODE
-      /* Trigger firmware loading parallelly */
-      trigger_firmware_loading(DRM_CARD_PATH);
-#ifdef EARLY_ETHERNET
-      if (-1 == mount("/dev/mmcblk0p42", "/persist","ext4", 0, NULL))
-          perror("mount persist(mmcblk0p42) failed");
-      trigger_firmware_loading(VIDEO_CARD_PATH);
-#endif
-#endif
-  write_marker("M - Second Stage Start");
-  set_permissions("/dev/kmsg", 0620, AID_ROOT, AID_SYSTEM, "u:object_r:kmsg_device:s0");
   android::earlyinit::InitKernelLogging(NULL);
-  LOG(INFO) << "ES : In Second Stage!";
-  pthread_create(&audiofw_tid, NULL, prepare_audio_fw_dir, NULL);
 
-  while(access("/early_services/dev/dri/card3", F_OK) == -1);
-
-  set_permissions("/early_services/dev/dri/card3", 0666, AID_ROOT, AID_GRAPHICS, "u:object_r:graphics_device:s0");
-  set_permissions("/early_services/dev/dri/card2", 0666, AID_ROOT, AID_GRAPHICS, "u:object_r:graphics_device:s0");
-  /* Create ais_server socket dir and camera data dir */
-  mkdir("/early_services/dev/socket", 0775);
-  mkdir("/early_services/dev/socket/camera", 0775);
-
-  getSysInfo("/sys/devices/soc0/soc_id",chipId);
-  getSysInfo("/sys/devices/soc0/platform_subtype_id",platformId);
-
-  set_permissions("/early_services/dev/null", 0666, AID_ROOT, AID_ROOT, "u:object_r:null_device:s0");
-  set_permissions("/early_services/dev/urandom", 0666, AID_ROOT, AID_ROOT, "u:object_r:random_device:s0");
-  set_permissions("/early_services/dev/media0", 0660, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
-  set_permissions("/early_services/dev/media1", 0660, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
-  set_permissions("/early_services/dev/video0", 0660, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
-  set_permissions("/early_services/dev/video1", 0660, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
-  set_permissions("/early_services/dev/v4l-subdev1", 0660, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
-  set_permissions("/early_services/dev/v4l-subdev2", 0660, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
-  set_permissions("/early_services/dev/v4l-subdev3", 0660, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
-  set_permissions("/early_services/dev/v4l-subdev4", 0660, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
-  set_permissions("/early_services/dev/v4l-subdev5", 0660, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
-  set_permissions("/early_services/dev/v4l-subdev6", 0660, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
-  set_permissions("/early_services/dev/v4l-subdev7", 0660, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
-  set_permissions("/early_services/dev/v4l-subdev8", 0660, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
-  set_permissions("/early_services/dev/v4l-subdev9", 0660, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
-  set_permissions("/early_services/dev/v4l-subdev10", 0660, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
-  set_permissions("/early_services/dev/socket/camera", 0775, AID_ROOT, AID_CAMERA, "u:object_r:vendor_camera_socket:s0");
-  selinux_android_restorecon("/early_services/dev/socket/camera", SELINUX_ANDROID_RESTORECON_RECURSE);
-  set_permissions("/early_services/dev/ion", 0664, AID_ROOT, AID_SYSTEM, "u:object_r:ion_device:s0");
-  set_permissions("/early_services/dev/kgsl-3d0", 0664, AID_ROOT, AID_SYSTEM, "u:object_r:gpu_device:s0");
-  set_permissions("/early_services/dev/v4l-subdev11", 0660, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
-  set_permissions("/early_services/dev/v4l-subdev12", 0660, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
-  set_permissions("/early_services/dev/v4l-subdev13", 0660, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
-  set_permissions("/early_services/dev/v4l-subdev14", 0660, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
-  set_permissions("/early_services/dev/v4l-subdev15", 0660, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
-  set_permissions("/early_services/dev/v4l-subdev16", 0660, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
-  set_permissions("/early_services/dev/v4l-subdev0", 0660, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
-  set_permissions("/early_services/dev/spidev1.0", 0666, AID_ROOT, AID_SYSTEM, "u:object_r:kmsg_device:s0");
-  set_permissions("/dev/spidev1.0", 0666, AID_ROOT, AID_SYSTEM, "u:object_r:kmsg_device:s0");
-  set_permissions("/early_services/dev/spidev22.0", 0666, AID_ROOT, AID_SYSTEM, "u:object_r:kmsg_device:s0");
-  set_permissions("/dev/spidev22.0", 0666, AID_ROOT, AID_SYSTEM, "u:object_r:kmsg_device:s0");
-
-  f = fopen("/early_services/etc/early_init.conf", "re");
-  if (f == NULL) {
-      perror("open early_init.conf failed.\r\n");
-      return -1;
+  ret = mount("/vendor_early_services", "/vendor_early_services", NULL , MS_BIND | MS_REC, NULL);
+  if (ret < 0) {
+    mknod("/dev/sedone", S_IFREG | 0400, makedev(0,0));
+    LOG(WARNING) << "ES : mount failed! " << "errno " << errno;
+    return -1;
   }
-  selabel_handle* sehandle = nullptr;
-  sehandle = selinux_android_file_context_handle();
-  selinux_android_set_sehandle(sehandle);
-  while (1) {
-       if (!fgets(line, sizeof(line), f)) {
-           if (feof(f))
-               goto out;
-           else {
-               perror("read conf file meet error");
-               goto out;
-           }
-       }
-       if (is_empty_line(line))
-           continue;
-       strstrip(line);
-       parse_line(line);
-       memset(line, 0, sizeof(line));
-  }
-out:
-  fclose(f);
 
-  do {
-    /* Waiting for last pid which is init_early_test and expecting it returns immediately. */
-    wpid = waitpid(lastpid, &wstatus, 0);
-    if (wpid == -1 || wpid != 0) break;
-  } while (wpid == 0);
-
-  pthread_join(audiofw_tid, NULL);
+  load_modules();
 
   write_marker("M - early-init-exit");
+
+  LOG(INFO) << "ES : sedone ";
   mknod("/dev/sedone", S_IFREG | 0400, makedev(0,0));
+
+  return 0;
+}
+
+int early_selinux_init(void)
+{
+  clearenv();
+  setenv("PATH", DEFAULT_PATH, 1);
+  LOG(INFO) << "ES : Logging enabled at early-selinux!";
+  android::earlyinit::InitKernelLogging(NULL);
+
+  if (selinux_android_restorecon("/vendor_early_services/bin/early_services_init", 0) == -1) {
+    LOG(INFO) << "ES restorecon early_services_init failed";
+  }
+
+  int ret = selinux_android_setcon("u:r:init:s0");
+  LOG(INFO) << "ES SET con vendor ES init ret " << ret << " err " << errno;
 
   return 0;
 }
 
 int main(int argc, char* argv[])
 {
-    if (argc ==  1) {
-        early_init(FIRST_STAGE);
-    } else if((strcmp(argv[1],"1"))==0) {
-        early_init(SECOND_STAGE);
-    }
-    return 0;
+  if (argc < 1) {
+    LOG(ERROR) << "ES started without args!";
+    return -1;
+  }
+
+  if (!strcmp(argv[1], "early_service")) {
+    LOG(INFO) << "ES Init First Stage";
+    early_init();
+  } else if (!strcmp(argv[1], "selinux")) {
+    LOG(INFO) << "ES Init Selinux Stage";
+    early_selinux_init();
+  }
+
+  return 0;
 }
