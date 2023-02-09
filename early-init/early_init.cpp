@@ -136,7 +136,7 @@
 
 #define init_module(module_image, len, param_values) syscall(__NR_init_module, module_image, len, param_values)
 #define finit_module(fd, param_values, flags) syscall(__NR_finit_module, fd, param_values, flags)
-#define NUM_MODULE 24
+#define NUM_MODULE 32
 #define ADSP_LOADER_KO "/vendor_early_services/vendor/lib/modules/adsp_loader_dlkm.ko"
 
 static pid_t lastpid;
@@ -146,6 +146,7 @@ static inline char *strstrip(char *s);
 static inline int parse_line(char* p);
 static void insert_audio_modules(void);
 static void set_permissions(char *path, int permissions, int user, int group, char *context);
+static void launch_early_apps(void);
 
 enum EnforcingStatus { SELINUX_PERMISSIVE, SELINUX_ENFORCING };
 
@@ -382,6 +383,7 @@ static inline void prepare_dir(char* p)
   return;
 }
 
+#if 0
 static void* prepare_audio_fw_dir(void* vargp)
 {
   int ret = 0, i = 0;
@@ -426,6 +428,7 @@ static void* prepare_audio_fw_dir(void* vargp)
 
   return NULL;
 }
+#endif
 
 /*
  * Remove trailing spaces
@@ -763,15 +766,18 @@ static inline int parse_line(char* p)
         if (app_launcher.group) {
           enforce_group(app_launcher.group);
         }
-
+        if ((ret = access(app_launcher.cmd, F_OK)) != 0) {
+          LOG(WARNING) << "ES : App " << app_launcher.appname << " doesn't exist ret " << ret << " err " << errno;
+          return -1;
+        }
         memset(marker, 0, 50);
         snprintf(marker, 49 ,"M - Launch %s app", app_launcher.appname);
         write_marker(marker);
-
+        LOG(INFO) << "ES : Launching app " << app_launcher.appname;
         if (app_launcher.cmd) {
           ret = execvpe(app_launcher.cmd,app_launcher.argv,app_launcher.env);
           if(ret < 0) {
-            printf("App launch failed %s err %d \r\n", app_launcher.appname, errno);
+            LOG(INFO) << "ES : App launch failed " << app_launcher.appname << " errno " << errno;
             memset(marker, 0, 50);
             snprintf(marker, 49 ,"M - Launch %s app failed %d", app_launcher.appname, errno);
             write_marker(marker);
@@ -910,18 +916,22 @@ int getSysInfo(char * fileName, char * strName) {
       }
       close(fd);
       if(ret > 3)
-        fd = open("/vendor_early_services/dev/socket/camera/soc_id", O_RDWR | O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+        fd = open("/dev/socket/camera/soc_id", O_RDWR | O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
       else
-        fd = open("/vendor_early_services/dev/socket/camera/platform_subtype_id", O_RDWR | O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+        fd = open("/dev/socket/camera/platform_subtype_id", O_RDWR | O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
 
-      write(fd,strName, strlen(strName) -1 );
-      close(fd);
+      if (fd > 0) {
+        write(fd,strName, strlen(strName) -1 );
+        close(fd);
+      } else {
+        LOG(INFO) << "/dev/socket/camera/* open failed fd " << fd << " err " << errno;
+      }
   }
 
   return 0;
 }
 
-static int wait_for_file(char* file, int sleep_msec, int count)
+static int wait_for_file(const char* file, int sleep_msec, int count)
 {
   int i, ret;
   int delay = sleep_msec * 1000;
@@ -948,23 +958,42 @@ static int load_modules()
   int i, ret, fd;
   int count = 0;
 
+  write_marker("M - ES modules loading start");
   android::earlyinit::load_kernel_modules(count);
   LOG(INFO) << "ES : Modules loaded count " << count;
 
   mknod("/dev/kmdone", S_IFREG | 0400, makedev(0,0));
+
+  std::string modemStr;
+  const char* mnt = NULL;
+  const char* MNT_DEFAULT = "/dev/block/sde4";
+
+  android::earlyinit::import_kernel_cmdline(false,
+        [&](const std::string& key, const std::string& value, bool in_qemu) {
+    if (key == "modem") {
+      modemStr =  value;
+      LOG(INFO) << "ES : modem mount path " << modemStr;
+    }
+  });
 
   if (access(AUDIO_FW_PATH, F_OK) == -1) {
     LOG(WARNING) << "ES : AUDIO_FW_PATH doesn't exist";
     mkdirs(AUDIO_FW_PATH, 0755);
   }
 
-  if (wait_for_file("/dev/block/sde4", 50, 30) == 0) {
-    ret = mount("/dev/block/sde4", AUDIO_FW_PATH, "vfat", MS_RDONLY, NULL);
-    if (ret < 0) {
-      LOG(INFO) << "ES : modemstr mount failed, ret "  << ret << " err " << errno;
+  if (modemStr.length() && wait_for_file(modemStr.c_str(), 10, 5) == 0)
+    mnt = modemStr.c_str();
+  if (!mnt && wait_for_file(MNT_DEFAULT, 30, 50) == 0)
+    mnt = MNT_DEFAULT;
+
+  if (mnt) {
+    if (mount(mnt, AUDIO_FW_PATH, "vfat", MS_RDONLY, NULL) < 0) {
+      LOG(WARNING) << "ES : modemstr mount failed, err " << errno;
     } else {
-      LOG(INFO) << "ES : modemstr mount success ";
+      LOG(INFO) << "ES : modemstr mount success.";
     }
+  } else {
+    LOG(WARNING) << "ES : modemstr Not Found!";
   }
 
   FILE* f;
@@ -1031,6 +1060,36 @@ out:
   return 0;
 }
 
+static void launch_early_apps(void)
+{
+  FILE* f;
+  char line[LINE_MAX];
+
+  f = fopen("/vendor_early_services/etc/early_init.conf", "re");
+  if (f == NULL) {
+    perror("open early_init.conf failed.\r\n");
+    return;
+  }
+
+  while (1) {
+    if (!fgets(line, sizeof(line), f)) {
+      if (feof(f))
+        goto out;
+      else {
+        perror("read conf file meet error");
+        goto out;
+      }
+    }
+    if (is_empty_line(line))
+      continue;
+    strstrip(line);
+    parse_line(line);
+    memset(line, 0, sizeof(line));
+  }
+out:
+  fclose(f);
+}
+
 int early_init()
 {
   int ret;
@@ -1038,6 +1097,7 @@ int early_init()
   clearenv();
   setenv("PATH", DEFAULT_PATH, 1);
   android::earlyinit::InitKernelLogging(NULL);
+  LOG(INFO) << "ES : Logging enabled at early-services!";
 
   ret = mount("/vendor_early_services", "/vendor_early_services", NULL , MS_BIND | MS_REC, NULL);
   if (ret < 0) {
@@ -1048,7 +1108,12 @@ int early_init()
 
   load_modules();
 
-  write_marker("M - early-init-exit");
+  /* Create ais_server socket dir and camera data dir */
+  mkdir("/dev/socket", 0775);
+  mkdir("/dev/socket/camera", 0775);
+
+  getSysInfo("/sys/devices/soc0/soc_id", chipId);
+  getSysInfo("/sys/devices/soc0/platform_subtype_id", platformId);
 
   LOG(INFO) << "ES : sedone ";
   mknod("/dev/sedone", S_IFREG | 0400, makedev(0,0));
@@ -1058,6 +1123,9 @@ int early_init()
 
 int early_selinux_init(void)
 {
+  int wstatus;
+  pid_t wpid;
+
   clearenv();
   setenv("PATH", DEFAULT_PATH, 1);
   LOG(INFO) << "ES : Logging enabled at early-selinux!";
@@ -1069,6 +1137,15 @@ int early_selinux_init(void)
 
   int ret = selinux_android_setcon("u:r:init:s0");
   LOG(INFO) << "ES SET con vendor ES init ret " << ret << " err " << errno;
+
+  launch_early_apps();
+  do {
+    /* Waiting for last pid which is init_early_test and expecting it returns immediately. */
+    wpid = waitpid(lastpid, &wstatus, 0);
+    if (wpid == -1 || wpid != 0) break;
+  } while (wpid == 0);
+
+  write_marker("M - early-init-exit");
 
   return 0;
 }

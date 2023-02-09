@@ -86,21 +86,21 @@ static int32_t auto_audio_ext_set_mixer_ctl(struct mixer *mixer, const char *nam
     char buf[32];
 
     if (!mixer || !name) {
-        freopen("/early_services/dev/kmsg", "w", stdout);
+        freopen("/dev/kmsg", "w", stdout);
         printf("mixer ctl is NULL");
         return -1;
     }
 
     ctl = mixer_get_ctl_by_name(mixer, name);
     if (!ctl) {
-        freopen("/early_services/dev/kmsg", "w", stdout);
+        freopen("/dev/kmsg", "w", stdout);
         printf("Could not get ctl for mixer by name");
         return -1;
     }
 
     ret = mixer_ctl_set_value(ctl, 0, value);
     if (ret) {
-        freopen("/early_services/dev/kmsg", "w", stdout);
+        freopen("/dev/kmsg", "w", stdout);
         printf("Could not set ctl for mixer");
     }
 
@@ -136,11 +136,11 @@ int32_t auto_audio_ext_enable_hostless()
     pthread_mutex_lock(&info->lock);
 
     place_marker("ES enable hostless start");
-    freopen("/early_services/dev/kmsg", "w", stdout);
+    freopen("/dev/kmsg", "w", stdout);
     printf("Enable ES hostless start\n ");
 
     if (!info->mixer) {
-        freopen("/early_services/dev/kmsg", "w", stdout);
+        freopen("/dev/kmsg", "w", stdout);
         printf(" mixer is NULL");
         ret = -1;
         goto exit;
@@ -148,7 +148,7 @@ int32_t auto_audio_ext_enable_hostless()
 
     for (i = 0; i < MAX_SESSION; i++) {
         if (info->hostless[i].enable) {
-            freopen("/early_services/dev/kmsg", "w", stdout);
+            freopen("/dev/kmsg", "w", stdout);
             printf("hostless is already enabled");
             continue;
         }
@@ -164,7 +164,7 @@ int32_t auto_audio_ext_enable_hostless()
         ret = auto_audio_ext_set_mixer_ctl(info->mixer,
                                         audio_route[i], 1);
         if (ret) {
-            freopen("/early_services/dev/kmsg", "w", stdout);
+            freopen("/dev/kmsg", "w", stdout);
             printf("auto_audio_ext_set_mixer_ctl failed ");
             goto error;
         }
@@ -179,13 +179,13 @@ int32_t auto_audio_ext_enable_hostless()
 again:
         fd = open(fn, O_RDONLY);
         if ((fd < 0) && (sleepRetry < MAX_SLEEP_RETRY)){
-            freopen("/early_services/dev/kmsg", "w", stdout);
+            freopen("/dev/kmsg", "w", stdout);
             printf("pcm open device %d failed %d\n",pcm_id[k],sleepRetry );
             AUDIO_CHIME_SLEEP(AUDIO_CHIME_WAIT_TIME * 1000);
             sleepRetry++;
             goto again;
         } else {
-            freopen("/early_services/dev/kmsg", "w", stdout);
+            freopen("/dev/kmsg", "w", stdout);
             printf("pcm device %d online for early chime - \n", pcm_id[k]);
             sleepRetry = 0;
             close(fd);
@@ -196,12 +196,12 @@ again:
                                         PCM_IN, &pcm_config);
         if (info->hostless[i].pcm_tx &&
             !pcm_is_ready(info->hostless[i].pcm_tx)) {
-            freopen("/early_services/dev/kmsg", "w", stdout);
+            freopen("/dev/kmsg", "w", stdout);
             printf("Failed opening pcm_tx %d %d\n", info->snd_card, pcm_id[k]);
             ret = -1;
         }
         else {
-            freopen("/early_services/dev/kmsg", "w", stdout);
+            freopen("/dev/kmsg", "w", stdout);
             printf("Opened pcm_tx %d %d\n", info->snd_card, pcm_id[k]);
         }
 
@@ -210,24 +210,24 @@ again:
                                         PCM_OUT, &pcm_config);
         if (info->hostless[i].pcm_rx &&
             !pcm_is_ready(info->hostless[i].pcm_rx)) {
-            freopen("/early_services/dev/kmsg", "w", stdout);
+            freopen("/dev/kmsg", "w", stdout);
             printf("Failed opening pcm_rx %d %d\n", info->snd_card, pcm_id[k+1]);
             ret = -1;
             goto error;
         }
         else {
-            freopen("/early_services/dev/kmsg", "w", stdout);
+            freopen("/dev/kmsg", "w", stdout);
             printf("Opened pcm_rx %d %d\n", info->snd_card, pcm_id[k+1]);
         }
 
         if (pcm_start(info->hostless[i].pcm_tx) < 0) {
-            freopen("/early_services/dev/kmsg", "w", stdout);
+            freopen("/dev/kmsg", "w", stdout);
             printf("Failed starting pcm_tx");
             ret = -1;
             goto error;
         }
         if (pcm_start(info->hostless[i].pcm_rx) < 0) {
-            freopen("/early_services/dev/kmsg", "w", stdout);
+            freopen("/dev/kmsg", "w", stdout);
             printf("Failed starting pcm_rx");
             ret = -1;
             goto error;
@@ -237,7 +237,7 @@ again:
     }
 
     place_marker("Completed ES hostless configuration");
-    freopen("early_services/dev/kmsg", "w", stdout);
+    freopen("vendor_early_services/dev/kmsg", "w", stdout);
     printf("Completed ES hostless configuration ");
     pthread_mutex_unlock(&info->lock);
     return ret;
@@ -255,7 +255,7 @@ error:
 exit:
     pthread_mutex_unlock(&info->lock);
     place_marker("AudioD Failed");
-    freopen("/early_services/dev/kmsg", "w", stdout);
+    freopen("/dev/kmsg", "w", stdout);
     printf("AudioD Failed ");
     return ret;
 }
@@ -267,12 +267,12 @@ int32_t auto_audio_ext_set_snd_card(int snd_card)
     char buf[32];
     int fd1,fd = 0;
     int sleepRetry = 0;
-        freopen("/early_services/dev/kmsg", "w", stdout);
+        freopen("/dev/kmsg", "w", stdout);
         printf("auto_audio_ext_set_snd_card start\n");
 
     info = (struct snd_card_info *)calloc(1, sizeof(struct snd_card_info));
     if (info == NULL) {
-        freopen("/early_services/dev/kmsg", "w", stdout);
+        freopen("/dev/kmsg", "w", stdout);
         printf("Memory allocation failed");
         return -1;
     }
@@ -282,28 +282,28 @@ int32_t auto_audio_ext_set_snd_card(int snd_card)
 again:
     fd = open("/sys/class/sound/card0/id", O_RDONLY);
     if ((fd < 0) && (sleepRetry < MAX_SLEEP_RETRY)){
-        freopen("/early_services/dev/kmsg", "w", stdout);
+        freopen("/dev/kmsg", "w", stdout);
         printf("Open card id failed %d\n",sleepRetry);
         AUDIO_CHIME_SLEEP(AUDIO_CHIME_WAIT_TIME * 1000);
         sleepRetry++;
         goto again;
     } else if(-1 == read(fd, buf, sizeof(buf))) {
-        freopen("/early_services/dev/kmsg", "w", stdout);
+        freopen("/dev/kmsg", "w", stdout);
         printf("Read failed");
         return -1;
     } else {
-        freopen("/early_services/dev/kmsg", "w", stdout);
+        freopen("/dev/kmsg", "w", stdout);
         printf("Card0 online for early chime - %s\n",buf);
     }
     if (info->mixer) {
-        freopen("/early_services/dev/kmsg", "w", stdout);
+        freopen("/dev/kmsg", "w", stdout);
         printf("Closing existing mixer");
         mixer_close(info->mixer);
     }
 cardagain:
     fd1 = open("/dev/snd/controlC0", O_RDONLY);
     if ((fd1 < 0) && (sleepRetry < MAX_SLEEP_RETRY)){
-        freopen("/early_services/dev/kmsg", "w", stdout);
+        freopen("/dev/kmsg", "w", stdout);
         printf("Open snd card failed %d\n",sleepRetry);
         AUDIO_CHIME_SLEEP(AUDIO_CHIME_WAIT_TIME * 1000);
         sleepRetry++;
@@ -312,12 +312,12 @@ cardagain:
     close(fd1);
     info->mixer = mixer_open(snd_card);
     if (!info->mixer) {
-        freopen("/early_services/dev/kmsg", "w", stdout);
+        freopen("/dev/kmsg", "w", stdout);
         printf("Failed to open mixer");
         ret = -1;
     }
 
-    freopen("/early_services/dev/kmsg", "w", stdout);
+    freopen("/dev/kmsg", "w", stdout);
     printf("auto_audio_ext_set_snd_card end\n");
     return ret;
 }
