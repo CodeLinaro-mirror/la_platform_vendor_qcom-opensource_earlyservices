@@ -279,22 +279,6 @@ int32_t auto_audio_ext_set_snd_card(int snd_card)
     memset(info, 0, sizeof(struct snd_card_info));
     info->snd_card = snd_card;
 
-again:
-    fd = open("/sys/class/sound/card0/id", O_RDONLY);
-    if ((fd < 0) && (sleepRetry < MAX_SLEEP_RETRY)){
-        freopen("/dev/kmsg", "w", stdout);
-        printf("Open card id failed %d\n",sleepRetry);
-        AUDIO_CHIME_SLEEP(AUDIO_CHIME_WAIT_TIME * 1000);
-        sleepRetry++;
-        goto again;
-    } else if(-1 == read(fd, buf, sizeof(buf))) {
-        freopen("/dev/kmsg", "w", stdout);
-        printf("Read failed");
-        return -1;
-    } else {
-        freopen("/dev/kmsg", "w", stdout);
-        printf("Card0 online for early chime - %s\n",buf);
-    }
     if (info->mixer) {
         freopen("/dev/kmsg", "w", stdout);
         printf("Closing existing mixer");

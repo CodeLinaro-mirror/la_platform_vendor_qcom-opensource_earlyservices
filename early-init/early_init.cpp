@@ -953,6 +953,33 @@ static int wait_for_file(const char* file, int sleep_msec, int count)
   return ret;
 }
 
+static void* set_audio_permission()
+{
+  int ch_ret;
+  LOG(INFO) << "ES: Waiting for the controlc0 node";
+  if (wait_for_file("/dev/snd/controlC0", 50, 1000) == 0)
+  {
+    LOG(INFO) << "ES: controlc0 node available";
+    set_permissions("/dev/snd", 00777, AID_ROOT, AID_ROOT, "u:object_r:audio_device:s0");
+
+   if ( 0 != chmod("/dev/snd/controlC0", 00666))
+     LOG(INFO) << "ES: ControlC0 chmod failed errno " << errno;
+   if ( 0 != chmod("/dev/snd/pcmC0D49c", 00666))
+     LOG(INFO) << "ES: pcmC0D49C chmod failed errno " << errno;
+   if ( 0 != chmod("/dev/snd/pcmC0D48p", 00666))
+     LOG(INFO) << "ES: pcmC0D48p chmod failed errno " << errno;
+   if ( 0 != chmod("/dev/snd/pcmC0D50p", 00666))
+      LOG(INFO) << "ES: pcmC0D50p chmod failed errno " << errno;
+   if ( 0 != chmod("/dev/snd/pcmC0D53c", 00666))
+     LOG(INFO) << "ES: pcmC0D53c chmod failed errno " << errno;
+   if ( 0 != chmod("/dev/snd/pcmC0D55p", 00666))
+     LOG(INFO) << "ES: pcmC0D55p chmod failed errno " << errno;
+  }
+  LOG(INFO) << " Setting permission completed- exiting the thread";
+  return 0;
+}
+
+
 static int load_modules()
 {
   int i, ret, fd;
@@ -1036,13 +1063,14 @@ static int load_modules()
       LOG(WARNING) << "ES : Failed to open module " << ko;
     }
 
-    if (ko == ADSP_LOADER_KO) {
+    if (0 == strcmp(ko.c_str(), ADSP_LOADER_KO)) {
        fd = open("/sys/kernel/boot_adsp/boot", O_WRONLY);
       if (fd < 0) {
         LOG(INFO) << "ES : load_modules ADSP open sys entry failed";
       } else if(-1 == write(fd, "1", 1)) {
         LOG(INFO) << "ES : load_modules ADSP Write to sys entry failed";
       } else {
+        write_marker("M - ES: Start ADSP");
         LOG(INFO) << "ES : load_modules ADSP firmware loading triggered";
       }
       close(fd);
@@ -1137,6 +1165,11 @@ int early_selinux_init(void)
 
   int ret = selinux_android_setcon("u:r:init:s0");
   LOG(INFO) << "ES SET con vendor ES init ret " << ret << " err " << errno;
+
+  if (fork() == 0) {
+     set_audio_permission();
+     exit(0);
+  }
 
   launch_early_apps();
   do {
