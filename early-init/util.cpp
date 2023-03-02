@@ -24,6 +24,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <thread>
 
 #include <android-base/file.h>
 #include <android-base/strings.h>
@@ -60,15 +61,29 @@ void import_kernel_cmdline(bool in_qemu,
     }
 }
 
-bool load_kernel_modules(int& loaded_count) {
+bool load_kernel_modules(int& loaded_count, bool is_parallel) {
     Modprobe m({MODULES_DIR}, MODULES_LOAD_FILE);
-    bool ret = m.LoadListedModules(false);
+    bool ret = (is_parallel) ? m.LoadModulesParallel(std::thread::hardware_concurrency())
+                   : m.LoadListedModules(false);
     loaded_count = m.GetModuleCount();
     if (loaded_count > 0) {
         return ret;
     }
 
     return true;
+}
+
+
+void import_kernel_bootconfig(bool in_qemu,
+                           const std::function<void(const std::string&, const std::string&, bool)>& fn) {
+    std::string bootconfig;
+    android::base::ReadFileToString("/proc/bootconfig", &bootconfig);
+    for (const auto& entry : android::base::Split(bootconfig, "\n")) {
+      std::vector<std::string> pieces = android::base::Split(entry, "=");
+      if (pieces.size() == 2) {
+        fn(android::base::Trim(pieces[0]), android::base::Trim(pieces[1]), in_qemu);
+      }
+    }
 }
 
 }  // namespace earlyinit
