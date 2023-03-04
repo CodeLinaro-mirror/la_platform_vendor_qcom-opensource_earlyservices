@@ -1058,7 +1058,9 @@ int early_init(const char* stage)
   pthread_create(&audiofw_tid, NULL, prepare_audio_fw_dir, NULL);
 
   while(access("/early_services/dev/dri/card3", F_OK) == -1);
+  while(access("/early_services/dev/dri/card4", F_OK) == -1);
 
+  set_permissions("/early_services/dev/dri/card4", 0666, AID_ROOT, AID_GRAPHICS, "u:object_r:graphics_device:s0");
   set_permissions("/early_services/dev/dri/card3", 0666, AID_ROOT, AID_GRAPHICS, "u:object_r:graphics_device:s0");
   set_permissions("/early_services/dev/dri/card2", 0666, AID_ROOT, AID_GRAPHICS, "u:object_r:graphics_device:s0");
   /* Create ais_server socket dir and camera data dir */
@@ -1074,6 +1076,7 @@ int early_init(const char* stage)
   set_permissions("/early_services/dev/media1", 0660, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
   set_permissions("/early_services/dev/video0", 0660, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
   set_permissions("/early_services/dev/video1", 0660, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
+  set_permissions("/early_services/dev/video32", 0666, AID_ROOT, AID_GRAPHICS, "u:object_r:video_device:s0");
   set_permissions("/early_services/dev/v4l-subdev1", 0660, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
   set_permissions("/early_services/dev/v4l-subdev2", 0660, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
   set_permissions("/early_services/dev/v4l-subdev3", 0660, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");

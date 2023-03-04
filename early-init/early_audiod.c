@@ -283,7 +283,8 @@ again:
     fd = open("/sys/class/sound/card0/id", O_RDONLY);
     if ((fd < 0) && (sleepRetry < MAX_SLEEP_RETRY)){
         freopen("/early_services/dev/kmsg", "w", stdout);
-        printf("Open card id failed %d\n",sleepRetry);
+        if(sleepRetry == MAX_SLEEP_RETRY)
+           printf("Open card id failed %d\n",sleepRetry);
         AUDIO_CHIME_SLEEP(AUDIO_CHIME_WAIT_TIME * 1000);
         sleepRetry++;
         goto again;
@@ -293,7 +294,7 @@ again:
         return -1;
     } else {
         freopen("/early_services/dev/kmsg", "w", stdout);
-        printf("Card0 online for early chime - %s\n",buf);
+        printf("Card0 online for early chime after %d ms - %s\n",(sleepRetry*AUDIO_CHIME_WAIT_TIME),buf);
     }
     if (info->mixer) {
         freopen("/early_services/dev/kmsg", "w", stdout);
