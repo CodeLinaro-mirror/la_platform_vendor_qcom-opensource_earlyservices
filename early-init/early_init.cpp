@@ -1058,9 +1058,11 @@ int early_init(const char* stage)
   pthread_create(&audiofw_tid, NULL, prepare_audio_fw_dir, NULL);
 
   while(access("/early_services/dev/dri/card3", F_OK) == -1);
+#ifdef PLATFORM_MSMNILE
   while(access("/early_services/dev/dri/card4", F_OK) == -1);
 
   set_permissions("/early_services/dev/dri/card4", 0666, AID_ROOT, AID_GRAPHICS, "u:object_r:graphics_device:s0");
+#endif
   set_permissions("/early_services/dev/dri/card3", 0666, AID_ROOT, AID_GRAPHICS, "u:object_r:graphics_device:s0");
   set_permissions("/early_services/dev/dri/card2", 0666, AID_ROOT, AID_GRAPHICS, "u:object_r:graphics_device:s0");
   /* Create ais_server socket dir and camera data dir */
