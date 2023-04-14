@@ -955,13 +955,14 @@ return 0;
 }
 #endif
 
-int getSysInfo(char * fileName, char * strName) {
+int getSysInfo(char * fileName, char * strName, int len) {
   int fd,ret;
 
   fd = open(fileName, O_RDONLY);
 
   if (fd > 0)
   {
+      memset(strName, 0x00, len);
       ret = read(fd, strName, sizeof(strName) - 1);
       if (-1 == ret)
       {
@@ -1069,8 +1070,8 @@ int early_init(const char* stage)
   mkdir("/early_services/dev/socket", 0775);
   mkdir("/early_services/dev/socket/camera", 0775);
 
-  getSysInfo("/sys/devices/soc0/soc_id",chipId);
-  getSysInfo("/sys/devices/soc0/platform_subtype_id",platformId);
+  getSysInfo("/sys/devices/soc0/soc_id", chipId, (sizeof(chipId)/sizeof(chipId[0])));
+  getSysInfo("/sys/devices/soc0/platform_subtype_id", platformId, (sizeof(platformId)/sizeof(platformId[0])));
 
   set_permissions("/early_services/dev/null", 0666, AID_ROOT, AID_ROOT, "u:object_r:null_device:s0");
   set_permissions("/early_services/dev/urandom", 0666, AID_ROOT, AID_ROOT, "u:object_r:random_device:s0");
