@@ -29,7 +29,7 @@
 
 /*
 * Changes from Qualcomm Innovation Center are provided under the following license:
-* Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+* Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without
 * modification, are permitted (subject to the limitations in the
@@ -62,7 +62,9 @@
 * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
+#ifndef _GNU_SOURCE
 #define _GNU_SOURCE
+#endif
 //#define TEMP_SOLUTION
 #define EARLYINIT_DEBUG
 
@@ -98,6 +100,7 @@
 #define DEFAULT_CONF            "/vendor_early_services/etc/early_init.conf"
 #define END_TAG                 "<end>"
 #define LINE_MAX                2048
+#define SHORT_STRING_MAX        128
 #define WHITESPACE              " \t\n\r"
 #define KPI_VALUE_PATH          "/sys/kernel/boot_kpi/kpi_values"
 #define GPIO_EXPORT             "/sys/class/gpio/export"
@@ -108,6 +111,8 @@
 #define SMACK_LABEL             "System"
 #define DEFAULT_PATH            "/sbin:/usr/sbin:/bin:/usr/bin:/system/sbin:/system/bin:/system/xbin:/odm/bin:/vendor/bin:/vendor/xbin:vendor_early_services/sbin:vendor_early_services/system/sbin:vendor_early_services/system/bin:vendor_early_services/system/xbin:vendor_early_services/odm/bin:vendor_early_services/vendor/bin:vendor_early_services/vendor/xbin"
 
+
+#define EARLY_SERVICES_SEPOL   "/vendor_early_services/vendor/etc/selinux/precompiled_sepolicy"
 
 #define STR_EXPAND(tok) #tok
 #define TO_STRING(tok) STR_EXPAND(tok)
@@ -121,7 +126,6 @@
 #include <android-base/properties.h>
 #include <android-base/stringprintf.h>
 #include <android-base/strings.h>
-//#include <cutils/android_reboot.h>
 
 #include <selinux/android.h>
 #include <android-base/unique_fd.h>
@@ -133,11 +137,16 @@
 #include <sys/syscall.h>
 #include <sys/resource.h>
 #include <sys/time.h>
+#include <chrono>
+
+using android::base::boot_clock;
 
 #define init_module(module_image, len, param_values) syscall(__NR_init_module, module_image, len, param_values)
 #define finit_module(fd, param_values, flags) syscall(__NR_finit_module, fd, param_values, flags)
 #define NUM_MODULE 32
-#define ADSP_LOADER_KO "/vendor_early_services/vendor/lib/modules/adsp_loader_dlkm.ko"
+#define ADSP_LOADER_KO "/vendor_early_services/vendor/lib/modules/adsp_loader_dlkm_legacy.ko"
+#define WAIT_SET_PERM_COUNT 4
+#define WAIT_SET_PERM_SECS  15
 
 static pid_t lastpid;
 
@@ -150,8 +159,8 @@ static void launch_early_apps(void);
 
 enum EnforcingStatus { SELINUX_PERMISSIVE, SELINUX_ENFORCING };
 
-  char   chipId[32]  = { 0 };
-  char   platformId[32]  = { 0 };
+char   chipId[32]  = { 0 };
+char   platformId[32]  = { 0 };
 
 static struct {
   char* appname;
@@ -170,6 +179,12 @@ static struct {
   char* group;
   char* wait;
 } app_launcher;
+
+static struct {
+  bool valid;
+  char *path;
+  void (*fn)(void);
+} wait_set_perm[WAIT_SET_PERM_COUNT];
 
 #define BIT_SET(p,n) ((p) & (1 << (n)))
 #define uid_is_valid(uid) ((uid != (uid_t) UINT32_C(0xFFFFFFFF)) && \
@@ -199,6 +214,7 @@ static void inline write_marker(const char* name)
   if (fd > 0) {
     (void)write(fd, name, strlen(name));
   } else {
+    LOG(INFO) << "Open bootkpi for name " << name << " failed, errno " << errno;
     printf("open bootkpi for name %s failed %s\r\n", name, strerror(errno));
   }
   safe_close(fd);
@@ -224,7 +240,7 @@ static void inline write_smack_label(char* label)
 /*
  * Only support abs path
  */
-static inline void mkdirs(char* p, mode_t mode)
+static inline void mkdirs(const char* p, mode_t mode)
 {
   char str[1024] = {0};
   struct stat st = {0};
@@ -268,7 +284,7 @@ static inline void mkdirs(char* p, mode_t mode)
 static inline void prepare_dir(char* p)
 {
   struct stat st = {0};
-  int ret = 0, i = 0;
+  int ret = 0;
 
   switch (*p) {
     case 'd':
@@ -382,53 +398,6 @@ static inline void prepare_dir(char* p)
   }
   return;
 }
-
-#if 0
-static void* prepare_audio_fw_dir(void* vargp)
-{
-  int ret = 0, i = 0;
-  const int MDM_MOUNT_WAIT_TIME = 2000;
-  /*
-   * Mount audio firmware partition
-   */
-  if (access(AUDIO_FW_PATH, F_OK) == -1) {
-    perror("AUDIO_FW_PATH doesn't exist");
-    mkdirs(AUDIO_FW_PATH, 0755);
-  }
-
-  std::string modemStr ;
-  android::earlyinit::import_kernel_cmdline(false,
-		  [&](const std::string& key, const std::string& value, bool in_qemu) {
-    if (key == "modem") {
-      modemStr =  value;
-    }
-  });
-
-  while (1) {
-    if ((ret = access(modemStr.c_str(), F_OK)) != -1) {
-      break;
-    }
-    i++;
-    usleep(MDM_MOUNT_WAIT_TIME);
-  }
-  LOG(INFO) << " ES : access to modemStr "<< modemStr << " i " << i << " ret = " << ret << " errno = " << errno;
-
-  /* TODO: Do not hard code dev node, sde4 is modem_a/adsp firmware  partition */
-  ret = mount(modemStr.c_str(), AUDIO_FW_PATH, "vfat", MS_RDONLY, "context=u:object_r:firmware_file:s0");
-  if (ret < 0) {
-    ret = mount("/dev/block/sde4", AUDIO_FW_PATH, "vfat", MS_RDONLY, "context=u:object_r:firmware_file:s0");
-    if (ret < 0)
-      LOG(ERROR) << " ES : early_init mount /dev/block/sde4 failed ret = " << ret << " errno = " << errno;
-  } else {
-     LOG(INFO) << "ES : early_init modem mount success";
-  }
-  set_permissions("/dev/snd", 0777, AID_ROOT, AID_AUDIO, "u:object_r:audio_device:s0");
-  set_permissions("/dev/snd/controlC0", 0666, AID_ROOT, AID_AUDIO, "u:object_r:audio_device:s0");
-  insert_audio_modules();
-
-  return NULL;
-}
-#endif
 
 /*
  * Remove trailing spaces
@@ -839,22 +808,35 @@ static inline void trigger_firmware_loading(const char* path)
 }
 #endif
 
-EnforcingStatus StatusFromCmdline() {
-    EnforcingStatus status = SELINUX_ENFORCING;
-    android::earlyinit::import_kernel_cmdline(false,
-                          [&](const std::string& key, const std::string& value, bool in_qemu) {
-            printf("ES: StatusFromCmdline inside import_kernel_cmdline\n");
-                              if (key == "androidboot.selinux" && value == "permissive") {
-                printf("ES: StatusFromCmdline permissive if\n");
-                                  status = SELINUX_PERMISSIVE;
-                              }
-                          });
-    printf("ES: StatusFromCmdline return status = %d\n", status);
-    return status;
+bool bc_get_lmp() {
+  bool load_parallel = false;
+  android::earlyinit::import_kernel_bootconfig(false,
+     [&](const std::string& key, const std::string& value, bool in_qemu) {
+    (void)in_qemu;
+    LOG(INFO) << "ES : BootConfig key " << key << " Value " << value;
+    if (key == "androidboot.load_modules_parallel" && value == "\"true\"") {
+      load_parallel = true;
+    }
+  });
+  LOG(INFO) << "ES : Config Modules Parallel load: " << load_parallel;
+  return load_parallel;
+}
+
+EnforcingStatus bc_get_se() {
+  EnforcingStatus status = SELINUX_ENFORCING;
+  android::earlyinit::import_kernel_bootconfig(false,
+    [&](const std::string& key, const std::string& value, bool in_qemu) {
+    (void)in_qemu;
+    if (key == "androidboot.selinux" && value == "\"permissive\"") {
+      status = SELINUX_PERMISSIVE;
+    }
+  });
+  LOG(INFO) << "ES : Selinux mode: " << status;
+  return status;
 }
 
 bool IsEnforcing() {
-    return StatusFromCmdline() == SELINUX_ENFORCING;
+  return bc_get_se() == SELINUX_ENFORCING;
 }
 
 void set_permissions(char *path, int permissions, int user, int group, char *context){
@@ -936,7 +918,7 @@ static int wait_for_file(const char* file, int sleep_msec, int count)
   int i, ret;
   int delay = sleep_msec * 1000;
 
-  for(i = 0, ret = -1; i < count; i++) {
+  for (i = 0, ret = -1; i < count; i++) {
     if (access(file, F_OK) == 0) {
       ret = 0;
       break;
@@ -953,53 +935,77 @@ static int wait_for_file(const char* file, int sleep_msec, int count)
   return ret;
 }
 
-static void* set_audio_permission()
+static int wait_file_set_perm(void)
 {
-  int ch_ret;
-  LOG(INFO) << "ES: Waiting for the controlc0 node";
-  if (wait_for_file("/dev/snd/controlC0", 50, 1000) == 0)
-  {
-    LOG(INFO) << "ES: controlc0 node available";
-    set_permissions("/dev/snd", 00777, AID_ROOT, AID_ROOT, "u:object_r:audio_device:s0");
+  const int SLEEP_MSEC = 20;
+  unsigned int count = 0, max = (WAIT_SET_PERM_SECS * 1000)/SLEEP_MSEC;
+  int i, set_count = 0;
 
-   if ( 0 != chmod("/dev/snd/controlC0", 00666))
-     LOG(INFO) << "ES: ControlC0 chmod failed errno " << errno;
-   if ( 0 != chmod("/dev/snd/pcmC0D49c", 00666))
-     LOG(INFO) << "ES: pcmC0D49C chmod failed errno " << errno;
-   if ( 0 != chmod("/dev/snd/pcmC0D48p", 00666))
-     LOG(INFO) << "ES: pcmC0D48p chmod failed errno " << errno;
-   if ( 0 != chmod("/dev/snd/pcmC0D50p", 00666))
-      LOG(INFO) << "ES: pcmC0D50p chmod failed errno " << errno;
-   if ( 0 != chmod("/dev/snd/pcmC0D53c", 00666))
-     LOG(INFO) << "ES: pcmC0D53c chmod failed errno " << errno;
-   if ( 0 != chmod("/dev/snd/pcmC0D55p", 00666))
-     LOG(INFO) << "ES: pcmC0D55p chmod failed errno " << errno;
+  for (i = 0; i < WAIT_SET_PERM_COUNT; i++)
+    if (wait_set_perm[i].valid) set_count++;
+
+  while (count++ < max && set_count > 0) {
+    for (i = 0; i < WAIT_SET_PERM_COUNT; i++) {
+      if (wait_set_perm[i].valid && access(wait_set_perm[i].path, F_OK) == 0) {
+        wait_set_perm[i].valid = false;
+        set_count--;
+        wait_set_perm[i].fn();
+      }
+    }
+    usleep(SLEEP_MSEC);
   }
-  LOG(INFO) << " Setting permission completed- exiting the thread";
+  LOG(INFO) << "ES : wait and set perm time " << (count * SLEEP_MSEC)/1000
+            << "s set_count " << set_count;
+
   return 0;
 }
 
-
-static int load_modules()
+static inline void update_wait_set_perm(int idx, char* path, void (*fn)(void))
 {
-  int i, ret, fd;
-  int count = 0;
+  if (idx < WAIT_SET_PERM_COUNT) {
+    wait_set_perm[idx].valid = true;
+    wait_set_perm[idx].path = path;
+    wait_set_perm[idx].fn = fn;
+  } else {
+    LOG(INFO) << "ES : Invalid wait_set idx " << idx;
+  }
+}
 
-  write_marker("M - ES modules loading start");
-  android::earlyinit::load_kernel_modules(count);
-  LOG(INFO) << "ES : Modules loaded count " << count;
+static void set_audio_permission(void)
+{
+  LOG(INFO) << "ES : Set Audio Permissions";
+  set_permissions("/dev/snd", 00777, AID_ROOT, AID_ROOT, "u:object_r:audio_device:s0");
 
-  mknod("/dev/kmdone", S_IFREG | 0400, makedev(0,0));
+  if ( 0 != chmod("/dev/snd/controlC0", 00666))
+     LOG(INFO) << "ES: ControlC0 chmod failed errno " << errno;
+  if ( 0 != chmod("/dev/snd/pcmC0D49c", 00666))
+     LOG(INFO) << "ES: pcmC0D49C chmod failed errno " << errno;
+  if ( 0 != chmod("/dev/snd/pcmC0D48p", 00666))
+     LOG(INFO) << "ES: pcmC0D48p chmod failed errno " << errno;
+  if ( 0 != chmod("/dev/snd/pcmC0D50p", 00666))
+      LOG(INFO) << "ES: pcmC0D50p chmod failed errno " << errno;
+  if ( 0 != chmod("/dev/snd/pcmC0D53c", 00666))
+     LOG(INFO) << "ES: pcmC0D53c chmod failed errno " << errno;
+  if ( 0 != chmod("/dev/snd/pcmC0D55p", 00666))
+     LOG(INFO) << "ES: pcmC0D55p chmod failed errno " << errno;
 
-  std::string modemStr;
+  return;
+}
+
+static int prepare_fw_dir()
+{
+  int i, len;
+  std::string modemTmpStr;
+  std::string modemStr("/dev/block");
   const char* mnt = NULL;
   const char* MNT_DEFAULT = "/dev/block/sde4";
+
+  boot_clock::time_point module_start_time = boot_clock::now();
 
   android::earlyinit::import_kernel_cmdline(false,
         [&](const std::string& key, const std::string& value, bool in_qemu) {
     if (key == "modem") {
-      modemStr =  value;
-      LOG(INFO) << "ES : modem mount path " << modemStr;
+      modemTmpStr = value;
     }
   });
 
@@ -1008,13 +1014,24 @@ static int load_modules()
     mkdirs(AUDIO_FW_PATH, 0755);
   }
 
-  if (modemStr.length() && wait_for_file(modemStr.c_str(), 10, 5) == 0)
+  // use file name to attach to path /dev/block
+  len = modemTmpStr.length();
+  if (len) {
+    const char *p = modemTmpStr.c_str();
+    const char *p1 = p;
+    for (i = 0;  i < len; i++, p++) {
+      if (*p == '/') p1 = p;
+    }
+    modemStr += p1;
+  }
+
+  if (len && wait_for_file(modemStr.c_str(), 10, 15) == 0)
     mnt = modemStr.c_str();
   if (!mnt && wait_for_file(MNT_DEFAULT, 30, 50) == 0)
     mnt = MNT_DEFAULT;
 
   if (mnt) {
-    if (mount(mnt, AUDIO_FW_PATH, "vfat", MS_RDONLY, NULL) < 0) {
+    if (mount(mnt, AUDIO_FW_PATH, "vfat", MS_RDONLY, "context=u:object_r:firmware_file:s0") < 0) {
       LOG(WARNING) << "ES : modemstr mount failed, err " << errno;
     } else {
       LOG(INFO) << "ES : modemstr mount success.";
@@ -1022,11 +1039,65 @@ static int load_modules()
   } else {
     LOG(WARNING) << "ES : modemstr Not Found!";
   }
+  char str[SHORT_STRING_MAX] = {0};
+  auto module_elapse_time = std::chrono::duration_cast<std::chrono::milliseconds>(
+                boot_clock::now() - module_start_time);
+  snprintf(str, SHORT_STRING_MAX, "%s%d%s", "M - ES fw-load took ",
+           (int)module_elapse_time.count(), "ms");
+  write_marker(str);
 
+  return 0;
+}
+
+static int load_precompiled_sepolicy()
+{
+  // Load the vendor early service policy
+  std::string precompiled_sepolicy_file = EARLY_SERVICES_SEPOL;
+  write_marker("M - EarlyInit SEPolicyLoad Start");
+  int fd1 = open(precompiled_sepolicy_file.c_str(),
+                 O_RDONLY | O_CLOEXEC | O_BINARY, 0775);
+  if (fd1 > 0) {
+    if (selinux_android_load_policy_from_fd(fd1,
+        precompiled_sepolicy_file.c_str()) < 0) {
+      LOG(WARNING) << "ES : Failed to load SELinux policy " << precompiled_sepolicy_file.c_str();
+    } else {
+      LOG(INFO) << "ES : Successfully loaded precompiled sepolicy file: "
+                << precompiled_sepolicy_file.c_str();
+    }
+    close(fd1);
+  }
+  write_marker("M - EarlyInit SEPolicyLoad End");
+
+  return 0;
+}
+
+static int load_default_modules()
+{
+  int count = 0;
+
+  boot_clock::time_point module_start_time = boot_clock::now();
+
+  android::earlyinit::load_kernel_modules(count, bc_get_lmp());
+  LOG(INFO) << "ES : Modules loaded count " << count;
+
+
+  auto module_elapse_time = std::chrono::duration_cast<std::chrono::milliseconds>(
+                boot_clock::now() - module_start_time);
+
+  char str[SHORT_STRING_MAX] = {0};
+  snprintf(str, SHORT_STRING_MAX, "%s%d%s", "M - ES def-mod took ",
+          (int)module_elapse_time.count(), "ms");
+  write_marker(str);
+
+  return 0;
+}
+
+static int load_mm_dep_modules() {
+  int ret, fd;
   FILE* f;
   char line[LINE_MAX];
-  const char* MOD_PATH = "/vendor_early_services/vendor/lib/modules/";
-  std::string ko;
+  boot_clock::time_point module_start_time = boot_clock::now();
+
   f = fopen("/vendor_early_services/vendor/lib/modules/modules.load", "re");
   if (f == NULL) {
     perror("open early_init.conf failed.\r\n");
@@ -1045,26 +1116,84 @@ static int load_modules()
     if (is_empty_line(line))
       continue;
     strstrip(line);
-    ko = MOD_PATH;
-    ko += line;
     ret = -1;
     fd = -1;
 
-    fd = open(ko.c_str(), O_RDONLY);
+    fd = open(line, O_RDONLY);
     if (fd > 0) {
       ret = finit_module(fd, "", 0);
       if (ret < 0 && errno != EEXIST) {
         LOG(INFO) << "fd = " << fd << "ES : init_module failed" << "errno: " << errno;
       } else {
-        LOG(INFO) << "ES : init_module success for: " << ko;
+        LOG(INFO) << "ES : init_module success for: " << line;
       }
       close(fd);
     } else {
-      LOG(WARNING) << "ES : Failed to open module " << ko;
+      LOG(WARNING) << "ES : Failed to open module " << line;
     }
 
-    if (0 == strcmp(ko.c_str(), ADSP_LOADER_KO)) {
-       fd = open("/sys/kernel/boot_adsp/boot", O_WRONLY);
+    memset(line, 0, sizeof(line));
+  }
+
+out:
+  if (f != NULL)
+    fclose(f);
+
+  char str[SHORT_STRING_MAX] = {0};
+  auto module_elapse_time = std::chrono::duration_cast<std::chrono::milliseconds>(
+                boot_clock::now() - module_start_time);
+  snprintf(str, SHORT_STRING_MAX, "%s%d%s", "M - ES dep-mod took ",
+          (int)module_elapse_time.count(), "ms");
+  write_marker(str);
+
+  LOG(INFO) << "ES : Load MM dep modules done.";
+
+  return 0;
+}
+
+static int load_mm_modules() {
+  int i = 0, ret, fd;
+  FILE* f;
+  char line[LINE_MAX];
+
+  boot_clock::time_point module_start_time = boot_clock::now();
+
+  f = fopen("/vendor_early_services/vendor/lib/modules/mm_modules.load", "re");
+  if (f == NULL) {
+    perror("open early_init.conf failed.\r\n");
+    goto out;
+  }
+
+  while (1) {
+    if (!fgets(line, sizeof(line), f)) {
+      if (feof(f))
+        goto out;
+      else {
+        perror("read conf file meet error");
+        goto out;
+      }
+    }
+    if (is_empty_line(line))
+      continue;
+    strstrip(line);
+    ret = -1;
+    fd = -1;
+    LOG(INFO) << "ES : Load MM Module " << line;
+    fd = open(line, O_RDONLY);
+    if (fd > 0) {
+      ret = finit_module(fd, "", 0);
+      if (ret < 0 && errno != EEXIST) {
+        LOG(INFO) << "fd = " << fd << "ES : init_module failed" << "errno: " << errno;
+      } else {
+        LOG(INFO) << "ES : init_module success for: " << line;
+        i++;
+      }
+      close(fd);
+    } else {
+      LOG(WARNING) << "ES : Failed to open module " << line;
+    }
+    if (0 == strcmp(line, ADSP_LOADER_KO)) {
+      fd = open("/sys/kernel/boot_adsp/boot", O_WRONLY);
       if (fd < 0) {
         LOG(INFO) << "ES : load_modules ADSP open sys entry failed";
       } else if(-1 == write(fd, "1", 1)) {
@@ -1075,15 +1204,21 @@ static int load_modules()
       }
       close(fd);
     }
-
     memset(line, 0, sizeof(line));
   }
 out:
   if (f != NULL)
     fclose(f);
 
-  write_marker("M - ES modules loading done");
-  LOG(INFO) << "ES : load_modules done.";
+  char str[SHORT_STRING_MAX] = {0};
+  auto module_elapse_time = std::chrono::duration_cast<std::chrono::milliseconds>(
+                boot_clock::now() - module_start_time);
+
+  snprintf(str, SHORT_STRING_MAX, "%s%d%s", "M - ES mm-mod took ",
+         (int)module_elapse_time.count(), "ms");
+  write_marker(str);
+
+  LOG(INFO) << "ES : Load MM Modules Done" << i;
 
   return 0;
 }
@@ -1118,84 +1253,128 @@ out:
   fclose(f);
 }
 
-int early_init()
+int early_init_mm_mod(void)
+{
+  android::earlyinit::InitKernelLogging(NULL);
+  write_marker("M - ES mmmod");
+
+  LOG(INFO) << "ES Init with load mmmod";
+
+  // To enumerates the fw related /dev entries
+  mknod("/dev/kmdone", S_IFREG | 0400, makedev(0,0));
+
+  // Moung Fw and load App specific modules
+  prepare_fw_dir();
+  load_mm_modules();
+
+  // set the App specific node and cb
+  memset(wait_set_perm, 0x00, sizeof(wait_set_perm));
+  update_wait_set_perm(0, "/dev/snd/controlC0", set_audio_permission);
+
+  // Wait for App specific dev nodes and set permissions
+  wait_file_set_perm();
+
+  return 0;
+}
+
+int early_init(int init)
 {
   int ret;
 
   clearenv();
   setenv("PATH", DEFAULT_PATH, 1);
   android::earlyinit::InitKernelLogging(NULL);
-  LOG(INFO) << "ES : Logging enabled at early-services!";
+  LOG(INFO) << "ES : Logging enabled at early-services, init " << init;
 
-  ret = mount("/vendor_early_services", "/vendor_early_services", NULL , MS_BIND | MS_REC, NULL);
-  if (ret < 0) {
-    mknod("/dev/sedone", S_IFREG | 0400, makedev(0,0));
-    LOG(WARNING) << "ES : mount failed! " << "errno " << errno;
-    return -1;
-  }
+  if (init) {
+    ret = mount("/vendor_early_services", "/vendor_early_services", NULL,
+                MS_BIND | MS_REC, NULL);
+    if (ret < 0) {
+      mknod("/dev/sedone", S_IFREG | 0400, makedev(0,0));
+      LOG(WARNING) << "ES : mount failed! " << "errno " << errno;
+      return -1;
+    }
 
-  load_modules();
+    mount("sysfs", "/sys", "sysfs", 0, NULL);
 
-  /* Create ais_server socket dir and camera data dir */
-  mkdir("/dev/socket", 0775);
-  mkdir("/dev/socket/camera", 0775);
+    load_default_modules();
+    load_mm_dep_modules();
+
+    load_precompiled_sepolicy();
+
+    selinux_android_restorecon("/vendor_early_services/early_services_init", 0);
+    if (selinux_android_restorecon("/vendor_early_services/",
+      SELINUX_ANDROID_RESTORECON_RECURSE) == -1) {
+      LOG(WARNING) << "restorecon /vendor_early_services not success";
+    }
+
+    selabel_handle* sehandle = nullptr;
+    sehandle = selinux_android_file_context_handle();
+    selinux_android_set_sehandle(sehandle);
+    setexeccon("u:r:init:s0");
+    char *path = "/vendor_early_services/bin/early_services_init";
+    char *args[] = { path, "selinux", NULL };
+    execv(path, args);
+    LOG(WARNING) << "ES : Exec for early init failed!!!";
+
+    return 0;
+  } // init flag
 
   getSysInfo("/sys/devices/soc0/soc_id", chipId);
   getSysInfo("/sys/devices/soc0/platform_subtype_id", platformId);
+  set_permissions("/dev/null", 0666, AID_ROOT, AID_ROOT, "u:object_r:null_device:s0");
+  set_permissions("/dev/urandom", 0666, AID_ROOT, AID_ROOT, "u:object_r:random_device:s0");
 
-  LOG(INFO) << "ES : sedone ";
-  mknod("/dev/sedone", S_IFREG | 0400, makedev(0,0));
+#ifdef ENABLE_MM_MOD
+  if (fork() == 0)  {
+    LOG(INFO) << "ES: Fork for mmmod";
+    setexeccon("u:r:vendor_init:s0");
+    char *path = "/vendor_early_services/bin/early_services_init";
+    char *args[] = { path, "mmmod", NULL };
+    execv(path, args);
+    LOG(WARNING) << "ES: Exec for mmmod, failed!";
+    exit(0);
+  }
+  wait_for_file("/dev/kmdone", 30, 100);
+#endif
+  launch_early_apps();
 
-  return 0;
-}
-
-int early_selinux_init(void)
-{
   int wstatus;
   pid_t wpid;
-
-  clearenv();
-  setenv("PATH", DEFAULT_PATH, 1);
-  LOG(INFO) << "ES : Logging enabled at early-selinux!";
-  android::earlyinit::InitKernelLogging(NULL);
-
-  if (selinux_android_restorecon("/vendor_early_services/bin/early_services_init", 0) == -1) {
-    LOG(INFO) << "ES restorecon early_services_init failed";
-  }
-
-  int ret = selinux_android_setcon("u:r:init:s0");
-  LOG(INFO) << "ES SET con vendor ES init ret " << ret << " err " << errno;
-
-  if (fork() == 0) {
-     set_audio_permission();
-     exit(0);
-  }
-
-  launch_early_apps();
   do {
     /* Waiting for last pid which is init_early_test and expecting it returns immediately. */
     wpid = waitpid(lastpid, &wstatus, 0);
     if (wpid == -1 || wpid != 0) break;
   } while (wpid == 0);
 
+  mknod("/dev/sedone", S_IFREG | 0400, makedev(0,0));
   write_marker("M - early-init-exit");
+
+  LOG(INFO) << "ES Loading Apps done";
+
+  sleep(10);
 
   return 0;
 }
 
 int main(int argc, char* argv[])
 {
+  int init = 0;
   if (argc < 1) {
     LOG(ERROR) << "ES started without args!";
     return -1;
   }
 
   if (!strcmp(argv[1], "early_service")) {
-    LOG(INFO) << "ES Init First Stage";
-    early_init();
+    LOG(INFO) << "ES Init";
+    init++;
+    early_init(init);
   } else if (!strcmp(argv[1], "selinux")) {
-    LOG(INFO) << "ES Init Selinux Stage";
-    early_selinux_init();
+    LOG(INFO) << "ES Init with Load Apps";
+    early_init(init);
+  } else if (!strcmp(argv[1], "mmmod")) {
+    LOG(INFO) << " ES Init with load mmmod";
+    early_init_mm_mod();
   }
 
   return 0;
