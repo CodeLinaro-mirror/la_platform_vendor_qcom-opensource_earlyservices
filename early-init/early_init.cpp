@@ -152,6 +152,8 @@ using android::base::boot_clock;
 #define DRM_CARD4_PATH      "/dev/dri/card4"
 #define AUDIO_CTRL_PATH     "/dev/snd/pcmC0D50p"
 #define CAMERA_MDEV_PATH    "/dev/media0"
+#define CAMERA_VDEV_PATH    "/dev/video0"
+#define CAMERA_V4L_DEV_PATH    "/dev/v4l-subdev0"
 #define WAIT_SET_PERM_COUNT 5
 #define WAIT_SET_PERM_SECS  15
 #define WAIT_SET_PERM_MSECS 300
@@ -1059,13 +1061,26 @@ static void set_video1_permission(void)
 
 static void set_camera_permission(void)
 {
+  LOG(INFO) << "ES : Set Camera Permissionsi for mdev";
   set_permissions("/dev/media0", 0666, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
   set_permissions("/dev/media1", 0666, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
-  set_permissions("/dev/video0", 0666, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
-  set_permissions("/dev/video1", 0666, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
-//  set_permissions("/dev/video32", 0666, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
+  LOG(INFO) << "ES : Set Camera Permissions Completed for mdev";
+  return;
+}
 
-  set_permissions("/dev/v4l-subdev1", 0666, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
+static void set_camera_permission1(void)
+{
+  LOG(INFO) << "ES : Set Camera Permissions1 for vdev";
+  set_permissions("/dev/video0", 0666, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
+  set_permissions("/dev/video1", 0666, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
+  LOG(INFO) << "ES : Set Camera Permissions1 Completed for vdev";
+  return;
+}
+
+static void set_camera_permission2(void)
+{
+  LOG(INFO) << "ES : Set Camera Permissions2 for v4l-subdev";
+  set_permissions("/dev/v4l-subdev1", 0666, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
   set_permissions("/dev/v4l-subdev2", 0666, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
   set_permissions("/dev/v4l-subdev3", 0666, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
   set_permissions("/dev/v4l-subdev4", 0666, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
@@ -1075,7 +1090,8 @@ static void set_camera_permission(void)
   set_permissions("/dev/v4l-subdev8", 0666, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
   set_permissions("/dev/v4l-subdev9", 0666, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
   set_permissions("/dev/v4l-subdev10", 0666, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
-  set_permissions("/dev/socket/camera", 0666, AID_ROOT, AID_CAMERA, "u:object_r:vendor_camera_socket:s0");
+  set_permissions("/dev/socket/camera", 0775, AID_ROOT, AID_CAMERA, "u:object_r:vendor_camera_socket:s0");
+  selinux_android_restorecon("/dev/socket/camera", SELINUX_ANDROID_RESTORECON_RECURSE);
   set_permissions("/dev/v4l-subdev11", 0666, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
   set_permissions("/dev/v4l-subdev12", 0666, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
   set_permissions("/dev/v4l-subdev13", 0666, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
@@ -1083,6 +1099,7 @@ static void set_camera_permission(void)
   set_permissions("/dev/v4l-subdev15", 0666, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
   set_permissions("/dev/v4l-subdev16", 0666, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
   set_permissions("/dev/v4l-subdev0", 0666, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
+  LOG(INFO) << "ES : Set Camera Permissions2 Completed for v4l-subdev";
 
   return;
 }
@@ -1095,6 +1112,9 @@ static void invoke_wait_set_perm()
   // set the App specific node and cb
   memset(wait_set_perm, 0x00, sizeof(wait_set_perm));
   prepare_wait_set_perm(0, DRM_CARD3_PATH, set_splash_permission);
+  prepare_wait_set_perm(1, CAMERA_MDEV_PATH, set_camera_permission);
+  prepare_wait_set_perm(2, CAMERA_VDEV_PATH, set_camera_permission1);
+  prepare_wait_set_perm(3, CAMERA_V4L_DEV_PATH, set_camera_permission2);
 
   // Wait for App specific dev nodes and set permissions
   wait_file_set_perm();
