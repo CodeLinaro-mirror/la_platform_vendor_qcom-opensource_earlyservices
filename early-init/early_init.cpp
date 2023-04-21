@@ -1519,6 +1519,10 @@ int early_init(int init)
     mount("sysfs", "/sys", "sysfs", 0, NULL);
     prepare_dir("shm");
 
+    /* Create ais_server socket dir and camera data dir */
+    mkdir("/dev/socket", 0775);
+    mkdir("/dev/socket/camera", 0775);
+
     load_default_modules();
 
 #ifdef SEQ_KM_LOAD
