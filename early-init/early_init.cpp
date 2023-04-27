@@ -948,22 +948,172 @@ static int wait_for_file(const char* file, int sleep_msec, int count)
   return ret;
 }
 
+int get_device_major_minor(const std::string& uevent_file, int *major, int *minor)
+{
+  int fd;
+  const char *cstr = NULL;
+  *major = 0, *minor = 0;
+
+  fd = open(uevent_file.data(), O_WRONLY);
+  if (fd >= 0) {
+    write(fd, "add\n", 4);
+    close(fd);
+  }
+
+  std::string ueven_contents;
+  if (!android::base::ReadFileToString(uevent_file, &ueven_contents, false))
+    return 0;
+
+  std::vector<std::string> lines = android::base::Split(ueven_contents, "\n");
+  for (const std::string line : lines) {
+    if (line.empty())
+      continue;
+    cstr = line.data();
+    if (strncmp(cstr, "MAJOR=", 6) == 0) {
+        cstr += 6;
+        *major = atoi(cstr);
+    } else if (strncmp(cstr, "MINOR=", 6) == 0) {
+        cstr += 6;
+        *minor = atoi(cstr);
+    }
+  }
+
+  LOG(INFO) << "ES device uevent "<< uevent_file <<" - "<< *major << ":" << *minor;
+  if (*major > 0) {
+    return 1;
+  } else {
+    return 0;
+  }
+}
+
+static void check_rvc_device_ready(void)
+{
+  //rvc
+
+  static int rvc_device_created = 0;
+  int major = 0, minor = 0;
+
+  if (!rvc_device_created) {
+    if ((access("/sys/bus/media/devices/media0/uevent", F_OK) == 0) &&
+        (access("/sys/class/video4linux/video0/uevent", F_OK) == 0) &&
+        (access("/sys/class/video4linux/v4l-subdev0/uevent", F_OK) == 0)) {
+
+      LOG(INFO) << "ES check device node for /dev/media0";
+
+      if(get_device_major_minor("/sys/bus/media/devices/media0/uevent", &major, &minor)) {
+        mknod("/dev/media0", S_IFCHR | 0666,
+          makedev(major, minor));
+      }
+      if(get_device_major_minor("/sys/bus/media/devices/media1/uevent", &major, &minor)) {
+        mknod("/dev/media1", S_IFCHR | 0666,
+          makedev(major, minor));
+      }
+      if(get_device_major_minor("/sys/class/video4linux/video0/uevent", &major, &minor)) {
+        mknod("/dev/video0", S_IFCHR | 0666,
+          makedev(major, minor));
+      }
+      if(get_device_major_minor("/sys/class/video4linux/video1/uevent", &major, &minor)) {
+        mknod("/dev/video1", S_IFCHR | 0666,
+          makedev(major, minor));
+      }
+
+      if(get_device_major_minor("/sys/class/video4linux/v4l-subdev0/uevent", &major, &minor)) {
+        mknod("/dev/v4l-subdev0", S_IFCHR | 0666,
+          makedev(major, minor));
+      }
+      if(get_device_major_minor("/sys/class/video4linux/v4l-subdev1/uevent", &major, &minor)) {
+        mknod("/dev/v4l-subdev1", S_IFCHR | 0666,
+          makedev(major, minor));
+      }
+      if(get_device_major_minor("/sys/class/video4linux/v4l-subdev2/uevent", &major, &minor)) {
+        mknod("/dev/v4l-subdev2", S_IFCHR | 0666,
+          makedev(major, minor));
+      }
+      if(get_device_major_minor("/sys/class/video4linux/v4l-subdev3/uevent", &major, &minor)) {
+        mknod("/dev/v4l-subdev3", S_IFCHR | 0666,
+          makedev(major, minor));
+      }
+      if(get_device_major_minor("/sys/class/video4linux/v4l-subdev4/uevent", &major, &minor)) {
+        mknod("/dev/v4l-subdev4", S_IFCHR | 0666,
+          makedev(major, minor));
+      }
+      if(get_device_major_minor("/sys/class/video4linux/v4l-subdev5/uevent", &major, &minor)) {
+        mknod("/dev/v4l-subdev5", S_IFCHR | 0666,
+          makedev(major, minor));
+      }
+      if(get_device_major_minor("/sys/class/video4linux/v4l-subdev6/uevent", &major, &minor)) {
+        mknod("/dev/v4l-subdev6", S_IFCHR | 0666,
+          makedev(major, minor));
+      }
+      if(get_device_major_minor("/sys/class/video4linux/v4l-subdev7/uevent", &major, &minor)) {
+        mknod("/dev/v4l-subdev7", S_IFCHR | 0666,
+          makedev(major, minor));
+      }
+      if(get_device_major_minor("/sys/class/video4linux/v4l-subdev8/uevent", &major, &minor)) {
+        mknod("/dev/v4l-subdev8", S_IFCHR | 0666,
+          makedev(major, minor));
+      }
+      if(get_device_major_minor("/sys/class/video4linux/v4l-subdev9/uevent", &major, &minor)) {
+        mknod("/dev/v4l-subdev9", S_IFCHR | 0666,
+          makedev(major, minor));
+      }
+      if(get_device_major_minor("/sys/class/video4linux/v4l-subdev10/uevent", &major, &minor)) {
+        mknod("/dev/v4l-subdev10", S_IFCHR | 0666,
+          makedev(major, minor));
+      }
+      if(get_device_major_minor("/sys/class/video4linux/v4l-subdev11/uevent", &major, &minor)) {
+        mknod("/dev/v4l-subdev11", S_IFCHR | 0666,
+          makedev(major, minor));
+      }
+      if(get_device_major_minor("/sys/class/video4linux/v4l-subdev12/uevent", &major, &minor)) {
+        mknod("/dev/v4l-subdev12", S_IFCHR | 0666,
+          makedev(major, minor));
+      }
+      if(get_device_major_minor("/sys/class/video4linux/v4l-subdev13/uevent", &major, &minor)) {
+        mknod("/dev/v4l-subdev13", S_IFCHR | 0666,
+          makedev(major, minor));
+      }
+      if(get_device_major_minor("/sys/class/video4linux/v4l-subdev14/uevent", &major, &minor)) {
+        mknod("/dev/v4l-subdev14", S_IFCHR | 0666,
+          makedev(major, minor));
+      }
+      if(get_device_major_minor("/sys/class/video4linux/v4l-subdev15/uevent", &major, &minor)) {
+        mknod("/dev/v4l-subdev15", S_IFCHR | 0666,
+          makedev(major, minor));
+      }
+      if(get_device_major_minor("/sys/class/video4linux/v4l-subdev16/uevent", &major, &minor)) {
+        mknod("/dev/v4l-subdev16", S_IFCHR | 0666,
+          makedev(major, minor));
+      }
+      rvc_device_created = 1;
+      LOG(INFO) << "ES rvc device nodes ready";
+      write_marker("M - EarlyInit rvc nodes ready");
+    }
+  }
+}
+
 
 #define DRM_CARD3_DIR		"/dev/dri"
 #define DRM_CARD3_MAJOR		226
 #define DRM_CARD3_MINOR		3
-static void check_device_ready(void)
+static void check_esplash_device_ready(void)
 {
-  static int device_created = 0;
-  if (!device_created) {
+  static int esplash_device_created = 0;
+  if (!esplash_device_created) {
     if (access("/sys/class/drm/card3/uevent", F_OK) == 0) {
       LOG(INFO) << "ES check device node for " << DRM_CARD3_PATH;
       mkdir(DRM_CARD3_DIR, 0666);
       mknod(DRM_CARD3_PATH, S_IFCHR | 0666,
           makedev(DRM_CARD3_MAJOR, DRM_CARD3_MINOR));
-      device_created = 1;
+      esplash_device_created = 1;
     }
   }
+}
+
+static void check_device_ready(void)
+{
+  check_esplash_device_ready();
+  check_rvc_device_ready();
 }
 
 static int wait_file_set_perm(void)
