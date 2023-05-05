@@ -1092,28 +1092,59 @@ static void check_rvc_device_ready(void)
   }
 }
 
-
-#define DRM_CARD3_DIR		"/dev/dri"
-#define DRM_CARD3_MAJOR		226
-#define DRM_CARD3_MINOR		3
-static void check_esplash_device_ready(void)
+#define DRM_CARD4_DIR        "/dev/dri"
+static void check_video_device_ready(void)
 {
-  static int esplash_device_created = 0;
-  if (!esplash_device_created) {
-    if (access("/sys/class/drm/card3/uevent", F_OK) == 0) {
-      LOG(INFO) << "ES check device node for " << DRM_CARD3_PATH;
-      mkdir(DRM_CARD3_DIR, 0666);
-      mknod(DRM_CARD3_PATH, S_IFCHR | 0666,
-          makedev(DRM_CARD3_MAJOR, DRM_CARD3_MINOR));
-      esplash_device_created = 1;
+  //video
+  static int video_device_created = 0;
+  int major = 0, minor = 0;
+
+  if (!video_device_created) {
+    if (access("/sys/class/drm/card4/uevent", F_OK) == 0) {
+      if(get_device_major_minor("/sys/class/drm/card4/uevent", &major, &minor))
+      {
+        mkdir(DRM_CARD4_DIR, 0666);
+        mknod(DRM_CARD4_PATH, S_IFCHR | 0666,
+            makedev(major, minor));
+
+        LOG(INFO) << "ES video device nodes ready";
+        write_marker("M - EarlyInit video nodes ready");
+        video_device_created = 1;
+      }
     }
   }
+  return;
+}
+
+#define DRM_CARD3_DIR        "/dev/dri"
+static void check_esplash_device_ready(void)
+{
+  //esplash
+  static int esplash_device_created = 0;
+  int major = 0, minor = 0;
+
+  if (!esplash_device_created) {
+    if (access("/sys/class/drm/card3/uevent", F_OK) == 0) {
+      if(get_device_major_minor("/sys/class/drm/card3/uevent", &major, &minor))
+      {
+        mkdir(DRM_CARD3_DIR, 0666);
+        mknod(DRM_CARD3_PATH, S_IFCHR | 0666,
+            makedev(major, minor));
+
+        LOG(INFO) << "ES esplash device nodes ready";
+        write_marker("M - EarlyInit esplash nodes ready");
+        esplash_device_created = 1;
+      }
+    }
+  }
+  return;
 }
 
 static void check_device_ready(void)
 {
   check_esplash_device_ready();
   check_rvc_device_ready();
+  check_video_device_ready();
 }
 
 static int wait_file_set_perm(void)
@@ -1178,34 +1209,25 @@ static void set_audio_permission(void)
 
 static void set_splash_permission(void)
 {
-  LOG(INFO) << "ES : Set Splash Permissions";
 
+  LOG(INFO) << "ES : Set Splash Permissions";
   set_permissions(DRM_CARD3_DIR, 0755, AID_ROOT, AID_ROOT, "u:object_r:device:s0");
   set_permissions(DRM_CARD3_PATH, 0666, AID_ROOT, AID_GRAPHICS, "u:object_r:graphics_device:s0");
-
   return;
 }
 
 // set permissions for video resources
 static void set_video_permission(void)
 {
-  if (access(DRM_CARD4_PATH, F_OK) == 0) {
-    set_permissions(DRM_CARD4_PATH, 0666, AID_ROOT, AID_GRAPHICS, "u:object_r:graphics_device:s0");
-    LOG(INFO) << "EarlyVideo Setting permission to dri card completed";
-  } else {
-    LOG(ERROR) << "ES : DRI card not ready\n";
-  }
+  set_permissions(DRM_CARD4_PATH, 0666, AID_ROOT, AID_GRAPHICS, "u:object_r:graphics_device:s0");
+  LOG(INFO) << "EarlyVideo Setting permission to dri card completed";
+  return;
 }
 
 static void set_video1_permission(void)
 {
-  if (access(VIDEO_CARD_PATH, F_OK) == 0) {
-    set_permissions(VIDEO_CARD_PATH, 0666, AID_ROOT, AID_GRAPHICS, "u:object_r:video_device:s0");
-    LOG(INFO) << "EarlyVideo Setting permission to video device completed";
-  } else {
-    LOG(ERROR) << "ES : Video device not ready\n";
-  }
-
+  set_permissions(VIDEO_CARD_PATH, 0666, AID_ROOT, AID_GRAPHICS, "u:object_r:video_device:s0");
+  LOG(INFO) << "EarlyVideo Setting permission to video device completed";
   return;
 }
 
@@ -1265,6 +1287,8 @@ static void invoke_wait_set_perm()
   prepare_wait_set_perm(1, CAMERA_MDEV_PATH, set_camera_permission);
   prepare_wait_set_perm(2, CAMERA_VDEV_PATH, set_camera_permission1);
   prepare_wait_set_perm(3, CAMERA_V4L_DEV_PATH, set_camera_permission2);
+  prepare_wait_set_perm(4, DRM_CARD4_PATH, set_video_permission);
+  prepare_wait_set_perm(5, AUDIO_CTRL_PATH, set_audio_permission);
 
   // Wait for App specific dev nodes and set permissions
   wait_file_set_perm();
