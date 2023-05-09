@@ -113,6 +113,7 @@
 
 
 #define EARLY_SERVICES_SEPOL   "/vendor_early_services/vendor/etc/selinux/precompiled_sepolicy"
+#define EARLY_CHIME_APP        "early_chime"
 
 #define STR_EXPAND(tok) #tok
 #define TO_STRING(tok) STR_EXPAND(tok)
@@ -161,6 +162,7 @@ using android::base::boot_clock;
 #define MM_DEPMOD_ORDER "/vendor_early_services/vendor/lib/modules/modules.order"
 #define MM_DEPMOD_PATH  "/lib/modules/"
 #define MM_MOD_ORDER    "/vendor_early_services/vendor/lib/modules/mm_modules.order"
+#define MM_R_MOD_ORDER  "/vendor_early_services/vendor/lib/modules/mm_r_modules.order"
 #define MM_MOD_PATH     "/vendor_early_services/vendor/lib/modules/"
 
 static pid_t lastpid;
@@ -170,6 +172,8 @@ static inline char *strstrip(char *s);
 static inline int parse_line(char* p);
 static void set_permissions(char *path, int permissions, int user, int group, char *context);
 static void launch_early_apps(void);
+
+bool bc_get_ar();
 
 enum EnforcingStatus { SELINUX_PERMISSIVE, SELINUX_ENFORCING };
 
@@ -650,6 +654,11 @@ static inline int parse_line(char* p)
       if (strncmp(p, END_TAG, strlen(END_TAG)))
         goto out;
 
+      if (!strncmp(app_launcher.appname, EARLY_CHIME_APP, strlen(EARLY_CHIME_APP)) && bc_get_ar()) {
+        LOG(INFO) << "ES : Not Launching app " << app_launcher.appname;
+        goto out;
+      }
+
       pid = fork();
       if (pid < 0) {
         LOG(INFO) << " early_init fork child process failed ";
@@ -833,6 +842,19 @@ bool bc_get_lmp() {
   });
   // LOG(INFO) << "ES : Config Modules Parallel load: " << load_parallel;
   return load_parallel;
+}
+
+bool bc_get_ar() {
+  bool audio_reach = false;
+  android::earlyinit::import_kernel_bootconfig(false,
+     [&](const std::string& key, const std::string& value, bool in_qemu) {
+    (void)in_qemu;
+    if (key == "androidboot.audio" && value == "\"audioreach\"") {
+      audio_reach = true;
+    }
+  });
+  LOG(WARNING) << "ES : Config Audio Reach: " << audio_reach;
+  return audio_reach;
 }
 
 EnforcingStatus bc_get_se() {
@@ -1562,7 +1584,12 @@ static int load_mm_modules() {
 
   boot_clock::time_point module_start_time = boot_clock::now();
 
-  f = fopen("/vendor_early_services/vendor/lib/modules/mm_modules.load", "re");
+  if (bc_get_ar()) {
+    f = fopen("/vendor_early_services/vendor/lib/modules/mm_r_modules.load", "re");
+  } else {
+    f = fopen("/vendor_early_services/vendor/lib/modules/mm_modules.load", "re");
+  }
+
   if (f == NULL) {
     perror("open early_init.conf failed.\r\n");
     goto out;
@@ -1665,7 +1692,8 @@ int early_init_mm_mod(void)
 #ifdef SEQ_KM_LOAD
   load_mm_modules();
 #else
-  load_modules_parallel(MM_MOD_ORDER, MM_MOD_PATH,
+  std::string o = (bc_get_ar())?MM_R_MOD_ORDER:MM_MOD_ORDER;
+  load_modules_parallel(o, MM_MOD_PATH,
           bc_get_lmp()?std::thread::hardware_concurrency():1);
 #endif
 
