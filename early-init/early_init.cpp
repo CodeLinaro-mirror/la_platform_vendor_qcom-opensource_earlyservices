@@ -763,15 +763,15 @@ static inline int parse_line(char* p)
         if (app_launcher.group) {
           enforce_group(app_launcher.group);
         }
-        if ((ret = access(app_launcher.cmd, F_OK)) != 0) {
-          LOG(WARNING) << "ES : App " << app_launcher.appname << " doesn't exist ret " << ret << " err " << errno;
-          return -1;
-        }
-        memset(marker, 0, 50);
-        snprintf(marker, 49 ,"M - Launch %s app", app_launcher.appname);
-        write_marker(marker);
-        LOG(INFO) << "ES : Launching app " << app_launcher.appname;
         if (app_launcher.cmd) {
+          if ((ret = access(app_launcher.cmd, F_OK)) != 0) {
+            LOG(WARNING) << "ES : App " << app_launcher.appname << " doesn't exist ret " << ret << " err " << errno;
+            return -1;
+          }
+          memset(marker, 0, 50);
+          snprintf(marker, 49 ,"M - Launch %s app", app_launcher.appname);
+          write_marker(marker);
+          LOG(INFO) << "ES : Launching app " << app_launcher.appname;
           ret = execvpe(app_launcher.cmd,app_launcher.argv,app_launcher.env);
           if(ret < 0) {
             LOG(INFO) << "ES : App launch failed " << app_launcher.appname << " errno " << errno;
