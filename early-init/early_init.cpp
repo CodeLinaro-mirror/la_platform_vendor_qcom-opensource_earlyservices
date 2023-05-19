@@ -160,7 +160,7 @@ using android::base::boot_clock;
 #define CAMERA_DMA_HEAP_DIR    "/dev/dma_heap"
 #define CAMERA_DMA_HEAP_PATH   "/dev/dma_heap/qcom,display"
 
-#define WAIT_SET_PERM_COUNT 5
+#define WAIT_SET_PERM_COUNT 6
 #define WAIT_SET_PERM_SECS  15
 #define WAIT_SET_PERM_MSECS 300
 
@@ -177,6 +177,8 @@ static inline char *strstrip(char *s);
 static inline int parse_line(char* p);
 static void set_permissions(char *path, int permissions, int user, int group, char *context);
 static void launch_early_apps(void);
+static void set_video_permission(void);
+static void set_video1_permission(void);
 
 bool bc_get_ar();
 
@@ -1199,17 +1201,23 @@ static void check_video_device_ready(void)
   int major = 0, minor = 0;
 
   if (!video_device_created) {
-    if (access("/sys/class/drm/card4/uevent", F_OK) == 0) {
+    if ((access("/sys/class/drm/card4/uevent", F_OK) == 0) &&
+        (access("/sys/class/video4linux/video32/uevent", F_OK) == 0)) {
       if(get_device_major_minor("/sys/class/drm/card4/uevent", &major, &minor))
       {
         mkdir(DRM_CARD4_DIR, 0666);
         mknod(DRM_CARD4_PATH, S_IFCHR | 0666,
             makedev(major, minor));
-
-        LOG(INFO) << "ES video device nodes ready";
-        write_marker("M - EarlyInit video nodes ready");
-        video_device_created = 1;
       }
+      if(get_device_major_minor("/sys/class/video4linux/video32/uevent", &major, &minor)) {
+        mknod("/dev/video32", S_IFCHR | 0666,
+          makedev(major, minor));
+      }
+      set_video_permission();
+      set_video1_permission();
+      LOG(INFO) << "ES video device nodes ready";
+      write_marker("M - EarlyInit video nodes ready");
+      video_device_created = 1;
     }
   }
   return;
@@ -1272,7 +1280,9 @@ static int wait_file_set_perm(void)
       if (wait_set_perm[i].valid && access(wait_set_perm[i].path, F_OK) == 0) {
         wait_set_perm[i].valid = false;
         set_count--;
-        wait_set_perm[i].fn();
+        if (wait_set_perm[i].fn != NULL) {
+          wait_set_perm[i].fn();
+        }
       }
     }
     usleep(SLEEP_MSEC * 1000);
@@ -1389,8 +1399,8 @@ static void invoke_wait_set_perm()
   prepare_wait_set_perm(1, CAMERA_MDEV_PATH, set_camera_permission);
   prepare_wait_set_perm(2, CAMERA_VDEV_PATH, set_camera_permission1);
   prepare_wait_set_perm(3, CAMERA_V4L_DEV_PATH, set_camera_permission2);
-  prepare_wait_set_perm(4, DRM_CARD4_PATH, set_video_permission);
-  prepare_wait_set_perm(5, AUDIO_CTRL_PATH, set_audio_permission);
+  prepare_wait_set_perm(4, DRM_CARD4_PATH, NULL);
+  prepare_wait_set_perm(5, VIDEO_CARD_PATH, NULL);
 
   // Wait for App specific dev nodes and set permissions
   wait_file_set_perm();
