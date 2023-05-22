@@ -108,7 +108,6 @@
 #define DRM_CARD2_PATH          "/dev/dri/card2"
 #define VIDEO_CARD_PATH         "/dev/video32"
 #define AUDIO_FW_PATH           "/vendor_early_services/vendor/firmware_mnt"
-#define GFX_FW_PATH             "/vendor_early_services/vendor/firmware_mnt/image"
 #define SMACK_LABEL_PATH        "/proc/self/attr/current"
 #define SMACK_LABEL             "System"
 #define DEFAULT_PATH            "/sbin:/usr/sbin:/bin:/usr/bin:/system/sbin:/system/bin:/system/xbin:/odm/bin:/vendor/bin:/vendor/xbin:vendor_early_services/sbin:vendor_early_services/system/sbin:vendor_early_services/system/bin:vendor_early_services/system/xbin:vendor_early_services/odm/bin:vendor_early_services/vendor/bin:vendor_early_services/vendor/xbin"
@@ -151,14 +150,15 @@ using android::base::boot_clock;
 #define finit_module(fd, param_values, flags) syscall(__NR_finit_module, fd, param_values, flags)
 #define NUM_MODULE 32
 #define ADSP_LOADER_KO "/vendor_early_services/vendor/lib/modules/adsp_loader_dlkm_legacy.ko"
-#define DRM_CARD3_PATH      "/dev/dri/card3"
-#define DRM_CARD4_PATH      "/dev/dri/card4"
-#define AUDIO_CTRL_PATH     "/dev/snd/pcmC0D50p"
-#define CAMERA_MDEV_PATH    "/dev/media0"
-#define CAMERA_VDEV_PATH    "/dev/video0"
-#define CAMERA_V4L_DEV_PATH    "/dev/v4l-subdev0"
-#define CAMERA_DMA_HEAP_DIR    "/dev/dma_heap"
-#define CAMERA_DMA_HEAP_PATH   "/dev/dma_heap/qcom,display"
+#define DRM_CARD3_PATH          "/dev/dri/card3"
+#define DRM_CARD4_PATH          "/dev/dri/card4"
+#define AUDIO_CTRL_PATH         "/dev/snd/pcmC0D50p"
+#define CAMERA_MDEV_PATH        "/dev/media0"
+#define CAMERA_VDEV_PATH        "/dev/video0"
+#define CAMERA_V4L_DEV_PATH     "/dev/v4l-subdev0"
+#define DMA_HEAP_DIR            "/dev/dma_heap"
+#define CAMERA_DMA_HEAP_PATH    "/dev/dma_heap/qcom,display"
+#define VIDEO_SYS_DMA_HEAP_PATH "/dev/dma_heap/qcom,system"
 
 #define WAIT_SET_PERM_COUNT 6
 #define WAIT_SET_PERM_SECS  15
@@ -1025,11 +1025,11 @@ static void check_dma_heap_device_ready(void)
     if (access("/sys/class/dma_heap/qcom,display/uevent", F_OK) == 0) {
       if(get_device_major_minor("/sys/class/dma_heap/qcom,display/uevent", &major, &minor))
       {
-        mkdir(CAMERA_DMA_HEAP_DIR, 0666);
+        mkdir(DMA_HEAP_DIR, 0666);
         mknod(CAMERA_DMA_HEAP_PATH, S_IFCHR | 0666,
             makedev(major, minor));
 
-        set_permissions(CAMERA_DMA_HEAP_DIR, 0755, AID_ROOT,
+        set_permissions(DMA_HEAP_DIR, 0755, AID_ROOT,
             AID_ROOT, "u:object_r:dmabuf_heap_device:s0");
         set_permissions(CAMERA_DMA_HEAP_PATH, 0666, AID_SYSTEM,
             AID_SYSTEM, "u:object_r:vendor_dmabuf_display_heap_device:s0");
@@ -1202,16 +1202,27 @@ static void check_video_device_ready(void)
 
   if (!video_device_created) {
     if ((access("/sys/class/drm/card4/uevent", F_OK) == 0) &&
+        (access("/sys/class/dma_heap/qcom,system/uevent", F_OK) == 0) &&
         (access("/sys/class/video4linux/video32/uevent", F_OK) == 0)) {
-      if(get_device_major_minor("/sys/class/drm/card4/uevent", &major, &minor))
+      if (get_device_major_minor("/sys/class/drm/card4/uevent", &major, &minor))
       {
         mkdir(DRM_CARD4_DIR, 0666);
         mknod(DRM_CARD4_PATH, S_IFCHR | 0666,
             makedev(major, minor));
       }
-      if(get_device_major_minor("/sys/class/video4linux/video32/uevent", &major, &minor)) {
+      if (get_device_major_minor("/sys/class/dma_heap/qcom,system/uevent", &major, &minor))
+      {
+        mkdir(DMA_HEAP_DIR, 0666);
+        mknod(VIDEO_SYS_DMA_HEAP_PATH, S_IFCHR | 0666,
+            makedev(major, minor));
+        set_permissions(DMA_HEAP_DIR, 0755, AID_ROOT,
+            AID_ROOT, "u:object_r:dmabuf_heap_device:s0");
+        set_permissions(VIDEO_SYS_DMA_HEAP_PATH, 0666, AID_SYSTEM,
+            AID_SYSTEM, "u:object_r:vendor_dmabuf_system_heap_device:s0");
+      }
+      if (get_device_major_minor("/sys/class/video4linux/video32/uevent", &major, &minor)) {
         mknod("/dev/video32", S_IFCHR | 0666,
-          makedev(major, minor));
+              makedev(major, minor));
       }
       set_video_permission();
       set_video1_permission();
@@ -1458,14 +1469,6 @@ static int prepare_fw_dir()
       LOG(WARNING) << "ES : modemstr mount failed, err " << errno;
     } else {
       LOG(INFO) << "ES : modemstr mount success.";
-    }
-
-    if (access(GFX_FW_PATH, F_OK) == -1) {
-      mkdirs(GFX_FW_PATH, 0755);
-    }
-    if (mount("/vendor_early_services/firmware", GFX_FW_PATH, NULL,
-                MS_BIND | MS_REC, NULL) == 0) {
-      LOG(INFO) << "ES : gfx mount success.";
     }
   } else {
     LOG(WARNING) << "ES : modemstr Not Found!";
