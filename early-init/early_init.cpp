@@ -852,7 +852,7 @@ bool bc_get_lmp() {
 }
 
 bool bc_get_ar() {
-  bool audio_reach = false;
+  bool audio_reach = true;
   android::earlyinit::import_kernel_bootconfig(false,
      [&](const std::string& key, const std::string& value, bool in_qemu) {
     (void)in_qemu;
