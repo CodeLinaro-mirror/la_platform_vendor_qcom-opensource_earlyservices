@@ -108,6 +108,7 @@
 #define DRM_CARD2_PATH          "/dev/dri/card2"
 #define VIDEO_CARD_PATH         "/dev/video32"
 #define AUDIO_FW_PATH           "/vendor_early_services/vendor/firmware_mnt"
+#define AUDIO_ADSP_FW_PATH      "vendor_early_services/vendor/firmware_mnt/image/adsp.mdt"
 #define SMACK_LABEL_PATH        "/proc/self/attr/current"
 #define SMACK_LABEL             "System"
 #define DEFAULT_PATH            "/sbin:/usr/sbin:/bin:/usr/bin:/system/sbin:/system/bin:/system/xbin:/odm/bin:/vendor/bin:/vendor/xbin:vendor_early_services/sbin:vendor_early_services/system/sbin:vendor_early_services/system/bin:vendor_early_services/system/xbin:vendor_early_services/odm/bin:vendor_early_services/vendor/bin:vendor_early_services/vendor/xbin"
@@ -120,6 +121,7 @@
 #define EVIDEO_APP             "earlyVideo"
 #define ERVC_APP               "qcarcam_edrm_rvc"
 #define EMOD_END               "emod_end"
+#define PD_MAPPER_APP          "pd-mapper"
 
 #define EMOD_TAG               "def"
 #define EMOD_END_TAG           "def-end"
@@ -127,6 +129,7 @@
 #define ESPLASH_TAG            "splash"
 #define EVIDEO_TAG             "video"
 #define ERVC_TAG               "rvc"
+#define PD_MAPPER_TAG          "pd-mapper-tag"
 
 
 #define STR_EXPAND(tok) #tok
@@ -1497,6 +1500,9 @@ static int load_kmod_and_nodes(const char* appname)
     set_perm[0] = set_audio_permission;
     dev_path[0] = (char*)AUDIO_CTRL_PATH;
     tag = ECHIME_TAG;
+  } else if (!strncmp(appname, PD_MAPPER_APP, strlen(PD_MAPPER_APP))) {
+    wait_for_file(AUDIO_ADSP_FW_PATH, 50, 500);
+    tag = PD_MAPPER_TAG;
   } else if (!strncmp(appname, EMOD_END, strlen(EMOD_END))) {
     no_dev = true;
   } else {
@@ -1713,6 +1719,12 @@ int early_init_kmod(const char *appname)
     file = (bc_get_ar())?MM_R_MOD_ORDER_AU:MM_MOD_ORDER_AU;
     path = MM_MOD_PATH;
     tag = ECHIME_TAG;
+  } else if (!strncmp(appname, PD_MAPPER_APP, strlen(PD_MAPPER_APP))) {
+    if(bc_get_ar()) {
+      file = MM_R_MOD_ORDER_AU;
+      path = MM_MOD_PATH;
+      tag = PD_MAPPER_TAG;
+    }
   } else if (!strncmp(appname, EMOD_END, strlen(EMOD_END))) {
     file = MM_DEPMOD_ORDER_END;
     path = MM_DEPMOD_PATH;
