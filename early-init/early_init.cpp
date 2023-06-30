@@ -89,6 +89,8 @@
 #include <sys/sysinfo.h>
 #include <pthread.h>
 #include <sys/wait.h>
+#include <sys/mman.h>
+#include <utils/Log.h>
 
 // for file copy
 #include <filesystem>
@@ -197,6 +199,16 @@ using android::base::boot_clock;
 #define MM_R_MOD_ORDER_AU "/vendor_early_services/vendor/lib/modules/modules_r_au.order"
 #define MM_MOD_PATH     "/vendor_early_services/vendor/lib/modules/"
 
+#ifdef __ANDROID_U__
+#define SELINUXMNT "/sys/fs/selinux"
+
+#define TEST_APP "init_early_test"
+#define TEST_APP_CMD  "/vendor_early_services/system/bin/init_early_test"
+#define TEST_APP_ENV "/vendor_early_services:/vendor_early_services/system:/vendor_early_services/system/lib64:/vendor_early_services/system/bin/bootstrap"
+#define TEST_APP_PID "/vendor_early_services/run/early/init_early_test.pid"
+#define TEST_APP_LOG "/vendor_early_services/run/init_early_test.txt"
+#endif //__ANDROID_U__
+
 static pid_t eapp_pid[EAPPS_MAX];
 
 static inline bool is_empty_line(const char* p);
@@ -255,6 +267,9 @@ static void inline safe_close(int fd)
 
 static void inline write_marker(const char* name)
 {
+#ifdef __ANDROID_U__
+  ALOGE("boot_kpi: %s ", name);
+#else
   int fd = -1;
 
   fd = open(KPI_VALUE_PATH, O_WRONLY);
@@ -265,7 +280,7 @@ static void inline write_marker(const char* name)
     printf("open bootkpi for name %s failed %s\r\n", name, strerror(errno));
   }
   safe_close(fd);
-
+#endif
   return;
 }
 
@@ -1438,6 +1453,44 @@ static int prepare_fw_dir()
   return 0;
 }
 
+#ifdef __ANDROID_U__
+static int es_selinux_android_load_policy_from_fd(int fd, const char *description)
+{
+  int rc;
+  struct stat sb;
+  void *map = NULL;
+  static int load_successful = 0;
+
+  LOG(INFO) << "ES SELinux: Load Sepolicy from fd";
+  if (load_successful){
+    LOG(INFO) << "ES SELinux: Attempted reload of SELinux policy!";
+    return 0;
+  }
+  set_selinuxmnt(SELINUXMNT);
+  if (fstat(fd, &sb) < 0) {
+    LOG(INFO) << "ES SELinux:  Could not stat " << description << " Error: " <<  strerror(errno);
+    return -1;
+  }
+  map = mmap(NULL, sb.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
+  if (map == MAP_FAILED) {
+    LOG(INFO) << "ES SELinux:  Could not map " << description << " Error: " <<  strerror(errno);
+    return -1;
+  }
+
+  rc = security_load_policy(map, sb.st_size);
+  if (rc < 0) {
+    LOG(INFO) << "ES SELinux:  Could not load policy " << description << " Error: " <<  strerror(errno);
+    munmap(map, sb.st_size);
+    return -1;
+  }
+
+  munmap(map, sb.st_size);
+  load_successful = 1;
+  LOG(INFO) << "ES SELinux: es_selinux_android_load_policy_from_fd rc : " << rc;
+  return 0;
+}
+#endif //__ANDROID_U__
+
 static int load_precompiled_sepolicy()
 {
   // Load the vendor early service policy
@@ -1446,7 +1499,12 @@ static int load_precompiled_sepolicy()
   int fd1 = open(precompiled_sepolicy_file.c_str(),
                  O_RDONLY | O_CLOEXEC | O_BINARY, 0775);
   if (fd1 > 0) {
-    if (selinux_android_load_policy_from_fd(fd1,
+    if (
+#ifdef __ANDROID_U__
+      es_selinux_android_load_policy_from_fd(fd1,
+#else
+      selinux_android_load_policy_from_fd(fd1,
+#endif
         precompiled_sepolicy_file.c_str()) < 0) {
       LOG(WARNING) << "ES : Failed to load SELinux policy " << precompiled_sepolicy_file.c_str();
     } else {
@@ -1677,6 +1735,103 @@ static int load_modules_parallel(const std::string& fl,
   return 0;
 }
 
+#ifdef __ANDROID_U__
+static void launch_test_app(void)
+{
+  int fd;
+  size_t i = 0;
+  pid_t pid = -1;
+  int ret = -1;
+  char pid_file[10] = {0};
+  static char marker[50];
+
+  LOG(INFO) << "Launch Test APP";
+  app_launcher_start_over();
+  app_launcher.appname = strdup(TEST_APP);
+  app_launcher.cmd = strdup(TEST_APP_CMD);
+  app_launcher.argv[app_launcher.argv_used] = strdup(TEST_APP_CMD);
+  app_launcher.argv_used++;
+  app_launcher.applog = strdup(TEST_APP_LOG);
+  app_launcher.env[app_launcher.env_used] = strdup(TEST_APP_ENV);
+  app_launcher.env_used++;
+  app_launcher.pidfile = strdup(TEST_APP_PID);
+
+  pid = fork();
+  if (pid < 0) {
+     LOG(INFO) << " early_init fork child process failed ";
+     perror("fork child process failed \r\n");
+     return;
+
+  }
+  if (0 == pid) {
+  if (app_launcher.applog) {
+    fd = open(app_launcher.applog, O_RDWR | O_CREAT, 0666);
+    if (fd > 0) {
+       dup2(fd, fileno(stdout));
+       dup2(fd, fileno(stderr));
+       safe_close(fd);
+       safe_close(fd);
+     }
+  } else {
+    fd = open("/dev/kmsg", O_WRONLY | O_CLOEXEC);
+    dup2(fd, STDOUT_FILENO);
+    dup2(fd, STDERR_FILENO);
+    close(fd);
+  }
+  if (app_launcher.pidfile) {
+    fd = open(app_launcher.pidfile, O_WRONLY | O_CREAT, 0666);
+    if (fd < 0)
+       perror("open pid file failed \r\n");
+     else {
+         snprintf(pid_file, sizeof(pid_file) , "%d" ,getpid());
+         if (-1 == write(fd, pid_file, sizeof(pid_file)))
+        printf("write pidfile %s failed: %s", app_launcher.pidfile, strerror(errno));
+    }
+    safe_close(fd);
+  }
+
+  if (app_launcher.wait) {
+    printf("app %s waiting for %s ...\r\n", app_launcher.appname, app_launcher.wait);
+    while(1) { /* TODO: find a finite value for wait */
+      if (-1 != access(app_launcher.wait, F_OK))
+        break;
+        usleep(5000);
+     }
+  }
+
+  app_launcher.env[app_launcher.env_used] = "LD_LIBRARY_PATH=/vendor_early_services/system/lib64";
+  app_launcher.env_used++;
+  app_launcher.argv[app_launcher.argv_used] = NULL;
+  app_launcher.env[app_launcher.env_used] = NULL;
+
+  if (app_launcher.username) {
+     enforce_user(app_launcher.username);
+  }
+  if (app_launcher.group) {
+    enforce_group(app_launcher.group);
+  }
+  if (app_launcher.cmd) {
+    if ((ret = access(app_launcher.cmd, F_OK)) != 0) {
+       LOG(WARNING) << "ES : App " << app_launcher.appname << " doesn't exist ret " << ret << " err " << errno;
+       return;
+  }
+  memset(marker, 0, 50);
+  snprintf(marker, 49 ,"M - Launch %s app", app_launcher.appname);
+  write_marker(marker);
+  LOG(INFO) << "ES : Launching app " << app_launcher.appname;
+  ret = execvpe(app_launcher.cmd,app_launcher.argv,app_launcher.env);
+  if(ret < 0) {
+    LOG(INFO) << "ES : App launch failed " << app_launcher.appname << " errno " << errno;
+    memset(marker, 0, 50);
+    snprintf(marker, 49 ,"M - Launch %s app failed %d", app_launcher.appname, errno);
+    write_marker(marker);
+    }
+  }
+  }
+}
+
+#endif
+
 static void launch_early_apps(void)
 {
   std::string fl = DEFAULT_CONF;
@@ -1707,6 +1862,23 @@ static void launch_early_apps(void)
   if (i == EAPPS_MAX)
     LOG(WARNING) << "ES : Max Apps limit reached!";
 }
+
+#ifdef __ANDROID_U__
+static int load_default_modules()
+{
+  int count = 0;
+  boot_clock::time_point module_start_time = boot_clock::now();
+  android::earlyinit::load_kernel_modules(count, bc_get_lmp());
+  LOG(INFO) << "ES : Modules loaded count " << count;
+  auto module_elapse_time = std::chrono::duration_cast<std::chrono::milliseconds>(
+                     boot_clock::now() - module_start_time);
+  char str[SHORT_STRING_MAX] = {0};
+  snprintf(str, SHORT_STRING_MAX, "%s%d%s", "M - ES def-mod took ",
+               (int)module_elapse_time.count(), "ms");
+  write_marker(str);
+  return 0;
+}
+#endif // __ANDROID_U__
 
 int early_init_kmod(const char *appname)
 {
@@ -1778,10 +1950,12 @@ int early_init(int init)
     /* Create ais_server socket dir and camera data dir */
     mkdir("/dev/socket", 0775);
     mkdir("/dev/socket/camera", 0775);
-
+#ifdef __ANDROID_U__
+     load_default_modules();
+#else
     load_modules_parallel(MM_DEPMOD_ORDER, MM_DEPMOD_PATH,
              bc_get_lmp()?std::thread::hardware_concurrency():1, EMOD_TAG);
-
+#endif // __ANDROID_U__
     // Enumerate dev nodes - fw
     mknod("/dev/kmdone", S_IFREG | 0400, makedev(0,0));
     load_precompiled_sepolicy();
@@ -1810,7 +1984,11 @@ int early_init(int init)
   set_permissions("/dev/null", 0666, AID_ROOT, AID_ROOT, "u:object_r:null_device:s0");
   set_permissions("/dev/urandom", 0666, AID_ROOT, AID_ROOT, "u:object_r:random_device:s0");
 
+#ifdef __ANDROID_U__
+  launch_test_app();
+#else
   launch_early_apps();
+#endif
 
   char comm[SHORT_STRING_MAX/2];
   char comm_path[SHORT_STRING_MAX/2];
