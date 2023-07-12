@@ -16,6 +16,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+/*
+ * Changes from Qualcomm Innovation Center are provided under the following license:
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * SPDX-License-Identifier: BSD-3-Clause-Clear
+ */
 
 #include "util.h"
 
@@ -49,14 +54,16 @@ using namespace std::literals::string_literals;
 namespace android {
 namespace earlyinit {
 
+Modprobe _modprobe({MODULES_DIR}, MODULES_LOAD_FILE);
+
 void import_kernel_cmdline(bool in_qemu,
-                           const std::function<void(const std::string&, const std::string&, bool)>& fn) {
+                           const std::function<bool(const std::string&, const std::string&, bool)>& fn) {
     std::string cmdline;
     android::base::ReadFileToString("/proc/cmdline", &cmdline);
     for (const auto& entry : android::base::Split(android::base::Trim(cmdline), " ")) {
         std::vector<std::string> pieces = android::base::Split(entry, "=");
         if (pieces.size() == 2) {
-            fn(pieces[0], pieces[1], in_qemu);
+            if (fn(pieces[0], pieces[1], in_qemu)) break;
         }
     }
 }
@@ -71,6 +78,10 @@ bool load_kernel_modules(int& loaded_count, bool is_parallel) {
     }
 
     return true;
+}
+
+bool insert_kernel_module(const std::string& mod) {
+    return _modprobe.LoadWithAliases(mod, true);
 }
 
 static void kcmd_get_mparams(std::unordered_map<std::string, std::string> &opt) {
@@ -136,13 +147,12 @@ static void kcmd_get_mparams(std::unordered_map<std::string, std::string> &opt) 
     }
 }
 
-int get_kernel_module_param(const std::string& mod_name, std::string& params) {
-    static std::unordered_map<std::string, std::string> opt;
-    static bool opt_init = false;
+int get_kernel_module_param(const std::string &mod_name, std::string& params,
+    std::unordered_map<std::string, std::string>& opt, bool init) {
 
-    if (opt_init == false) {
+    if (init) {
         kcmd_get_mparams(opt);
-        opt_init = true;
+        return 0;
     }
 
     std::string mname = mod_name;
@@ -158,13 +168,15 @@ int get_kernel_module_param(const std::string& mod_name, std::string& params) {
 }
 
 void import_kernel_bootconfig(bool in_qemu,
-                           const std::function<void(const std::string&, const std::string&, bool)>& fn) {
+                           const std::function<bool(const std::string&, const std::string&, bool)>& fn) {
     std::string bootconfig;
     android::base::ReadFileToString("/proc/bootconfig", &bootconfig);
     for (const auto& entry : android::base::Split(bootconfig, "\n")) {
       std::vector<std::string> pieces = android::base::Split(entry, "=");
       if (pieces.size() == 2) {
-        fn(android::base::Trim(pieces[0]), android::base::Trim(pieces[1]), in_qemu);
+        if (fn(android::base::Trim(pieces[0]), android::base::Trim(pieces[1]), in_qemu)) {
+          break;
+        }
       }
     }
 }

@@ -21,6 +21,8 @@ ifneq (,$(filter U 14 UpsideDownCake, $(PLATFORM_VERSION)))
 LOCAL_CFLAGS += -D__ANDROID_U__
 endif
 
+LOCAL_CFLAGS += -Wall -Werror
+
 LOCAL_MODULE := early_services_init
 #LOCAL_STATIC_LIBRARIES := libc++_static
 LOCAL_FORCE_STATIC_EXECUTABLE := true
