@@ -119,6 +119,7 @@
 #define ECHIME_APP_TMP         "early_chime"
 #define ESPLASH_APP            "esplash"
 #define EVIDEO_APP             "earlyVideo"
+#define EAIS_APP               "ais_server"
 #define ERVC_APP               "qcarcam_edrm_rvc"
 #define EMOD_END               "emod_end"
 #define PD_MAPPER_APP          "pd-mapper"
@@ -128,6 +129,7 @@
 #define ECHIME_TAG             "audio"
 #define ESPLASH_TAG            "splash"
 #define EVIDEO_TAG             "video"
+#define EAIS_TAG               "ais"
 #define ERVC_TAG               "rvc"
 #define PD_MAPPER_TAG          "pd-mapper-tag"
 
@@ -189,6 +191,7 @@ using android::base::boot_clock;
 #define MM_DEPMOD_PATH  "/lib/modules/"
 #define MM_MOD_ORDER_DI "/vendor_early_services/vendor/lib/modules/modules_di.order"
 #define MM_MOD_ORDER_VI "/vendor_early_services/vendor/lib/modules/modules_vi.order"
+#define MM_MOD_ORDER_AIS "/vendor_early_services/vendor/lib/modules/modules_ais.order"
 #define MM_MOD_ORDER_RV "/vendor_early_services/vendor/lib/modules/modules_rv.order"
 #define MM_MOD_ORDER_AU "/vendor_early_services/vendor/lib/modules/modules_au.order"
 #define MM_R_MOD_ORDER_AU "/vendor_early_services/vendor/lib/modules/modules_r_au.order"
@@ -1482,18 +1485,20 @@ static int load_kmod_and_nodes(const char* appname)
     set_perm[0] = set_video_permission;
     dev_path[0] = (char*)DRM_CARD4_PATH;
     tag = EVIDEO_TAG;
-  } else if (!strncmp(appname, ERVC_APP, strlen(ERVC_APP))) {
+  } else if (!strncmp(appname, EAIS_APP, strlen(EAIS_APP))) {
     wait_for_file(DRM_CARD3_PATH, 30, 50);
     check_dev[0] = check_rvc_device_ready;
-    check_dev[1] = check_gfx_device_ready;
-    check_dev[2] = check_camera_card2_ready;
-    check_dev[3] = check_dma_heap_device_ready;
     set_perm[0] = set_camera_permission;
     dev_path[0] = (char*)CAMERA_MDEV_PATH;
     set_perm[1] = set_camera_permission1;
     dev_path[1] = (char*)CAMERA_VDEV_PATH;
     set_perm[2] = set_camera_permission2;
     dev_path[2] = (char*)CAMERA_V4L_DEV_PATH;
+    tag = EAIS_TAG;
+  } else if (!strncmp(appname, ERVC_APP, strlen(ERVC_APP))) {
+    check_dev[0] = check_gfx_device_ready;
+    check_dev[1] = check_camera_card2_ready;
+    check_dev[2] = check_dma_heap_device_ready;
     tag = ERVC_TAG;
   } else if (!strncmp(appname, ECHIME_APP, strlen(ECHIME_APP))) {
     check_dev[0] = check_esplash_device_ready;
@@ -1711,6 +1716,10 @@ int early_init_kmod(const char *appname)
     file = MM_MOD_ORDER_VI;
     path = MM_MOD_PATH;
     tag = EVIDEO_TAG;
+  } else if (!strncmp(appname, EAIS_APP, strlen(EAIS_APP))) {
+    file = MM_MOD_ORDER_AIS;
+    path = MM_MOD_PATH;
+    tag = EAIS_TAG;
   } else if (!strncmp(appname, ERVC_APP, strlen(ERVC_APP))) {
     file = MM_MOD_ORDER_RV;
     path = MM_MOD_PATH;
