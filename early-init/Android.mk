@@ -13,6 +13,10 @@ ifneq ($(filter $(MSMSTEPPE),$(TARGET_BOARD_PLATFORM)),)
 	LOCAL_CFLAGS := -DPLATFORM_MSMSTEPPE
 endif
 
+ifneq ($(filter gen4, $(TARGET_BOARD_PLATFORM)),)
+        LOCAL_CFLAGS := -DPLATFORM_GEN4
+endif
+
 ifneq (,$(filter U 14 UpsideDownCake, $(PLATFORM_VERSION)))
 LOCAL_CFLAGS += -D__ANDROID_U__
 endif
@@ -130,6 +134,9 @@ ifneq ($(filter sdmshrike msmnile,$(TARGET_BOARD_PLATFORM)),)
 endif
 ifneq ($(filter $(MSMSTEPPE),$(TARGET_BOARD_PLATFORM)),)
 	LOCAL_CFLAGS := -DPLATFORM_MSMSTEPPE
+endif
+ifneq ($(filter gen4, $(TARGET_BOARD_PLATFORM)),)
+        LOCAL_CFLAGS := -DPLATFORM_GEN4
 endif
 LOCAL_LDFLAGS := -Wl,-rpath,'/vendor_early_services/system/lib64' -Wl,--dynamic-linker,/vendor_early_services/system/bin/bootstrap/linker64
 LOCAL_C_INCLUDES:= hardware/libhardware/include \

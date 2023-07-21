@@ -204,7 +204,7 @@ using android::base::boot_clock;
 #define MM_R_MOD_ORDER_AU "/vendor_early_services/vendor/lib/modules/modules_r_au.order"
 #define MM_MOD_PATH     "/vendor_early_services/vendor/lib/modules/"
 
-#ifdef __ANDROID_U__
+#if defined(__ANDROID_U__) || defined(PLATFORM_GEN4)
 #define SELINUXMNT "/sys/fs/selinux"
 
 #define TEST_APP "init_early_test"
@@ -212,7 +212,7 @@ using android::base::boot_clock;
 #define TEST_APP_ENV "/vendor_early_services:/vendor_early_services/system:/vendor_early_services/system/lib64:/vendor_early_services/system/bin/bootstrap"
 #define TEST_APP_PID "/vendor_early_services/run/early/init_early_test.pid"
 #define TEST_APP_LOG "/vendor_early_services/run/init_early_test.txt"
-#endif //__ANDROID_U__
+#endif //__ANDROID_U__ || PLATFORM_GEN4
 
 static pid_t eapp_pid[EAPPS_MAX];
 
@@ -1796,7 +1796,7 @@ static int load_modules_parallel(const std::string& fl,
   return 0;
 }
 
-#ifdef __ANDROID_U__
+#if defined(__ANDROID_U__) || defined(PLATFORM_GEN4)
 static void launch_test_app(void)
 {
   int fd;
@@ -1924,7 +1924,7 @@ static void launch_early_apps(void)
     LOG(WARNING) << "ES : Max Apps limit reached!";
 }
 
-#ifdef __ANDROID_U__
+#if defined(__ANDROID_U__) || defined(PLATFORM_GEN4)
 static int load_default_modules()
 {
   int count = 0;
@@ -1939,7 +1939,7 @@ static int load_default_modules()
   write_marker(str);
   return 0;
 }
-#endif // __ANDROID_U__
+#endif // __ANDROID_U__ || PLATFORM_GEN4
 
 int early_init_kmod(const char *appname)
 {
@@ -2010,13 +2010,13 @@ int early_init(int init)
 
     /* Create ais_server socket dir and camera data dir */
     mkdir("/dev/socket", 0775);
-#ifdef __ANDROID_U__
+#if defined( __ANDROID_U__) || defined(PLATFORM_GEN4)
      load_default_modules();
 #else
     mkdir("/dev/socket/camera", 0775);
     load_modules_parallel(MM_DEPMOD_ORDER, MM_DEPMOD_PATH,
              bc_get_lmp()?std::thread::hardware_concurrency():1, EMOD_TAG);
-#endif // __ANDROID_U__
+#endif // __ANDROID_U__ || PLATFORM_GEN4
     if (fork() == 0) {
       signal(SIGTERM, SIG_IGN);
       prepare_fw_dir(true);
@@ -2051,6 +2051,8 @@ int early_init(int init)
 #ifdef __ANDROID_U__
   launch_test_app();
   launch_early_apps();
+#elif PLATFORM_GEN4
+  launch_test_app();
 #else
   launch_early_apps();
 #endif
