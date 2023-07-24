@@ -1471,6 +1471,12 @@ static int load_kmod_and_nodes(const char* appname)
   int (*check_dev[WAIT_SET_PERM_COUNT])(void) = {0};
   char *dev_path[WAIT_SET_PERM_COUNT] = {0};
 
+  // Add null check for appname to fix kw issue.
+  if (appname == NULL) {
+    LOG(INFO) << "ES : appname NULL pointer\n ";
+    return -1;
+  }
+
   // Every set_perm must set dev_path. check_dev is independent.
   if (!strncmp(appname, ESPLASH_APP, strlen(ESPLASH_APP))) {
     check_dev[0] = check_esplash_device_ready;
