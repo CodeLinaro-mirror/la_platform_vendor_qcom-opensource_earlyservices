@@ -1311,6 +1311,22 @@ static int check_esplash_device_ready(void)
   return esplash_device_created;
 }
 
+static int check_storage_device_ready(void)
+{
+  static int sto_device_created = 0;
+
+  if (!sto_device_created) {
+    if (access("/sys/block/sda/uevent", F_OK) == 0 ||
+        access("/sys/block/sde/uevent", F_OK) == 0) {
+      LOG(INFO) << "ES SD nodes ready";
+      write_marker("M - EarlyInit SD nodes ready");
+      sto_device_created = 1;
+    }
+  }
+
+  return sto_device_created;
+}
+
 static void set_audio_permission(void)
 {
   LOG(INFO) << "ES : Set Audio Permissions";
@@ -1395,14 +1411,13 @@ static void set_camera_permission2(void)
   return;
 }
 
-static int prepare_fw_dir()
+static int prepare_fw_dir(bool set_km)
 {
   int i, len;
   std::string modemTmpStr;
   std::string modemStr("/dev/block");
   const char* mnt = NULL;
-  const char* MNT_DEFAULT = "/dev/block/sde4";
-
+  unsigned int count = 0, max = (WAIT_SET_PERM_SECS * 1000) / WAIT_SLEEP_MSEC;
   boot_clock::time_point module_start_time = boot_clock::now();
 
   android::earlyinit::import_kernel_cmdline(false,
@@ -1411,7 +1426,21 @@ static int prepare_fw_dir()
     if (key == "modem") {
       modemTmpStr = value;
     }
+    if (key == "buildvariant" && value == "user") {
+      max = (WAIT_SET_PERM_MSECS) / WAIT_SLEEP_MSEC;
+    }
   });
+
+  if (set_km) {
+    while (count++ < max) {
+      if (check_storage_device_ready()) break;
+      usleep(WAIT_SLEEP_MSEC * 1000);
+    }
+    // Enumerate dev nodes - fw
+    mknod("/dev/kmdone", S_IFREG | 0400, makedev(0,0));
+
+    return 0;
+  }
 
   if (access(AUDIO_FW_PATH, F_OK) == -1) {
     LOG(WARNING) << "ES : AUDIO_FW_PATH doesn't exist";
@@ -1429,10 +1458,10 @@ static int prepare_fw_dir()
     modemStr += p1;
   }
 
-  if (len && wait_for_file(modemStr.c_str(), 10, 15) == 0)
+  if (len && wait_for_file(modemStr.c_str(), 30, 50) == 0)
     mnt = modemStr.c_str();
-  if (!mnt && wait_for_file(MNT_DEFAULT, 30, 50) == 0)
-    mnt = MNT_DEFAULT;
+  if (!mnt && len && wait_for_file(modemTmpStr.c_str(), 10, 10) == 0)
+    mnt = modemTmpStr.c_str();
 
   if (mnt) {
     if (mount(mnt, AUDIO_FW_PATH, "vfat", MS_RDONLY, "context=u:object_r:firmware_file:s0") < 0) {
@@ -1622,7 +1651,7 @@ static int load_kmod_and_nodes(const char* appname)
         [&](const std::string& key, const std::string& value, bool in_qemu) {
     (void)in_qemu;
     if (key == "buildvariant" && value == "user") {
-      max = (WAIT_SET_PERM_MSECS)/WAIT_SLEEP_MSEC;
+      max = (WAIT_SET_PERM_MSECS) / WAIT_SLEEP_MSEC;
     }
   });
   LOG(INFO) << "ES : wait and set perm " << tag << " iter max " << max;
@@ -1699,7 +1728,9 @@ static int load_modules_parallel(const std::string& fl,
         mn +=".ko";
         int fd = open(mn.c_str(), O_RDONLY);
         if (fd > 0) {
-          int ret = finit_module(fd, "", 0);
+          std::string param;
+          android::earlyinit::get_kernel_module_param(ml, param);
+          int ret = finit_module(fd, param.c_str(), 0);
           if (ret < 0 && errno != EEXIST) {
             LOG(INFO) << "fd = " << fd << "ES : init_module failed " << mn << " errno: " << errno;
           } else {
@@ -1956,8 +1987,11 @@ int early_init(int init)
     load_modules_parallel(MM_DEPMOD_ORDER, MM_DEPMOD_PATH,
              bc_get_lmp()?std::thread::hardware_concurrency():1, EMOD_TAG);
 #endif // __ANDROID_U__
-    // Enumerate dev nodes - fw
-    mknod("/dev/kmdone", S_IFREG | 0400, makedev(0,0));
+    if (fork() == 0) {
+      signal(SIGTERM, SIG_IGN);
+      prepare_fw_dir(true);
+      _exit(0);
+    }
     load_precompiled_sepolicy();
 
     selinux_android_restorecon("/vendor_early_services/early_services_init", 0);
@@ -1978,7 +2012,7 @@ int early_init(int init)
     return 0;
   } // init flag
 
-  prepare_fw_dir();
+  prepare_fw_dir(false);
   getSysInfo("/sys/devices/soc0/soc_id", chipId);
   getSysInfo("/sys/devices/soc0/platform_subtype_id", platformId);
   set_permissions("/dev/null", 0666, AID_ROOT, AID_ROOT, "u:object_r:null_device:s0");
