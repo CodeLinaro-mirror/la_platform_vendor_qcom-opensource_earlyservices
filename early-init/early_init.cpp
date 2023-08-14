@@ -862,19 +862,16 @@ static void insert_audio_modules(void)
     snprintf(marker, 49 ,"M - Inserting %d %s",i,&audio_modules[i][32]);
     write_marker(marker); */
         fd = open(audio_modules[i], O_RDONLY);
-            printf("fd = %d post-open audio-module\n", fd, errno);
+	    LOG(INFO) << "fd = " << fd << " post-open audio-module";
         if (finit_module(fd, "", 0) != 0) {
-            freopen("/dev/kmsg", "w", stdout);
-            printf("fd = %d init_module %d failed\n", fd, errno);
+	    LOG(INFO) << "fd = " << fd << " init_module " << errno;
         }
         else {
-            freopen("/dev/kmsg", "w", stdout);
-            printf("init_module success for %s \n", audio_modules[i]);
+	    LOG(INFO) << "init_module success for " << audio_modules[i];
         }
         close(fd);
         if(i == 3){
             fd = open("/sys/kernel/boot_adsp/boot", O_WRONLY);
-            freopen("/dev/kmsg", "w", stdout);
                 if (fd < 0) {
     		    LOG(INFO) << "ES : insert_audio_modules open sys entry failed";
                 } else if(-1 == write(fd, "1", 1)) {
