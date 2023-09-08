@@ -890,7 +890,7 @@ bool bc_get_lmp() {
     if (key == "androidboot.load_modules_parallel" && value == "\"true\"") {
       load_parallel = true;
 #ifdef __ANDROID_U__
-       load_parallel = false;
+      load_parallel = false;
 #endif
     }
   });
@@ -1984,19 +1984,18 @@ int early_init(int init)
     /* Create ais_server socket dir and camera data dir */
     mkdir("/dev/socket", 0775);
     mkdir("/dev/socket/camera", 0775);
+#ifdef __ANDROID_U__
+     load_default_modules();
+#else
     load_modules_parallel(MM_DEPMOD_ORDER, MM_DEPMOD_PATH,
              bc_get_lmp()?std::thread::hardware_concurrency():1, EMOD_TAG);
+#endif // __ANDROID_U__
     if (fork() == 0) {
       signal(SIGTERM, SIG_IGN);
       prepare_fw_dir(true);
       _exit(0);
     }
     load_precompiled_sepolicy();
-        //bool is_enforcing = IsEnforcing();
-        //printf("ES : is_enforcing = %d\n", is_enforcing);
-        //if (security_setenforce(is_enforcing))
-        //    LOG(INFO) << "Es: security_setenforce failed!";
-        //LOG(INFO) << "Es: security_setenforce Success!";
 
     selinux_android_restorecon("/vendor_early_services/early_services_init", 0);
     if (selinux_android_restorecon("/vendor_early_services/",
