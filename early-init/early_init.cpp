@@ -100,6 +100,7 @@
 #endif
 
 #define DEFAULT_CONF            "/vendor_early_services/etc/early_init.conf"
+#define ANDROID_U_CONF          "/vendor_early_services/etc/early_init_u.conf"
 #define END_TAG                 "<end>"
 #define LINE_MAX                2048
 #define SHORT_STRING_MAX        128
@@ -1895,7 +1896,11 @@ static void launch_test_app(void)
 
 static void launch_early_apps(void)
 {
+#ifdef __ANDROID_U__
+  std::string fl = ANDROID_U_CONF;
+#else
   std::string fl = DEFAULT_CONF;
+#endif // __ANDROID_U__
   std::string list;
 
   if (!android::base::ReadFileToString(fl, &list, false)) {
