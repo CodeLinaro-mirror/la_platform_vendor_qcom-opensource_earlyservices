@@ -177,7 +177,12 @@ using android::base::boot_clock;
 #define CAMERA_VDEV_PATH        "/dev/video0"
 #define CAMERA_V4L_DEV_PATH     "/dev/v4l-subdev0"
 #define DMA_HEAP_DIR            "/dev/dma_heap"
+#ifdef __ANDROID_U__
+#define CAMERA_DMA_HEAP_PATH    "/dev/dma_heap/qcom,system"
+#else
 #define CAMERA_DMA_HEAP_PATH    "/dev/dma_heap/qcom,display"
+#endif
+
 #define VIDEO_SYS_DMA_HEAP_PATH "/dev/dma_heap/qcom,system"
 
 #define WAIT_SET_PERM_COUNT 4
@@ -1068,7 +1073,28 @@ static int check_dma_heap_device_ready(void)
   static int dma_heap_device_created = 0;
   int major = 0, minor = 0;
 
+
+#ifdef __ANDROID_U__
   if (!dma_heap_device_created) {
+    if (access("/sys/class/dma_heap/qcom,system/uevent", F_OK) == 0) {
+      if(get_device_major_minor("/sys/class/dma_heap/qcom,system/uevent", &major, &minor))
+      {
+        mkdir(DMA_HEAP_DIR, 0666);
+        mknod(CAMERA_DMA_HEAP_PATH, S_IFCHR | 0666,
+            makedev(major, minor));
+
+        set_permissions(DMA_HEAP_DIR, 0755, AID_ROOT,
+            AID_ROOT, "u:object_r:dmabuf_heap_device:s0");
+        set_permissions(CAMERA_DMA_HEAP_PATH, 0666, AID_SYSTEM,
+            AID_SYSTEM, "u:object_r:vendor_dmabuf_system_heap_device:s0");
+        dma_heap_device_created = 1;
+        LOG(INFO) << "ES camera dma_heap device nodes ready";
+        write_marker("M - EarlyInit dma heap nodes ready");
+      }
+    }
+  }
+#else
+  if (!dma_heap_device_created) {
     if (access("/sys/class/dma_heap/qcom,display/uevent", F_OK) == 0) {
       if(get_device_major_minor("/sys/class/dma_heap/qcom,display/uevent", &major, &minor))
       {
@@ -1085,8 +1111,9 @@ static int check_dma_heap_device_ready(void)
         write_marker("M - EarlyInit dma heap nodes ready");
       }
     }
-  }
-
+  }
+#endif
+ 
   return dma_heap_device_created;
 }
 
@@ -1983,10 +2010,10 @@ int early_init(int init)
 
     /* Create ais_server socket dir and camera data dir */
     mkdir("/dev/socket", 0775);
-    mkdir("/dev/socket/camera", 0775);
 #ifdef __ANDROID_U__
      load_default_modules();
 #else
+    mkdir("/dev/socket/camera", 0775);
     load_modules_parallel(MM_DEPMOD_ORDER, MM_DEPMOD_PATH,
              bc_get_lmp()?std::thread::hardware_concurrency():1, EMOD_TAG);
 #endif // __ANDROID_U__
