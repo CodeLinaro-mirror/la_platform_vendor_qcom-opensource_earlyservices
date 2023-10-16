@@ -73,6 +73,89 @@ bool load_kernel_modules(int& loaded_count, bool is_parallel) {
     return true;
 }
 
+static void kcmd_get_mparams(std::unordered_map<std::string, std::string> &opt) {
+    constexpr int SZ = 2048;
+    static char buf[SZ];
+    char *mname, *op = 0, *val = 0;
+    int i;
+    bool quotes = false;
+    {
+        std::string cmdline;
+        android::base::ReadFileToString("/proc/cmdline", &cmdline);
+        strlcpy(buf, cmdline.c_str(), SZ-2);
+        buf[SZ-2] = 0;
+    }
+    mname = &buf[0];
+    auto addopt = [&] {
+        if (mname && val) {
+            // Add param to map
+            std::string modn = mname;
+            std::replace(modn.begin(), modn.end(), '-', '_');
+            auto iter = opt.find(modn);
+            std::string opts = op;
+            opts += "=";
+            opts += val;
+            if (iter != opt.end())
+                iter->second = iter->second + " " + opts;
+            else
+                opt.emplace(modn, opts);;
+        }
+    };
+
+    for (i = 0; buf[i] != 0; i++) {
+        if (buf[i] == '"') quotes = !quotes;
+        if (quotes) continue;
+
+        if (buf[i] == ' ') {
+            if (val) {
+                buf[i] = 0;
+                addopt();
+            }
+            mname = &buf[i+1];
+            op = 0;
+            val = 0;
+            continue;
+        }
+        if (buf[i] == '.') {
+            if (op == 0) {
+                buf[i] = 0;
+                op = &buf[i+1];
+            }
+            continue;
+        }
+        if (buf[i] == '=') {
+            if (op) {
+                buf[i] = 0;
+                val = &buf[i+1];
+            }
+            continue;
+        }
+    }
+    if (val && !quotes) {
+        addopt();
+    }
+}
+
+int get_kernel_module_param(const std::string& mod_name, std::string& params) {
+    static std::unordered_map<std::string, std::string> opt;
+    static bool opt_init = false;
+
+    if (opt_init == false) {
+        kcmd_get_mparams(opt);
+        opt_init = true;
+    }
+
+    std::string mname = mod_name;
+    // - and _ are considered same in mod name
+    std::replace(mname.begin(), mname.end(), '-', '_');
+    params = "";
+    auto iter = opt.find(mname);
+    if (iter != opt.end()) {
+        params = iter->second;
+    }
+
+    return 0;
+}
 
 void import_kernel_bootconfig(bool in_qemu,
                            const std::function<void(const std::string&, const std::string&, bool)>& fn) {

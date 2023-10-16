@@ -29,6 +29,7 @@ void import_kernel_cmdline(bool in_qemu,
                            const std::function<void(const std::string&, const std::string&, bool)>&);
 bool load_kernel_modules(int& loaded_count, bool is_parallel);
 
+int get_kernel_module_param(const std::string& mod_name, std::string& params);
 void import_kernel_bootconfig(bool in_qemu,
                            const std::function<void(const std::string&, const std::string&, bool)>&);
 }  // namespace earlyinit

@@ -89,6 +89,8 @@
 #include <sys/sysinfo.h>
 #include <pthread.h>
 #include <sys/wait.h>
+#include <sys/mman.h>
+#include <utils/Log.h>
 
 // for file copy
 #include <filesystem>
@@ -119,6 +121,7 @@
 #define ECHIME_APP_TMP         "early_chime"
 #define ESPLASH_APP            "esplash"
 #define EVIDEO_APP             "earlyVideo"
+#define EAIS_APP               "ais_server"
 #define ERVC_APP               "qcarcam_edrm_rvc"
 #define EMOD_END               "emod_end"
 #define PD_MAPPER_APP          "pd-mapper"
@@ -128,6 +131,7 @@
 #define ECHIME_TAG             "audio"
 #define ESPLASH_TAG            "splash"
 #define EVIDEO_TAG             "video"
+#define EAIS_TAG               "ais"
 #define ERVC_TAG               "rvc"
 #define PD_MAPPER_TAG          "pd-mapper-tag"
 
@@ -189,10 +193,21 @@ using android::base::boot_clock;
 #define MM_DEPMOD_PATH  "/lib/modules/"
 #define MM_MOD_ORDER_DI "/vendor_early_services/vendor/lib/modules/modules_di.order"
 #define MM_MOD_ORDER_VI "/vendor_early_services/vendor/lib/modules/modules_vi.order"
+#define MM_MOD_ORDER_AIS "/vendor_early_services/vendor/lib/modules/modules_ais.order"
 #define MM_MOD_ORDER_RV "/vendor_early_services/vendor/lib/modules/modules_rv.order"
 #define MM_MOD_ORDER_AU "/vendor_early_services/vendor/lib/modules/modules_au.order"
 #define MM_R_MOD_ORDER_AU "/vendor_early_services/vendor/lib/modules/modules_r_au.order"
 #define MM_MOD_PATH     "/vendor_early_services/vendor/lib/modules/"
+
+#ifdef __ANDROID_U__
+#define SELINUXMNT "/sys/fs/selinux"
+
+#define TEST_APP "init_early_test"
+#define TEST_APP_CMD  "/vendor_early_services/system/bin/init_early_test"
+#define TEST_APP_ENV "/vendor_early_services:/vendor_early_services/system:/vendor_early_services/system/lib64:/vendor_early_services/system/bin/bootstrap"
+#define TEST_APP_PID "/vendor_early_services/run/early/init_early_test.pid"
+#define TEST_APP_LOG "/vendor_early_services/run/init_early_test.txt"
+#endif //__ANDROID_U__
 
 static pid_t eapp_pid[EAPPS_MAX];
 
@@ -252,6 +267,9 @@ static void inline safe_close(int fd)
 
 static void inline write_marker(const char* name)
 {
+#ifdef __ANDROID_U__
+  ALOGE("boot_kpi: %s ", name);
+#else
   int fd = -1;
 
   fd = open(KPI_VALUE_PATH, O_WRONLY);
@@ -262,7 +280,7 @@ static void inline write_marker(const char* name)
     printf("open bootkpi for name %s failed %s\r\n", name, strerror(errno));
   }
   safe_close(fd);
-
+#endif
   return;
 }
 
@@ -871,6 +889,9 @@ bool bc_get_lmp() {
     (void)in_qemu;
     if (key == "androidboot.load_modules_parallel" && value == "\"true\"") {
       load_parallel = true;
+#ifdef __ANDROID_U__
+      load_parallel = false;
+#endif
     }
   });
   // LOG(INFO) << "ES : Config Modules Parallel load: " << load_parallel;
@@ -1293,6 +1314,22 @@ static int check_esplash_device_ready(void)
   return esplash_device_created;
 }
 
+static int check_storage_device_ready(void)
+{
+  static int sto_device_created = 0;
+
+  if (!sto_device_created) {
+    if (access("/sys/block/sda/uevent", F_OK) == 0 ||
+        access("/sys/block/sde/uevent", F_OK) == 0) {
+      LOG(INFO) << "ES SD nodes ready";
+      write_marker("M - EarlyInit SD nodes ready");
+      sto_device_created = 1;
+    }
+  }
+
+  return sto_device_created;
+}
+
 static void set_audio_permission(void)
 {
   LOG(INFO) << "ES : Set Audio Permissions";
@@ -1377,14 +1414,13 @@ static void set_camera_permission2(void)
   return;
 }
 
-static int prepare_fw_dir()
+static int prepare_fw_dir(bool set_km)
 {
   int i, len;
   std::string modemTmpStr;
   std::string modemStr("/dev/block");
   const char* mnt = NULL;
-  const char* MNT_DEFAULT = "/dev/block/sde4";
-
+  unsigned int count = 0, max = (WAIT_SET_PERM_SECS * 1000) / WAIT_SLEEP_MSEC;
   boot_clock::time_point module_start_time = boot_clock::now();
 
   android::earlyinit::import_kernel_cmdline(false,
@@ -1393,7 +1429,21 @@ static int prepare_fw_dir()
     if (key == "modem") {
       modemTmpStr = value;
     }
+    if (key == "buildvariant" && value == "user") {
+      max = (WAIT_SET_PERM_MSECS) / WAIT_SLEEP_MSEC;
+    }
   });
+
+  if (set_km) {
+    while (count++ < max) {
+      if (check_storage_device_ready()) break;
+      usleep(WAIT_SLEEP_MSEC * 1000);
+    }
+    // Enumerate dev nodes - fw
+    mknod("/dev/kmdone", S_IFREG | 0400, makedev(0,0));
+
+    return 0;
+  }
 
   if (access(AUDIO_FW_PATH, F_OK) == -1) {
     LOG(WARNING) << "ES : AUDIO_FW_PATH doesn't exist";
@@ -1411,10 +1461,10 @@ static int prepare_fw_dir()
     modemStr += p1;
   }
 
-  if (len && wait_for_file(modemStr.c_str(), 10, 15) == 0)
+  if (len && wait_for_file(modemStr.c_str(), 30, 50) == 0)
     mnt = modemStr.c_str();
-  if (!mnt && wait_for_file(MNT_DEFAULT, 30, 50) == 0)
-    mnt = MNT_DEFAULT;
+  if (!mnt && len && wait_for_file(modemTmpStr.c_str(), 10, 10) == 0)
+    mnt = modemTmpStr.c_str();
 
   if (mnt) {
     if (mount(mnt, AUDIO_FW_PATH, "vfat", MS_RDONLY, "context=u:object_r:firmware_file:s0") < 0) {
@@ -1435,6 +1485,44 @@ static int prepare_fw_dir()
   return 0;
 }
 
+#ifdef __ANDROID_U__
+static int es_selinux_android_load_policy_from_fd(int fd, const char *description)
+{
+  int rc;
+  struct stat sb;
+  void *map = NULL;
+  static int load_successful = 0;
+
+  LOG(INFO) << "ES SELinux: Load Sepolicy from fd";
+  if (load_successful){
+    LOG(INFO) << "ES SELinux: Attempted reload of SELinux policy!";
+    return 0;
+  }
+  set_selinuxmnt(SELINUXMNT);
+  if (fstat(fd, &sb) < 0) {
+    LOG(INFO) << "ES SELinux:  Could not stat " << description << " Error: " <<  strerror(errno);
+    return -1;
+  }
+  map = mmap(NULL, sb.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
+  if (map == MAP_FAILED) {
+    LOG(INFO) << "ES SELinux:  Could not map " << description << " Error: " <<  strerror(errno);
+    return -1;
+  }
+
+  rc = security_load_policy(map, sb.st_size);
+  if (rc < 0) {
+    LOG(INFO) << "ES SELinux:  Could not load policy " << description << " Error: " <<  strerror(errno);
+    munmap(map, sb.st_size);
+    return -1;
+  }
+
+  munmap(map, sb.st_size);
+  load_successful = 1;
+  LOG(INFO) << "ES SELinux: es_selinux_android_load_policy_from_fd rc : " << rc;
+  return 0;
+}
+#endif //__ANDROID_U__
+
 static int load_precompiled_sepolicy()
 {
   // Load the vendor early service policy
@@ -1443,7 +1531,12 @@ static int load_precompiled_sepolicy()
   int fd1 = open(precompiled_sepolicy_file.c_str(),
                  O_RDONLY | O_CLOEXEC | O_BINARY, 0775);
   if (fd1 > 0) {
-    if (selinux_android_load_policy_from_fd(fd1,
+    if (
+#ifdef __ANDROID_U__
+      es_selinux_android_load_policy_from_fd(fd1,
+#else
+      selinux_android_load_policy_from_fd(fd1,
+#endif
         precompiled_sepolicy_file.c_str()) < 0) {
       LOG(WARNING) << "ES : Failed to load SELinux policy " << precompiled_sepolicy_file.c_str();
     } else {
@@ -1488,18 +1581,20 @@ static int load_kmod_and_nodes(const char* appname)
     set_perm[0] = set_video_permission;
     dev_path[0] = (char*)DRM_CARD4_PATH;
     tag = EVIDEO_TAG;
-  } else if (!strncmp(appname, ERVC_APP, strlen(ERVC_APP))) {
+  } else if (!strncmp(appname, EAIS_APP, strlen(EAIS_APP))) {
     wait_for_file(DRM_CARD3_PATH, 30, 50);
     check_dev[0] = check_rvc_device_ready;
-    check_dev[1] = check_gfx_device_ready;
-    check_dev[2] = check_camera_card2_ready;
-    check_dev[3] = check_dma_heap_device_ready;
     set_perm[0] = set_camera_permission;
     dev_path[0] = (char*)CAMERA_MDEV_PATH;
     set_perm[1] = set_camera_permission1;
     dev_path[1] = (char*)CAMERA_VDEV_PATH;
     set_perm[2] = set_camera_permission2;
     dev_path[2] = (char*)CAMERA_V4L_DEV_PATH;
+    tag = EAIS_TAG;
+  } else if (!strncmp(appname, ERVC_APP, strlen(ERVC_APP))) {
+    check_dev[0] = check_gfx_device_ready;
+    check_dev[1] = check_camera_card2_ready;
+    check_dev[2] = check_dma_heap_device_ready;
     tag = ERVC_TAG;
   } else if (!strncmp(appname, ECHIME_APP, strlen(ECHIME_APP))) {
     check_dev[0] = check_esplash_device_ready;
@@ -1559,7 +1654,7 @@ static int load_kmod_and_nodes(const char* appname)
         [&](const std::string& key, const std::string& value, bool in_qemu) {
     (void)in_qemu;
     if (key == "buildvariant" && value == "user") {
-      max = (WAIT_SET_PERM_MSECS)/WAIT_SLEEP_MSEC;
+      max = (WAIT_SET_PERM_MSECS) / WAIT_SLEEP_MSEC;
     }
   });
   LOG(INFO) << "ES : wait and set perm " << tag << " iter max " << max;
@@ -1636,7 +1731,9 @@ static int load_modules_parallel(const std::string& fl,
         mn +=".ko";
         int fd = open(mn.c_str(), O_RDONLY);
         if (fd > 0) {
-          int ret = finit_module(fd, "", 0);
+          std::string param;
+          android::earlyinit::get_kernel_module_param(ml, param);
+          int ret = finit_module(fd, param.c_str(), 0);
           if (ret < 0 && errno != EEXIST) {
             LOG(INFO) << "fd = " << fd << "ES : init_module failed " << mn << " errno: " << errno;
           } else {
@@ -1672,6 +1769,103 @@ static int load_modules_parallel(const std::string& fl,
   return 0;
 }
 
+#ifdef __ANDROID_U__
+static void launch_test_app(void)
+{
+  int fd;
+  size_t i = 0;
+  pid_t pid = -1;
+  int ret = -1;
+  char pid_file[10] = {0};
+  static char marker[50];
+
+  LOG(INFO) << "Launch Test APP";
+  app_launcher_start_over();
+  app_launcher.appname = strdup(TEST_APP);
+  app_launcher.cmd = strdup(TEST_APP_CMD);
+  app_launcher.argv[app_launcher.argv_used] = strdup(TEST_APP_CMD);
+  app_launcher.argv_used++;
+  app_launcher.applog = strdup(TEST_APP_LOG);
+  app_launcher.env[app_launcher.env_used] = strdup(TEST_APP_ENV);
+  app_launcher.env_used++;
+  app_launcher.pidfile = strdup(TEST_APP_PID);
+
+  pid = fork();
+  if (pid < 0) {
+     LOG(INFO) << " early_init fork child process failed ";
+     perror("fork child process failed \r\n");
+     return;
+
+  }
+  if (0 == pid) {
+  if (app_launcher.applog) {
+    fd = open(app_launcher.applog, O_RDWR | O_CREAT, 0666);
+    if (fd > 0) {
+       dup2(fd, fileno(stdout));
+       dup2(fd, fileno(stderr));
+       safe_close(fd);
+       safe_close(fd);
+     }
+  } else {
+    fd = open("/dev/kmsg", O_WRONLY | O_CLOEXEC);
+    dup2(fd, STDOUT_FILENO);
+    dup2(fd, STDERR_FILENO);
+    close(fd);
+  }
+  if (app_launcher.pidfile) {
+    fd = open(app_launcher.pidfile, O_WRONLY | O_CREAT, 0666);
+    if (fd < 0)
+       perror("open pid file failed \r\n");
+     else {
+         snprintf(pid_file, sizeof(pid_file) , "%d" ,getpid());
+         if (-1 == write(fd, pid_file, sizeof(pid_file)))
+        printf("write pidfile %s failed: %s", app_launcher.pidfile, strerror(errno));
+    }
+    safe_close(fd);
+  }
+
+  if (app_launcher.wait) {
+    printf("app %s waiting for %s ...\r\n", app_launcher.appname, app_launcher.wait);
+    while(1) { /* TODO: find a finite value for wait */
+      if (-1 != access(app_launcher.wait, F_OK))
+        break;
+        usleep(5000);
+     }
+  }
+
+  app_launcher.env[app_launcher.env_used] = "LD_LIBRARY_PATH=/vendor_early_services/system/lib64";
+  app_launcher.env_used++;
+  app_launcher.argv[app_launcher.argv_used] = NULL;
+  app_launcher.env[app_launcher.env_used] = NULL;
+
+  if (app_launcher.username) {
+     enforce_user(app_launcher.username);
+  }
+  if (app_launcher.group) {
+    enforce_group(app_launcher.group);
+  }
+  if (app_launcher.cmd) {
+    if ((ret = access(app_launcher.cmd, F_OK)) != 0) {
+       LOG(WARNING) << "ES : App " << app_launcher.appname << " doesn't exist ret " << ret << " err " << errno;
+       return;
+  }
+  memset(marker, 0, 50);
+  snprintf(marker, 49 ,"M - Launch %s app", app_launcher.appname);
+  write_marker(marker);
+  LOG(INFO) << "ES : Launching app " << app_launcher.appname;
+  ret = execvpe(app_launcher.cmd,app_launcher.argv,app_launcher.env);
+  if(ret < 0) {
+    LOG(INFO) << "ES : App launch failed " << app_launcher.appname << " errno " << errno;
+    memset(marker, 0, 50);
+    snprintf(marker, 49 ,"M - Launch %s app failed %d", app_launcher.appname, errno);
+    write_marker(marker);
+    }
+  }
+  }
+}
+
+#endif
+
 static void launch_early_apps(void)
 {
   std::string fl = DEFAULT_CONF;
@@ -1703,6 +1897,23 @@ static void launch_early_apps(void)
     LOG(WARNING) << "ES : Max Apps limit reached!";
 }
 
+#ifdef __ANDROID_U__
+static int load_default_modules()
+{
+  int count = 0;
+  boot_clock::time_point module_start_time = boot_clock::now();
+  android::earlyinit::load_kernel_modules(count, bc_get_lmp());
+  LOG(INFO) << "ES : Modules loaded count " << count;
+  auto module_elapse_time = std::chrono::duration_cast<std::chrono::milliseconds>(
+                     boot_clock::now() - module_start_time);
+  char str[SHORT_STRING_MAX] = {0};
+  snprintf(str, SHORT_STRING_MAX, "%s%d%s", "M - ES def-mod took ",
+               (int)module_elapse_time.count(), "ms");
+  write_marker(str);
+  return 0;
+}
+#endif // __ANDROID_U__
+
 int early_init_kmod(const char *appname)
 {
   android::earlyinit::InitKernelLogging(NULL);
@@ -1717,6 +1928,10 @@ int early_init_kmod(const char *appname)
     file = MM_MOD_ORDER_VI;
     path = MM_MOD_PATH;
     tag = EVIDEO_TAG;
+  } else if (!strncmp(appname, EAIS_APP, strlen(EAIS_APP))) {
+    file = MM_MOD_ORDER_AIS;
+    path = MM_MOD_PATH;
+    tag = EAIS_TAG;
   } else if (!strncmp(appname, ERVC_APP, strlen(ERVC_APP))) {
     file = MM_MOD_ORDER_RV;
     path = MM_MOD_PATH;
@@ -1769,12 +1984,17 @@ int early_init(int init)
     /* Create ais_server socket dir and camera data dir */
     mkdir("/dev/socket", 0775);
     mkdir("/dev/socket/camera", 0775);
-
+#ifdef __ANDROID_U__
+     load_default_modules();
+#else
     load_modules_parallel(MM_DEPMOD_ORDER, MM_DEPMOD_PATH,
              bc_get_lmp()?std::thread::hardware_concurrency():1, EMOD_TAG);
-
-    // Enumerate dev nodes - fw
-    mknod("/dev/kmdone", S_IFREG | 0400, makedev(0,0));
+#endif // __ANDROID_U__
+    if (fork() == 0) {
+      signal(SIGTERM, SIG_IGN);
+      prepare_fw_dir(true);
+      _exit(0);
+    }
     load_precompiled_sepolicy();
 
     selinux_android_restorecon("/vendor_early_services/early_services_init", 0);
@@ -1795,13 +2015,18 @@ int early_init(int init)
     return 0;
   } // init flag
 
-  prepare_fw_dir();
+  prepare_fw_dir(false);
   getSysInfo("/sys/devices/soc0/soc_id", chipId);
   getSysInfo("/sys/devices/soc0/platform_subtype_id", platformId);
   set_permissions("/dev/null", 0666, AID_ROOT, AID_ROOT, "u:object_r:null_device:s0");
   set_permissions("/dev/urandom", 0666, AID_ROOT, AID_ROOT, "u:object_r:random_device:s0");
 
+#ifdef __ANDROID_U__
+  launch_test_app();
   launch_early_apps();
+#else
+  launch_early_apps();
+#endif
 
   char comm[SHORT_STRING_MAX/2];
   char comm_path[SHORT_STRING_MAX/2];
