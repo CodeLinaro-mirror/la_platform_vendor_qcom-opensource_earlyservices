@@ -2015,10 +2015,11 @@ int early_init(int init)
 
     /* Create ais_server socket dir and camera data dir */
     mkdir("/dev/socket", 0775);
-    mkdir("/dev/socket/camera", 0775);
+
 #if defined( __ANDROID_U__) || defined(PLATFORM_GEN4)
      load_default_modules();
 #else
+    mkdir("/dev/socket/camera", 0775);
     load_modules_parallel(MM_DEPMOD_ORDER, MM_DEPMOD_PATH,
              bc_get_lmp()?std::thread::hardware_concurrency():1, EMOD_TAG);
 #endif // __ANDROID_U__ || PLATFORM_GEN4
