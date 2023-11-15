@@ -90,7 +90,6 @@
 #include <pthread.h>
 #include <sys/wait.h>
 #include <sys/mman.h>
-#include <utils/Log.h>
 
 // for file copy
 #include <filesystem>
@@ -279,7 +278,7 @@ static void inline safe_close(int fd)
 static void inline write_marker(const char* name)
 {
 #ifdef __ANDROID_U__
-  ALOGE("boot_kpi: %s ", name);
+  LOG(ERROR) << "boot_kpi: " << name;
 #else
   int fd = -1;
 
