@@ -229,7 +229,7 @@ static inline char *strstrip(char *s);
 #endif
 static inline int parse_line(char* p);
 static void set_permissions(const char *path, int permissions, int user, int group, const char *context);
-static void launch_early_apps(void);
+static void __attribute__((unused)) launch_early_apps(void);
 static void set_splash_permission(void);
 static void set_video_permission(void);
 static void set_video_drm_permission(void);
@@ -2101,7 +2101,6 @@ static int load_modules_parallel(const std::string& fl,
 static void launch_test_app(void)
 {
   int fd;
-  size_t i = 0;
   pid_t pid = -1;
   int ret = -1;
   char pid_file[10] = {0};
@@ -2161,7 +2160,7 @@ static void launch_test_app(void)
      }
   }
 
-  app_launcher.env[app_launcher.env_used] = "LD_LIBRARY_PATH=/vendor_early_services/system/lib64";
+  app_launcher.env[app_launcher.env_used] = (char *)"LD_LIBRARY_PATH=/vendor_early_services/system/lib64";
   app_launcher.env_used++;
   app_launcher.argv[app_launcher.argv_used] = NULL;
   app_launcher.env[app_launcher.env_used] = NULL;
@@ -2324,7 +2323,7 @@ int early_init_kmod(const char *idx)
   return -1;
 }
 
-static pid_t fork_wait_for_child(int type, int run_if_fork_fail)
+static pid_t __attribute__((unused)) fork_wait_for_child(int type, int run_if_fork_fail)
 {
   pid_t pid = -1;
   int pipe_fd[2];
@@ -2426,9 +2425,6 @@ int early_init(int init)
   std::string tmp;
   android::earlyinit::get_kernel_module_param(tmp, tmp, _module_params, true);
   if (init) {
-    bool load_parallel = bc_get_lmp();
-    pid_t pid_def2, pid_se;
-
     ret = mount("/vendor_early_services", "/vendor_early_services", NULL,
                 MS_BIND | MS_REC, NULL);
     if (ret < 0) {
@@ -2448,6 +2444,9 @@ int early_init(int init)
      prepare_fw_dir(true);
      load_precompiled_sepolicy();
 #else
+    bool load_parallel = bc_get_lmp();
+    pid_t pid_def2, pid_se;
+
     load_modules_parallel(ES_DFLMOD_ORDER_1, ES_DFLMOD_PATH,
          load_parallel?std::thread::hardware_concurrency():1,
          EMOD_DEF_TAG_1, LMP_MODPROBE);
