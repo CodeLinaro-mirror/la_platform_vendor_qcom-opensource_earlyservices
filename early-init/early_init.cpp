@@ -1366,7 +1366,6 @@ static int check_rvc_device_ready(void)
 static int check_ais_device_ready(void)
 {
   //rvc
-
   static int rvc_device_created = 0;
   int major = 0, minor = 0;
 
@@ -2436,14 +2435,14 @@ int early_init(int init)
     mount("sysfs", "/sys", "sysfs", 0, NULL);
     prepare_dir((char*)"shm");
 
-    /* Create ais_server socket dir and camera data dir */
-    mkdir("/dev/socket", 0775);
-    mkdir("/dev/socket/camera", 0775);
 #if defined( __ANDROID_U__) || defined(PLATFORM_GEN4)
      load_default_modules();
      prepare_fw_dir(true);
      load_precompiled_sepolicy();
 #else
+    /* Create ais_server socket dir and camera data dir */
+    mkdir("/dev/socket", 0775);
+    mkdir("/dev/socket/camera", 0775);
     bool load_parallel = bc_get_lmp();
     pid_t pid_def2, pid_se;
 
