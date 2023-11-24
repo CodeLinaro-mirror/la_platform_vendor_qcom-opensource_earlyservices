@@ -101,6 +101,7 @@
 
 #define DEFAULT_CONF            "/vendor_early_services/etc/early_init.conf"
 #define ANDROID_U_CONF          "/vendor_early_services/etc/early_init_u.conf"
+#define ANDROID_U_POIPU_CONF    "/vendor_early_services/etc/early_init_u_poipu.conf"
 #define END_TAG                 "<end>"
 #define LINE_MAX                2048
 #define SHORT_STRING_MAX        128
@@ -232,6 +233,7 @@ enum EnforcingStatus { SELINUX_PERMISSIVE, SELINUX_ENFORCING };
 
 char   chipId[32]  = { 0 };
 char   platformId[32]  = { 0 };
+char   socid[32]  = { 0 };
 
 static struct {
   char* appname;
@@ -977,6 +979,21 @@ int listDir(char *dirName)
 return 0;
 }
 #endif
+int getSocId(char * fileName, char * strName) {
+  int fd,ret;
+  fd = open(fileName, O_RDONLY);
+  if (fd > 0)
+  {
+      ret = read(fd, strName, sizeof(strName) - 1);
+      if (-1 == ret)
+      {
+        perror("read getSocId failed.\r\n");
+        return -1;
+      }
+      close(fd);
+  }
+  return 0;
+}
 
 int getSysInfo(char * fileName, char * strName) {
   int fd,ret;
@@ -1896,10 +1913,12 @@ static void launch_test_app(void)
 
 static void launch_early_apps(void)
 {
+std::string fl = DEFAULT_CONF;
 #ifdef __ANDROID_U__
-  std::string fl = ANDROID_U_CONF;
-#else
-  std::string fl = DEFAULT_CONF;
+  if(strncmp(socid, "405", 3) == 0)
+    fl = ANDROID_U_POIPU_CONF;
+  else
+    fl = ANDROID_U_CONF;
 #endif // __ANDROID_U__
   std::string list;
 
@@ -2050,6 +2069,7 @@ int early_init(int init)
   prepare_fw_dir(false);
   getSysInfo("/sys/devices/soc0/soc_id", chipId);
   getSysInfo("/sys/devices/soc0/platform_subtype_id", platformId);
+  getSocId("/sys/devices/soc0/soc_id", socid);
   set_permissions("/dev/null", 0666, AID_ROOT, AID_ROOT, "u:object_r:null_device:s0");
   set_permissions("/dev/urandom", 0666, AID_ROOT, AID_ROOT, "u:object_r:random_device:s0");
 
