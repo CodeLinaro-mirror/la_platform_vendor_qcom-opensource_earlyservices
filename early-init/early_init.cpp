@@ -2032,9 +2032,6 @@ int early_init(int init)
     mount("sysfs", "/sys", "sysfs", 0, NULL);
     prepare_dir("shm");
 
-    /* Create ais_server socket dir and camera data dir */
-    mkdir("/dev/socket", 0775);
-    mkdir("/dev/socket/camera", 0775);
 #if defined( __ANDROID_U__) || defined(PLATFORM_GEN4)
      load_default_modules();
 #else
@@ -2073,6 +2070,12 @@ int early_init(int init)
   set_permissions("/dev/null", 0666, AID_ROOT, AID_ROOT, "u:object_r:null_device:s0");
   set_permissions("/dev/urandom", 0666, AID_ROOT, AID_ROOT, "u:object_r:random_device:s0");
 
+  /* Create ais_server socket dir and camera data dir */
+  if(strncmp(socid, "405", 3)!=0){
+    LOG(INFO) << "Create ais_server socket dir for SA8155 and SA6155 with socid:"<<socid;
+    mkdir("/dev/socket", 0775);
+    mkdir("/dev/socket/camera", 0775);
+  }
 #ifdef __ANDROID_U__
   launch_test_app();
   launch_early_apps();
