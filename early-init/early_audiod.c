@@ -42,7 +42,7 @@ IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 static struct snd_card_info *info = NULL;
 int pcm_id[4];
 
-#ifdef PLATFORM_MSMNILE
+#if defined(PLATFORM_MSMNILE) || defined(PLATFORM_GEN4)
 
 #define PCM_ID_1_TX     TERT_TDM_TX_HOSTLESS
 #define PCM_ID_1_RX     SEC_TDM_RX_HOSTLESS
@@ -59,7 +59,7 @@ int pcm_id[4];
 #endif
 
 const char *audio_route[MAX_SESSION] = {
-#ifdef PLATFORM_MSMNILE
+#if defined(PLATFORM_MSMNILE) || defined(PLATFORM_GEN4)
     {"SEC_TDM_RX_7 Port Mixer TERT_TDM_TX_7"},
     {"QUAT_TDM_RX_7 Port Mixer QUIN_TDM_TX_7"}
 #elif PLATFORM_MSMSTEPPE
