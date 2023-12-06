@@ -175,6 +175,7 @@ using android::base::boot_clock;
 #define DRM_CARD3_PATH          "/dev/dri/card3"
 #define DRM_CARD4_PATH          "/dev/dri/card4"
 #define AUDIO_CTRL_PATH         "/dev/snd/pcmC0D50p"
+#define AUDIO_DEVICE_PATH       "/dev/spidev22.0"
 #define CAMERA_MDEV_PATH        "/dev/media0"
 #define CAMERA_VDEV_PATH        "/dev/video0"
 #define CAMERA_V4L_DEV_PATH     "/dev/v4l-subdev0"
@@ -1143,7 +1144,7 @@ static int check_camera_card2_ready(void)
 
   if (!card2_device_created) {
     if (access("/sys/class/drm/card2/uevent", F_OK) == 0) {
-      if(get_device_major_minor("/sys/class/drm/card2/uevent", &major, &minor))
+      if(get_device_major_minor("/sys/class/drm/card2/uevent", &major, &minor))
       {
         mkdir("/dev/dri", 0666);
         mknod(DRM_CARD2_PATH, S_IFCHR | 0666,
@@ -1159,6 +1160,28 @@ static int check_camera_card2_ready(void)
   }
 
   return card2_device_created;
+}
+
+static int check_spi_driver_ready(void)
+{
+  static int spi_device_created = 0;
+  int major = 0, minor = 0;
+
+  if (!spi_device_created) {
+    if (access("/sys/class/spidev/spidev22.0/uevent", F_OK) == 0) {
+       if (get_device_major_minor("/sys/class/spidev/spidev22.0/uevent", &major, &minor)) {
+          mknod(AUDIO_DEVICE_PATH, S_IFCHR | 0666,makedev(major, minor));
+          if (access("/dev/spidev22.0",F_OK) == 0) {
+            set_permissions(AUDIO_DEVICE_PATH, 00666, AID_SYSTEM,AID_AUDIO, " u:object_r:audio_device:s0");
+          }
+          spi_device_created = 1;
+          LOG(INFO) << "ES spi nodes are ready";
+          write_marker("M - EarlyInit spi22.0 nodes ready");
+       }
+    } else
+       LOG(INFO) << "ES spi22.0 driver is not up";
+  }
+  return spi_device_created;
 }
 
 static int check_gfx_device_ready(void)
