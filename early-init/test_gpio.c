@@ -70,6 +70,7 @@
 #include <sys/time.h>
 #include <fcntl.h>
 #include <string.h>
+#include <linux/version.h>
 
 #define MAX_BUFF_LEN 256
 #define MSEC_SLEEP_DURATION 1000
@@ -147,10 +148,8 @@ int gpioread(int gpio_num) {
         close(fd_kpi);
     }
 #else
-    int fd = freopen("/early_services/dev/kmsg", "w", stdout);
-    if (fd > 0) {
+    if (freopen("/early_services/dev/kmsg", "w", stdout)) {
         printf("boot_kpi: %s", print_str);
-        close(fd);
     }
 #endif
     return ret;
