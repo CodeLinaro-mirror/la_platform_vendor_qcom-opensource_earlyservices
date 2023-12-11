@@ -301,11 +301,11 @@ static inline void prepare_dir(char* p)
         }
 	ret = mount("devtmpfs", "/early_services/dev", "devtmpfs", 0, NULL);
         if (ret < 0) {
-            freopen("/dev/kmsg", "w", stdout);
+            freopen("/early_services/dev/kmsg", "w", stdout);
             printf(" /early_services/dev mount failed error = %d \n", errno);
           perror(" mount /early_services/dev with devtmpfs failed ");
         } else
-            freopen("/dev/kmsg", "w", stdout);
+            freopen("/early_services/dev/kmsg", "w", stdout);
             printf("/early_services/dev mount success error = %d \n", errno);
       }
       break;
@@ -932,7 +932,7 @@ int listDir(char *dirName)
        struct stat inode;
        char name[1000];
        dir = opendir(dirName);
-       freopen("/dev/kmsg", "w", stdout);
+       freopen("/early_services/dev/kmsg", "w", stdout);
        if (dir == 0) {
        perror ("Open failed");
        return -1;
@@ -1013,7 +1013,7 @@ int early_init(const char* stage)
       LOG(INFO) << "ES : Logging enabled at early-services!";
       ret1 = mount("/early_services", "/aes_tmpfs", NULL , MS_BIND | MS_REC, NULL);
 
-      mknod("/dev/kmsg", S_IFCHR | 0600, makedev(1, 11));
+      mknod("/early_services/dev/kmsg", S_IFCHR | 0600, makedev(1, 11));
       std::string precompiled_sepolicy_file = "/early_services/vendor/etc/selinux/precompiled_early_sepolicy";
       write_marker("M - EarlyInit SEPolicyLoad Start");
       fd1 = open(precompiled_sepolicy_file.c_str(), O_RDONLY | O_CLOEXEC | O_BINARY, 0777);
@@ -1050,7 +1050,7 @@ int early_init(const char* stage)
 #endif
 #endif
   write_marker("M - Second Stage Start");
-  set_permissions("/dev/kmsg", 0620, AID_ROOT, AID_SYSTEM, "u:object_r:kmsg_device:s0");
+  set_permissions("/early_services/dev/kmsg", 0620, AID_ROOT, AID_SYSTEM, "u:object_r:kmsg_device:s0");
   android::earlyinit::InitKernelLogging(NULL);
   LOG(INFO) << "ES : In Second Stage!";
   pthread_create(&audiofw_tid, NULL, prepare_audio_fw_dir, NULL);
