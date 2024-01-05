@@ -101,6 +101,7 @@
 
 #define DEFAULT_CONF            "/vendor_early_services/etc/early_init.conf"
 #define ANDROID_U_CONF          "/vendor_early_services/etc/early_init_u.conf"
+#define ES_GEN4_CONF            "/vendor_early_services/etc/early_init_gen4.conf"
 #define END_TAG                 "<end>"
 #define LINE_MAX                2048
 #define SHORT_STRING_MAX        128
@@ -285,12 +286,14 @@ const static struct {
   int wait;
 } _eapp_info[] = {
 #if defined(__ANDROID_U__) || defined(PLATFORM_GEN4)
+ {"qcx_server", "modules_qcx.order", "qcx", check_ais_device_ready, EAPP_MOD_WAIT_FW},
  {"esplash", "modules_di.order", "splash", check_esplash_device_ready, EAPP_WAIT_DISP},
+ {"earlyVideo", "modules_vi.order", "video", check_video_device_ready, EAPP_MOD_WAIT_FW},
 #else
  {"esplash", "", "splash", check_esplash_device_ready, EAPP_WAIT_DISP},
-#endif //__ANDROID_U__ || PLATFORM_GEN4
  {"earlyVideo", "modules_vi.order", "video", check_video_device_ready, EAPP_MOD_WAIT_FW},
  {"ais_server", "modules_ais.order", "ais", check_ais_device_ready, EAPP_MOD_WAIT_FW},
+#endif //__ANDROID_U__ || PLATFORM_GEN4
  {"qcarcam_edrm_rvc", "modules_rv.order", "rvc", check_rvc_device_ready, EAPP_MOD_WAIT_FW},
  {"pd-mapper", "modules_r_au.order", "pd-mapper", check_pdmapper_ready, EAPP_MOD_WAIT_FW},
 #ifdef ES_AUDIOE_DISABLED
@@ -877,7 +880,6 @@ static inline pid_t parse_line(char* p)
             LOG(WARNING) << "ES : App " << app_launcher.appname << " doesn't exist ret " << ret << " err " << errno;
             exit(0);
           }
-
           // load kmod, if applicable for early app
           load_kmod_and_nodes(app_launcher.appname);
 
@@ -994,7 +996,7 @@ bool bc_get_lmp()
     (void)in_qemu;
     if (key == "androidboot.load_modules_parallel" && value == "\"true\"") {
       load_parallel = true;
-#ifdef __ANDROID_U__
+#if defined(__ANDROID_U__) || defined(PLATFORM_GEN4)
        load_parallel = false;
 #endif
       found = true;
@@ -1881,10 +1883,12 @@ static int load_kmod_and_nodes(const char* appname)
     }
   }
 
+#ifndef PLATFORM_GEN4
   // Wait for Display for all apps, if not set too
   if (_eapp_info[i].wait != EAPP_WAIT_NONE && _eapp_info[i].wait != EAPP_WAIT_DISP) {
     wait_for_display_ready(WAIT_SLEEP_MSEC, max*2);
   }
+#endif
 
   // Wait for FW availability if set
   if (_eapp_info[i].wait == EAPP_WAIT_DEFAULT || _eapp_info[i].wait & EAPP_MOD_WAIT_FW) {
@@ -2096,7 +2100,7 @@ static int load_modules_parallel(const std::string& fl,
   return 0;
 }
 
-#if defined(__ANDROID_U__) || defined(PLATFORM_GEN4)
+#if defined(__ANDROID_U__)
 static void launch_test_app(void)
 {
   int fd;
@@ -2196,6 +2200,8 @@ static void launch_early_apps(void)
 {
 #ifdef __ANDROID_U__
   std::string fl = ANDROID_U_CONF;
+#elif PLATFORM_GEN4
+  std::string fl = ES_GEN4_CONF;
 #else
   std::string fl = DEFAULT_CONF;
 #endif // __ANDROID_U__
@@ -2511,8 +2517,6 @@ int early_init(int init)
 #ifdef __ANDROID_U__
   launch_test_app();
   launch_early_apps();
-#elif PLATFORM_GEN4
-  launch_test_app();
 #else
   launch_early_apps();
 #endif
