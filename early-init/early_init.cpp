@@ -29,7 +29,7 @@
 
 /*
 * Changes from Qualcomm Innovation Center are provided under the following license:
-* Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+* Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without
 * modification, are permitted (subject to the limitations in the
@@ -161,11 +161,7 @@ using android::base::boot_clock;
 #define CAMERA_VDEV_PATH        "/dev/video0"
 #define CAMERA_V4L_DEV_PATH     "/dev/v4l-subdev0"
 #define DMA_HEAP_DIR            "/dev/dma_heap"
-#ifdef __ANDROID_U__
 #define CAMERA_DMA_HEAP_PATH    "/dev/dma_heap/qcom,system"
-#else
-#define CAMERA_DMA_HEAP_PATH    "/dev/dma_heap/qcom,display"
-#endif
 
 #define VIDEO_SYS_DMA_HEAP_PATH "/dev/dma_heap/qcom,system"
 
@@ -1321,7 +1317,6 @@ static int check_dma_heap_device_ready(void)
   static int dma_heap_device_created = 0;
   int major = 0, minor = 0;
 
-#ifdef __ANDROID_U__
   if (!dma_heap_device_created) {
     if (access("/sys/class/dma_heap/qcom,system/uevent", F_OK) == 0) {
       if(get_device_major_minor("/sys/class/dma_heap/qcom,system/uevent", &major, &minor))
@@ -1340,26 +1335,6 @@ static int check_dma_heap_device_ready(void)
       }
     }
   }
-#else
-  if (!dma_heap_device_created) {
-    if (access("/sys/class/dma_heap/qcom,display/uevent", F_OK) == 0) {
-      if(get_device_major_minor("/sys/class/dma_heap/qcom,display/uevent", &major, &minor))
-      {
-        mkdir(DMA_HEAP_DIR, 0666);
-        mknod(CAMERA_DMA_HEAP_PATH, S_IFCHR | 0666,
-          makedev(major, minor));
-
-        set_permissions(DMA_HEAP_DIR, 0755, AID_ROOT,
-            AID_ROOT, "u:object_r:dmabuf_heap_device:s0");
-        set_permissions(CAMERA_DMA_HEAP_PATH, 0666, AID_SYSTEM,
-            AID_SYSTEM, "u:object_r:vendor_dmabuf_display_heap_device:s0");
-        dma_heap_device_created = 1;
-        LOG(INFO) << "ES camera dma_heap device nodes ready";
-        write_marker("M - EarlyInit dma heap nodes ready");
-      }
-    }
-  }
-#endif
 
   return dma_heap_device_created;
 }
