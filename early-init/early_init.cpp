@@ -286,15 +286,15 @@ const static struct {
   int wait;
 } _eapp_info[] = {
 #if defined(__ANDROID_U__) || defined(PLATFORM_GEN4)
- {"qcx_server", "modules_qcx.order", "qcx", check_ais_device_ready, EAPP_MOD_WAIT_FW},
  {"esplash", "modules_di.order", "splash", check_esplash_device_ready, EAPP_WAIT_DISP},
- {"earlyVideo", "modules_vi.order", "video", check_video_device_ready, EAPP_MOD_WAIT_FW},
+ {"qcx_server", "modules_qcx.order", "qcx", check_ais_device_ready, EAPP_MOD_WAIT_FW},
+ {"qcarcam_edrm_rvc", "modules_rv_gen4.order", "rvc", check_rvc_device_ready, EAPP_MOD_WAIT_FW},
 #else
  {"esplash", "", "splash", check_esplash_device_ready, EAPP_WAIT_DISP},
- {"earlyVideo", "modules_vi.order", "video", check_video_device_ready, EAPP_MOD_WAIT_FW},
  {"ais_server", "modules_ais.order", "ais", check_ais_device_ready, EAPP_MOD_WAIT_FW},
-#endif //__ANDROID_U__ || PLATFORM_GEN4
  {"qcarcam_edrm_rvc", "modules_rv.order", "rvc", check_rvc_device_ready, EAPP_MOD_WAIT_FW},
+#endif //__ANDROID_U__ || PLATFORM_GEN4
+ {"earlyVideo", "modules_vi.order", "video", check_video_device_ready, EAPP_MOD_WAIT_FW},
  {"pd-mapper", "modules_r_au.order", "pd-mapper", check_pdmapper_ready, EAPP_MOD_WAIT_FW},
 #ifdef ES_AUDIOE_DISABLED
  {"", "modules_au.order", "audio", check_audio_device_ready, EAPP_MOD_WAIT_FW},
