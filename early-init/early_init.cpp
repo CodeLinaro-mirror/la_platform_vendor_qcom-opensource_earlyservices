@@ -286,6 +286,7 @@ static struct {
   char* username;
   char* group;
   char* wait;
+  char* selabel;
 } app_launcher;
 
 const static struct {
@@ -647,6 +648,7 @@ static void inline app_launcher_start_over(void)
   safe_free(&app_launcher.wait);
   safe_free(&app_launcher.username);
   safe_free(&app_launcher.group);
+  safe_free(&app_launcher.selabel);
   app_launcher.usleep = -1;
 
   for (i = 0; i < app_launcher.argv_used; i++)
@@ -772,6 +774,11 @@ static inline pid_t parse_line(char* p)
         app_launcher.username = strdup(p);
       }
       break;
+    case 's':
+      if (0 == strncmp(p + 1, "elabel", strlen("elabel")) && 0 == find_rvalue(&p)) {
+        app_launcher.selabel = strdup(p);
+      }
+      break;
     case '<':/* end */
       /*
        * When comes to the end, start up the app
@@ -787,7 +794,12 @@ static inline pid_t parse_line(char* p)
         goto out;
       }
 
+#if defined(PLATFORM_GEN4)
+      //Enable Gen3 once tested
+      pid = clone(nullptr, nullptr, (CLONE_FS | SIGCHLD), nullptr);
+#else
       pid = fork();
+#endif
       if (pid < 0) {
         LOG(INFO) << " early_init fork child process failed ";
         perror("fork child process failed \r\n");
@@ -890,6 +902,11 @@ static inline pid_t parse_line(char* p)
             LOG(WARNING) << "ES : App " << app_launcher.appname << " doesn't exist ret " << ret << " err " << errno;
             exit(0);
           }
+
+          if (app_launcher.selabel) {
+            setexeccon(app_launcher.selabel);
+          }
+
           // load kmod, if applicable for early app
           load_kmod_and_nodes(app_launcher.appname);
 
