@@ -109,8 +109,6 @@
 #define WHITESPACE              " \t\n\r"
 #define KPI_VALUE_PATH          "/sys/kernel/boot_kpi/kpi_values"
 #define GPIO_EXPORT             "/sys/class/gpio/export"
-#define DRM_CARD_PATH           "/dev/dri/card0"
-#define DRM_CARD2_PATH          "/dev/dri/card2"
 #define VIDEO_CARD_PATH         "/dev/video32"
 #define AUDIO_FW_PATH           "/vendor_early_services/vendor/firmware_mnt"
 #define AUDIO_ADSP_FW_PATH      "vendor_early_services/vendor/firmware_mnt/image/adsp.mdt"
@@ -154,8 +152,6 @@ using android::base::boot_clock;
 #define finit_module(fd, param_values, flags) syscall(__NR_finit_module, fd, param_values, flags)
 #define ADSP_LOADER_KO          "adsp_loader_dlkm_legacy"
 #define DISP_DRM_READY_PATH     "/sys/devices/platform/soc/ae00000.qcom,mdss_mdp/init_complete"
-#define DRM_CARD3_PATH          "/dev/dri/card3"
-#define DRM_CARD4_PATH          "/dev/dri/card4"
 #define AUDIO_CTRL_PATH         "/dev/snd/pcmC0D50p"
 #define CAMERA_MDEV_PATH        "/dev/media0"
 #define CAMERA_VDEV_PATH        "/dev/video0"
@@ -165,6 +161,20 @@ using android::base::boot_clock;
 #define CAMERA_DMA_HEAP_PATH    "/dev/dma_heap/qcom,system"
 #else
 #define CAMERA_DMA_HEAP_PATH    "/dev/dma_heap/qcom,display"
+#endif
+
+#ifdef PLATFORM_GEN4
+/* cards numbers with dual dpu. card2 is DPU0 */
+#define DRM_CARD_PATH     "/dev/dri/card2"  //"msm_drm" = /dev/dri/card2
+#define DRM_CARD2_PATH    "/dev/dri/card3"  //"msm_drm2" = /dev/dri/card3
+#define DRM_CARD3_PATH    "/dev/dri/card4"  //"msm_drm3" = /dev/dri/card4
+#define DRM_CARD4_PATH    "/dev/dri/card5"  //"msm_drm" = /dev/dri/card5
+#define DRM_CARD5_PATH    "/dev/dri/card6"  //"msm_drm4" = /dev/dri/card5
+#else
+#define DRM_CARD_PATH      "/dev/dri/card0"
+#define DRM_CARD2_PATH     "/dev/dri/card2"
+#define DRM_CARD3_PATH     "/dev/dri/card3"
+#define DRM_CARD4_PATH     "/dev/dri/card4"
 #endif
 
 #define VIDEO_SYS_DMA_HEAP_PATH "/dev/dma_heap/qcom,system"
@@ -1316,8 +1326,13 @@ static int check_camera_card2_ready(void)
   int major = 0, minor = 0;
 
   if (!card2_device_created) {
+#ifdef PLATFORM_GEN4
+    if (access("/sys/class/drm/card3/uevent", F_OK) == 0) {
+      if(get_device_major_minor("/sys/class/drm/card3/uevent", &major, &minor))
+#else
     if (access("/sys/class/drm/card2/uevent", F_OK) == 0) {
       if(get_device_major_minor("/sys/class/drm/card2/uevent", &major, &minor))
+#endif
       {
         mkdir("/dev/dri", 0666);
         mknod(DRM_CARD2_PATH, S_IFCHR | 0666,
@@ -1475,6 +1490,9 @@ static int check_ais_device_ready(void)
   return rvc_device_created;
 }
 
+#ifdef PLATFORM_GEN4
+#define DRM_CARD5_DIR        "/dev/dri"
+#endif
 #define DRM_CARD4_DIR        "/dev/dri"
 static int check_video_device_ready(void)
 {
@@ -1483,6 +1501,17 @@ static int check_video_device_ready(void)
   int major = 0, minor = 0;
 
   if (!video_device_created) {
+#ifdef PLATFORM_GEN4
+    if ((access("/sys/class/drm/card6/uevent", F_OK) == 0) &&
+        (access("/sys/class/dma_heap/qcom,system/uevent", F_OK) == 0) &&
+        (access("/sys/class/video4linux/video32/uevent", F_OK) == 0)) {
+      if (get_device_major_minor("/sys/class/drm/card6/uevent", &major, &minor))
+      {
+        mkdir(DRM_CARD5_DIR, 0666);
+        mknod(DRM_CARD5_PATH, S_IFCHR | 0666,
+            makedev(major, minor));
+      }
+#else
     if ((access("/sys/class/drm/card4/uevent", F_OK) == 0) &&
         (access("/sys/class/dma_heap/qcom,system/uevent", F_OK) == 0) &&
         (access("/sys/class/video4linux/video32/uevent", F_OK) == 0)) {
@@ -1492,6 +1521,7 @@ static int check_video_device_ready(void)
         mknod(DRM_CARD4_PATH, S_IFCHR | 0666,
             makedev(major, minor));
       }
+#endif
       if (get_device_major_minor("/sys/class/dma_heap/qcom,system/uevent", &major, &minor))
       {
         mkdir(DMA_HEAP_DIR, 0666);
@@ -1525,8 +1555,13 @@ static int check_esplash_device_ready(void)
   int major = 0, minor = 0;
 
   if (!esplash_device_created) {
+#ifdef PLATFORM_GEN4
+    if (access("/sys/class/drm/card4/uevent", F_OK) == 0) {
+      if(get_device_major_minor("/sys/class/drm/card4/uevent", &major, &minor))
+#else
     if (access("/sys/class/drm/card3/uevent", F_OK) == 0) {
       if(get_device_major_minor("/sys/class/drm/card3/uevent", &major, &minor))
+#endif
       {
         mkdir(DRM_CARD3_DIR, 0666);
         mknod(DRM_CARD3_PATH, S_IFCHR | 0666,
@@ -1662,7 +1697,11 @@ static void set_splash_permission(void)
 // set permissions for video resources
 static void set_video_drm_permission(void)
 {
+#ifdef PLATFORM_GEN4
+  set_permissions(DRM_CARD5_PATH, 0666, AID_ROOT, AID_GRAPHICS, "u:object_r:graphics_device:s0");
+#else
   set_permissions(DRM_CARD4_PATH, 0666, AID_ROOT, AID_GRAPHICS, "u:object_r:graphics_device:s0");
+#endif
   LOG(INFO) << "EarlyVideo Setting permission to dri card completed";
   return;
 }
