@@ -151,7 +151,11 @@ using android::base::boot_clock;
 #define init_module(module_image, len, param_values) syscall(__NR_init_module, module_image, len, param_values)
 #define finit_module(fd, param_values, flags) syscall(__NR_finit_module, fd, param_values, flags)
 #define ADSP_LOADER_KO          "adsp_loader_dlkm_legacy"
-#define DISP_DRM_READY_PATH     "/sys/devices/platform/soc/ae00000.qcom,mdss_mdp/init_complete"
+#define DISP_DRM_DPU0_READY_PATH     "/sys/devices/platform/soc/ae00000.qcom,mdss_mdp/init_complete"
+#ifdef PLATFORM_GEN4
+#define DISP_DRM_DPU1_READY_PATH     "/sys/devices/platform/soc/22000000.qcom,mdss_mdp/init_complete"
+#endif
+
 #define AUDIO_CTRL_PATH         "/dev/snd/pcmC0D50p"
 #define CAMERA_MDEV_PATH        "/dev/media0"
 #define CAMERA_VDEV_PATH        "/dev/video0"
@@ -161,20 +165,6 @@ using android::base::boot_clock;
 #define CAMERA_DMA_HEAP_PATH    "/dev/dma_heap/qcom,system"
 #else
 #define CAMERA_DMA_HEAP_PATH    "/dev/dma_heap/qcom,display"
-#endif
-
-#ifdef PLATFORM_GEN4
-/* cards numbers with dual dpu. card2 is DPU0 */
-#define DRM_CARD_PATH     "/dev/dri/card2"  //"msm_drm" = /dev/dri/card2
-#define DRM_CARD2_PATH    "/dev/dri/card3"  //"msm_drm2" = /dev/dri/card3
-#define DRM_CARD3_PATH    "/dev/dri/card4"  //"msm_drm3" = /dev/dri/card4
-#define DRM_CARD4_PATH    "/dev/dri/card5"  //"msm_drm" = /dev/dri/card5
-#define DRM_CARD5_PATH    "/dev/dri/card6"  //"msm_drm4" = /dev/dri/card5
-#else
-#define DRM_CARD_PATH      "/dev/dri/card0"
-#define DRM_CARD2_PATH     "/dev/dri/card2"
-#define DRM_CARD3_PATH     "/dev/dri/card3"
-#define DRM_CARD4_PATH     "/dev/dri/card4"
 #endif
 
 #define VIDEO_SYS_DMA_HEAP_PATH "/dev/dma_heap/qcom,system"
@@ -241,9 +231,7 @@ static inline char *strstrip(char *s);
 static inline int parse_line(char* p);
 static void set_permissions(const char *path, int permissions, int user, int group, const char *context);
 static void __attribute__((unused)) launch_early_apps(void);
-static void set_splash_permission(void);
 static void set_video_permission(void);
-static void set_video_drm_permission(void);
 static void set_camera_media_permission(void);
 static void set_camera_video_permission(void);
 static void set_camera_v4l_permission(void);
@@ -253,7 +241,6 @@ static int check_audio_device_ready(void);
 #endif
 static int load_kmod_and_nodes(const char* mod_group);
 static int wait_for_file(const char* file, int sleep_msec, int count, bool log_fail = false);
-static int check_esplash_device_ready(void);
 static int check_video_device_ready(void);
 static int check_ais_device_ready(void);
 static int check_rvc_device_ready(void);
@@ -297,11 +284,11 @@ const static struct {
   int wait;
 } _eapp_info[] = {
 #if defined(__ANDROID_U__) || defined(PLATFORM_GEN4)
- {"esplash", "modules_di.order", "splash", check_esplash_device_ready, EAPP_WAIT_DISP},
+ {"esplash", "modules_di.order", "splash", NULL, EAPP_WAIT_DISP},
  {"qcxserver", "modules_qcx.order", "qcx", check_ais_device_ready, EAPP_MOD_WAIT_FW},
  {"qcarcam_edrm_rvc", "modules_rv_gen4.order", "rvc", check_rvc_device_ready, EAPP_MOD_WAIT_FW},
 #else
- {"esplash", "", "splash", check_esplash_device_ready, EAPP_WAIT_DISP},
+ {"esplash", "", "splash", NULL, EAPP_WAIT_DISP},
  {"ais_server", "modules_ais.order", "ais", check_ais_device_ready, EAPP_MOD_WAIT_FW},
  {"qcarcam_edrm_rvc", "modules_rv.order", "rvc", check_rvc_device_ready, EAPP_MOD_WAIT_FW},
 #endif //__ANDROID_U__ || PLATFORM_GEN4
@@ -320,6 +307,41 @@ static const char EARLY_DFL_APP[] = "early_services";
 #define uid_is_valid(uid) ((uid != (uid_t) UINT32_C(0xFFFFFFFF)) && \
             (uid != (uid_t) UINT32_C(0xFFFF)))
 #define gid_is_valid(gid)  uid_is_valid(gid)
+
+static void create_drm_udev_cards(void);
+
+enum drm_udev_cards {
+#ifdef PLATFORM_GEN4
+  card2 = 0,
+  card3,
+  card4,
+  card5,
+#else
+  card1 = 0,
+  card2,
+  card3,
+  card4,
+#endif
+  cards_max
+};
+
+struct drm_cards_info {
+  const char *sysfs_path;
+  const char *num;
+  const char *udev_dir;
+  const char *udev_node_path;
+  bool is_created;
+} _drm_cards[] = {
+#ifdef PLATFORM_GEN4
+  {"/sys/class/drm/card3/uevent", "card3", "/dev/dri", "/dev/dri/card3", false},
+  {"/sys/class/drm/card4/uevent", "card4", "/dev/dri", "/dev/dri/card4", false},
+  {"/sys/class/drm/card5/uevent", "card5", "/dev/dri", "/dev/dri/card5", false},
+#else
+  {"/sys/class/drm/card2/uevent", "card2", "/dev/dri", "/dev/dri/card2", false},
+  {"/sys/class/drm/card3/uevent", "card3", "/dev/dri", "/dev/dri/card3", false},
+  {"/sys/class/drm/card4/uevent", "card4", "/dev/dri", "/dev/dri/card4", false},
+#endif
+};
 
 static void inline safe_free(char** p)
 {
@@ -1336,37 +1358,6 @@ static int check_dma_heap_device_ready(void)
   return dma_heap_device_created;
 }
 
-static int check_camera_card2_ready(void)
-{
-  //camera
-  static int card2_device_created = 0;
-  int major = 0, minor = 0;
-
-  if (!card2_device_created) {
-#ifdef PLATFORM_GEN4
-    if (access("/sys/class/drm/card3/uevent", F_OK) == 0) {
-      if(get_device_major_minor("/sys/class/drm/card3/uevent", &major, &minor))
-#else
-    if (access("/sys/class/drm/card2/uevent", F_OK) == 0) {
-      if(get_device_major_minor("/sys/class/drm/card2/uevent", &major, &minor))
-#endif
-      {
-        mkdir("/dev/dri", 0666);
-        mknod(DRM_CARD2_PATH, S_IFCHR | 0666,
-            makedev(major, minor));
-
-        set_permissions(DRM_CARD2_PATH, 0666, AID_ROOT,
-            AID_GRAPHICS, "u:object_r:graphics_device:s0");
-        card2_device_created = 1;
-        LOG(INFO) << "ES camera card2 device nodes ready";
-        write_marker("M - EarlyInit card2 nodes ready");
-      }
-    }
-  }
-
-  return card2_device_created;
-}
-
 static int check_gfx_device_ready(void)
 {
   //rvc
@@ -1393,8 +1384,7 @@ static int check_gfx_device_ready(void)
 
 static int check_rvc_device_ready(void)
 {
-  return (int)(check_gfx_device_ready() &&
-           check_camera_card2_ready() && check_dma_heap_device_ready());
+  return (int)(check_gfx_device_ready() && check_dma_heap_device_ready());
 }
 
 static int check_ais_device_ready(void)
@@ -1507,10 +1497,6 @@ static int check_ais_device_ready(void)
   return rvc_device_created;
 }
 
-#ifdef PLATFORM_GEN4
-#define DRM_CARD5_DIR        "/dev/dri"
-#endif
-#define DRM_CARD4_DIR        "/dev/dri"
 static int check_video_device_ready(void)
 {
   //video
@@ -1518,29 +1504,9 @@ static int check_video_device_ready(void)
   int major = 0, minor = 0;
 
   if (!video_device_created) {
-#ifdef PLATFORM_GEN4
-    if ((access("/sys/class/drm/card6/uevent", F_OK) == 0) &&
-        (access("/sys/class/dma_heap/qcom,system/uevent", F_OK) == 0) &&
+    if ((access("/sys/class/dma_heap/qcom,system/uevent", F_OK) == 0) &&
         (access("/sys/class/video4linux/video32/uevent", F_OK) == 0)) {
-      if (get_device_major_minor("/sys/class/drm/card6/uevent", &major, &minor))
-      {
-        mkdir(DRM_CARD5_DIR, 0666);
-        mknod(DRM_CARD5_PATH, S_IFCHR | 0666,
-            makedev(major, minor));
-      }
-#else
-    if ((access("/sys/class/drm/card4/uevent", F_OK) == 0) &&
-        (access("/sys/class/dma_heap/qcom,system/uevent", F_OK) == 0) &&
-        (access("/sys/class/video4linux/video32/uevent", F_OK) == 0)) {
-      if (get_device_major_minor("/sys/class/drm/card4/uevent", &major, &minor))
-      {
-        mkdir(DRM_CARD4_DIR, 0666);
-        mknod(DRM_CARD4_PATH, S_IFCHR | 0666,
-            makedev(major, minor));
-      }
-#endif
-      if (get_device_major_minor("/sys/class/dma_heap/qcom,system/uevent", &major, &minor))
-      {
+      if (get_device_major_minor("/sys/class/dma_heap/qcom,system/uevent", &major, &minor)) {
         mkdir(DMA_HEAP_DIR, 0666);
         mknod(VIDEO_SYS_DMA_HEAP_PATH, S_IFCHR | 0666,
             makedev(major, minor));
@@ -1553,7 +1519,7 @@ static int check_video_device_ready(void)
         mknod("/dev/video32", S_IFCHR | 0666,
               makedev(major, minor));
       }
-      set_video_drm_permission();
+
       set_video_permission();
       LOG(INFO) << "ES video device nodes ready";
       write_marker("M - EarlyInit video nodes ready");
@@ -1564,53 +1530,75 @@ static int check_video_device_ready(void)
   return video_device_created;
 }
 
-#define DRM_CARD3_DIR        "/dev/dri"
-static int check_esplash_device_ready(void)
+static void create_drm_udev_cards(void)
 {
-  //esplash
-  static int esplash_device_created = 0;
+  int i = 0;
   int major = 0, minor = 0;
+  char buf[128];
 
-  if (!esplash_device_created) {
-#ifdef PLATFORM_GEN4
-    if (access("/sys/class/drm/card4/uevent", F_OK) == 0) {
-      if(get_device_major_minor("/sys/class/drm/card4/uevent", &major, &minor))
-#else
-    if (access("/sys/class/drm/card3/uevent", F_OK) == 0) {
-      if(get_device_major_minor("/sys/class/drm/card3/uevent", &major, &minor))
-#endif
-      {
-        mkdir(DRM_CARD3_DIR, 0666);
-        mknod(DRM_CARD3_PATH, S_IFCHR | 0666,
-            makedev(major, minor));
+  while (i < cards_max) {
+    if (!_drm_cards[i].is_created) {
+      // check if sysfs entry is created
+      if (access(_drm_cards[i].sysfs_path, F_OK) == 0) {
+        if (get_device_major_minor(_drm_cards[i].sysfs_path, &major, &minor)) {
+          mkdir(_drm_cards[i].udev_dir, 0666);
+          mknod(_drm_cards[i].udev_node_path, S_IFCHR | 0666,
+                makedev(major, minor));
 
-        set_splash_permission();
-        LOG(INFO) << "ES esplash device nodes ready";
-        write_marker("M - EarlyInit esplash nodes ready");
-        esplash_device_created = 1;
+          set_permissions(_drm_cards[i].udev_dir, 0755,
+                          AID_ROOT, AID_ROOT, "u:object_r:device:s0");
+          set_permissions(_drm_cards[i].udev_node_path, 0666,
+                          AID_ROOT, AID_GRAPHICS, "u:object_r:graphics_device:s0");
+
+	  snprintf(buf, sizeof(buf), "M - EarlyInit /dev/dri/%s ready", _drm_cards[i].num);
+	  write_marker(buf);
+          _drm_cards[i].is_created = true;
+        }
       }
     }
+    i++;
   }
-  return esplash_device_created;
 }
+
 
 static int check_display_driver_ready(void)
 {
   int fd;
   char status[32] = {0};
-  static int display_ready = 0;
-  if (display_ready)
+  static bool dpu0_ready = false;
+#ifdef PLATFORM_GEN4
+  static bool dpu1_ready = false;
+#endif
+  bool rc = false;
+
+#ifdef PLATFORM_GEN4
+  if (dpu0_ready && dpu1_ready)
+#else
+  if (dpu0_ready)
+#endif
     return true;
 
-  fd = open(DISP_DRM_READY_PATH, O_RDONLY);
+  fd = open(DISP_DRM_DPU0_READY_PATH, O_RDONLY);
   if (fd > 0 && read(fd, status, sizeof(status) - 1) > 0) {
     if (status[0] == '1') {
-      display_ready = 1;
+      dpu0_ready = true;
     }
     close(fd);
   }
+  rc = dpu0_ready;
 
-  return display_ready;
+#ifdef PLATFORM_GEN4
+  fd = open(DISP_DRM_DPU1_READY_PATH, O_RDONLY);
+  if (fd > 0 && read(fd, status, sizeof(status) - 1) > 0) {
+    if (status[0] == '1') {
+      dpu1_ready = true;
+    }
+    close(fd);
+  }
+  rc = dpu0_ready & dpu1_ready;
+#endif
+
+  return rc;
 }
 
 static int check_storage_device_ready(void)
@@ -1701,27 +1689,6 @@ static void set_audio_permission(void)
   return;
 }
 #endif // ES_AUDIOE_DISABLED
-
-static void set_splash_permission(void)
-{
-
-  LOG(INFO) << "ES : Set Splash Permissions";
-  set_permissions(DRM_CARD3_DIR, 0755, AID_ROOT, AID_ROOT, "u:object_r:device:s0");
-  set_permissions(DRM_CARD3_PATH, 0666, AID_ROOT, AID_GRAPHICS, "u:object_r:graphics_device:s0");
-  return;
-}
-
-// set permissions for video resources
-static void set_video_drm_permission(void)
-{
-#ifdef PLATFORM_GEN4
-  set_permissions(DRM_CARD5_PATH, 0666, AID_ROOT, AID_GRAPHICS, "u:object_r:graphics_device:s0");
-#else
-  set_permissions(DRM_CARD4_PATH, 0666, AID_ROOT, AID_GRAPHICS, "u:object_r:graphics_device:s0");
-#endif
-  LOG(INFO) << "EarlyVideo Setting permission to dri card completed";
-  return;
-}
 
 static void set_video_permission(void)
 {
@@ -1979,8 +1946,15 @@ static int load_kmod_and_nodes(const char* appname)
   if (_eapp_info[i].is_ready == NULL) {
     if (_eapp_info[i].wait & EAPP_WAIT_DISP) {
       wait_for_display_ready(WAIT_SLEEP_MSEC, max*2);
+      create_drm_udev_cards();
     }
     return 0;
+  }
+
+  // Wait for Display - specific case where we have to wait here after kmod load
+  if (_eapp_info[i].wait & EAPP_WAIT_DISP) {
+    wait_for_display_ready(WAIT_SLEEP_MSEC, max*2);
+    create_drm_udev_cards();
   }
 
   LOG(INFO) << "ES : wait for ready, app " << _eapp_info[i].tag
@@ -2010,11 +1984,6 @@ static int load_kmod_and_nodes(const char* appname)
     write_marker(str);
     LOG(INFO) << "ES : FAILED - wait for ready took " << (count * WAIT_SLEEP_MSEC)/1000
             << "s ready " << ready <<" app " << _eapp_info[i].tag;
-  }
-
-  // Wait for Display - specific case where we have to wait here after kmod load
-  if (_eapp_info[i].wait & EAPP_WAIT_DISP) {
-    wait_for_display_ready(WAIT_SLEEP_MSEC, max*2);
   }
 
   return 0;
