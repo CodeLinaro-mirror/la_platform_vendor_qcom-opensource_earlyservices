@@ -275,6 +275,7 @@ void play_sample(FILE *file, unsigned int card, unsigned int device, unsigned in
 
 int main(int argc, char **argv)
 {
+    place_marker("M - Starting Audio_Chime App");
     char *filename;
     int card = 0;
     unsigned int device = 55;
