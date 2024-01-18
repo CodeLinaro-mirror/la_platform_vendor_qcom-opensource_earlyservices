@@ -910,6 +910,9 @@ static inline pid_t parse_line(char* p)
           // load kmod, if applicable for early app
           load_kmod_and_nodes(app_launcher.appname);
 
+#ifdef PLATFORM_GEN4
+          if (strcmp(app_launcher.appname, "esplash")) {
+#endif /* PLATFORM_GEN4 */
           memset(marker, 0, 50);
           snprintf(marker, 49 ,"M - Launch %s app", app_launcher.appname);
           write_marker(marker);
@@ -921,6 +924,9 @@ static inline pid_t parse_line(char* p)
             snprintf(marker, 49 ,"M - Launch %s app failed %d", app_launcher.appname, errno);
             write_marker(marker);
           }
+#ifdef PLATFORM_GEN4
+          }
+#endif /* PLATFORM_GEN4 */
         }
         _exit(0);
       }
