@@ -298,7 +298,7 @@ const static struct {
 } _eapp_info[] = {
 #if defined(__ANDROID_U__) || defined(PLATFORM_GEN4)
  {"esplash", "modules_di.order", "splash", check_esplash_device_ready, EAPP_WAIT_DISP},
- {"qcx_server", "modules_qcx.order", "qcx", check_ais_device_ready, EAPP_MOD_WAIT_FW},
+ {"qcxserver", "modules_qcx.order", "qcx", check_ais_device_ready, EAPP_MOD_WAIT_FW},
  {"qcarcam_edrm_rvc", "modules_rv_gen4.order", "rvc", check_rvc_device_ready, EAPP_MOD_WAIT_FW},
 #else
  {"esplash", "", "splash", check_esplash_device_ready, EAPP_WAIT_DISP},
@@ -2503,14 +2503,15 @@ int early_init(int init)
     mount("sysfs", "/sys", "sysfs", 0, NULL);
     prepare_dir((char*)"shm");
 
+    /* Create ais_server/qcxserver socket dir and camera data dir */
+    mkdir("/dev/socket", 0775);
+    mkdir("/dev/socket/camera", 0775);
+
 #if defined( __ANDROID_U__) || defined(PLATFORM_GEN4)
      load_default_modules();
      prepare_fw_dir(true);
      load_precompiled_sepolicy();
 #else
-    /* Create ais_server socket dir and camera data dir */
-    mkdir("/dev/socket", 0775);
-    mkdir("/dev/socket/camera", 0775);
     bool load_parallel = bc_get_lmp();
     pid_t pid_def2, pid_se;
 
