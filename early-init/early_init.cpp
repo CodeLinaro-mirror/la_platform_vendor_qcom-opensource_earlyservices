@@ -1887,12 +1887,12 @@ static int load_kmod_and_nodes(const char* appname)
     }
   }
 
-#ifndef PLATFORM_GEN4
+
   // Wait for Display for all apps, if not set too
   if (_eapp_info[i].wait != EAPP_WAIT_NONE && _eapp_info[i].wait != EAPP_WAIT_DISP) {
     wait_for_display_ready(WAIT_SLEEP_MSEC, max*2);
   }
-#endif
+
 
   // Wait for FW availability if set
   if (_eapp_info[i].wait == EAPP_WAIT_DEFAULT || _eapp_info[i].wait & EAPP_MOD_WAIT_FW) {
