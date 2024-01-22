@@ -21,6 +21,8 @@ ifneq (,$(filter U 14 UpsideDownCake, $(PLATFORM_VERSION)))
 LOCAL_CFLAGS += -D__ANDROID_U__
 endif
 
+LOCAL_CFLAGS += -Wall -Werror
+
 LOCAL_MODULE := early_services_init
 LOCAL_LDFLAGS := -Wl,-rpath,'/vendor_early_services/system/lib64' -Wl,--dynamic-linker,/vendor_early_services/system/bin/bootstrap/linker64
 LOCAL_MODULE_PATH := $(TARGET_VENDOR_RAMDISK_OUT)/vendor_early_services/bin
