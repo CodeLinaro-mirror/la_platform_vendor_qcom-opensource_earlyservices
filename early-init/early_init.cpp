@@ -105,6 +105,7 @@
 #define END_TAG                 "<end>"
 #define LINE_MAX                2048
 #define SHORT_STRING_MAX        128
+#define VS_STRING_MAX           32
 #define WHITESPACE              " \t\n\r"
 #define KPI_VALUE_PATH          "/sys/kernel/boot_kpi/kpi_values"
 #define GPIO_EXPORT             "/sys/class/gpio/export"
@@ -118,27 +119,6 @@
 #define DEFAULT_PATH            "/sbin:/usr/sbin:/bin:/usr/bin:/system/sbin:/system/bin:/system/xbin:/odm/bin:/vendor/bin:/vendor/xbin:vendor_early_services/sbin:vendor_early_services/system/sbin:vendor_early_services/system/bin:vendor_early_services/system/xbin:vendor_early_services/odm/bin:vendor_early_services/vendor/bin:vendor_early_services/vendor/xbin"
 
 #define EARLY_SERVICES_SEPOL   "/vendor_early_services/vendor/etc/selinux/precompiled_sepolicy"
-#define EARLY_DFL_APP          "early_services"
-#define ECHIME_APP             "early_chime"
-#define AUTO_NXP_APP           "audio-nxp-auto"
-#define ECHIME_APP_TMP         "early_chime"
-#define ESPLASH_APP            "esplash"
-#define EVIDEO_APP             "earlyVideo"
-#define EAIS_APP               "ais_server"
-#define ERVC_APP               "qcarcam_edrm_rvc"
-#define EMOD_END               "emod_end"
-#define PD_MAPPER_APP          "pd-mapper"
-
-#define EMOD_TAG               "def"
-#define EMOD_END_TAG           "def-end"
-#define ECHIME_TAG             "audio"
-#define AUTO_NXP_TAG            "audio"
-#define ESPLASH_TAG            "splash"
-#define EVIDEO_TAG             "video"
-#define EAIS_TAG               "ais"
-#define ERVC_TAG               "rvc"
-#define PD_MAPPER_TAG          "pd-mapper-tag"
-
 
 #define STR_EXPAND(tok) #tok
 #define TO_STRING(tok) STR_EXPAND(tok)
@@ -172,8 +152,8 @@ using android::base::boot_clock;
 
 #define init_module(module_image, len, param_values) syscall(__NR_init_module, module_image, len, param_values)
 #define finit_module(fd, param_values, flags) syscall(__NR_finit_module, fd, param_values, flags)
-#define NUM_MODULE 32
-#define ADSP_LOADER_KO "/vendor_early_services/vendor/lib/modules/adsp_loader_dlkm_legacy.ko"
+#define ADSP_LOADER_KO          "adsp_loader_dlkm_legacy"
+#define DISP_DRM_READY_PATH     "/sys/devices/platform/soc/ae00000.qcom,mdss_mdp/init_complete"
 #define DRM_CARD3_PATH          "/dev/dri/card3"
 #define DRM_CARD4_PATH          "/dev/dri/card4"
 #define AUDIO_CTRL_PATH         "/dev/snd/pcmC0D50p"
@@ -182,32 +162,55 @@ using android::base::boot_clock;
 #define CAMERA_VDEV_PATH        "/dev/video0"
 #define CAMERA_V4L_DEV_PATH     "/dev/v4l-subdev0"
 #define DMA_HEAP_DIR            "/dev/dma_heap"
-#ifdef __ANDROID_U__
 #define CAMERA_DMA_HEAP_PATH    "/dev/dma_heap/qcom,system"
-#else
-#define CAMERA_DMA_HEAP_PATH    "/dev/dma_heap/qcom,display"
-#endif
 
 #define VIDEO_SYS_DMA_HEAP_PATH "/dev/dma_heap/qcom,system"
 
-#define WAIT_SET_PERM_COUNT 4
+#define ES_FW_CHK_PATH          "/vendor_early_services/vendor/firmware_mnt/image"
+#define ES_KMOD_DONE            "/dev/kmdone"
+
+#define ECHIME_APP              "early_chime"
+#define AUTO_NXP_APP            "audio-nxp-auto"
+#define PDMAPPER_APP            "pd-mapper"
+#define EMOD_END                "mod_end"
+
 #define WAIT_SET_PERM_SECS  15
-#define WAIT_SET_PERM_MSECS 300
+#define WAIT_SET_PERM_MSECS 400
 #define WAIT_EAPP_SECS      20
 #define WAIT_EAPP_MSECS     2500
-#define WAIT_SLEEP_MSEC     20
+#define WAIT_SLEEP_MSEC     5
+#define WAIT_SLEEP_USECS    500
+#define WAIT_PID_MIN_MSECS  2000
+#define WAIT_PID_MAX_MSECS  5000
 #define EAPPS_MAX           12
 
-#define MM_DEPMOD_ORDER "/vendor_early_services/vendor/lib/modules/modules.order"
-#define MM_DEPMOD_ORDER_END "/vendor_early_services/vendor/lib/modules/modules_end.order"
-#define MM_DEPMOD_PATH  "/lib/modules/"
-#define MM_MOD_ORDER_DI "/vendor_early_services/vendor/lib/modules/modules_di.order"
-#define MM_MOD_ORDER_VI "/vendor_early_services/vendor/lib/modules/modules_vi.order"
-#define MM_MOD_ORDER_AIS "/vendor_early_services/vendor/lib/modules/modules_ais.order"
-#define MM_MOD_ORDER_RV "/vendor_early_services/vendor/lib/modules/modules_rv.order"
-#define MM_MOD_ORDER_AU "/vendor_early_services/vendor/lib/modules/modules_au.order"
-#define MM_R_MOD_ORDER_AU "/vendor_early_services/vendor/lib/modules/modules_r_au.order"
-#define MM_MOD_PATH     "/vendor_early_services/vendor/lib/modules/"
+#define ES_DFLMOD_PATH   "/lib/modules/"
+#define ES_VMOD_PATH     "/vendor_early_services/vendor/lib/modules/"
+
+#define EMOD_DEF_TAG_1   "def_1"
+#define EMOD_DEF_TAG_2   "def_2"
+#define EMOD_DI_TAG      "display"
+
+#define ES_DFLMOD_ORDER_1     ES_VMOD_PATH"modules.order"
+#define ES_DFLMOD_ORDER_2     ES_VMOD_PATH"modules_2.order"
+#define ES_DFLMOD_ORDER_DI    ES_VMOD_PATH"modules_di.order"
+
+#define EAPP_WAIT_DEFAULT 0x00
+#define EAPP_WAIT_NONE   0x01
+#define EAPP_WAIT_DISP   0x02
+#define EAPP_MOD_WAIT_FW 0x04
+
+#define LMP_MODPROBE       0
+#define LMP_DIRECT         1
+#define LMP_DIRECT_CHK_AUD 3
+
+#define ES_CTYPE_FW         1
+#define ES_CTYPE_DEF2_MOD   2
+#define ES_CTYPE_DI_MOD     3
+#define ES_CTYPE_LOAD_SE    4
+
+#define PIPE_RD 0
+#define PIPE_WR 1
 
 #if defined(__ANDROID_U__) || defined(PLATFORM_GEN4)
 #define SELINUXMNT "/sys/fs/selinux"
@@ -219,24 +222,41 @@ using android::base::boot_clock;
 #define TEST_APP_LOG "/vendor_early_services/run/init_early_test.txt"
 #endif //__ANDROID_U__ || PLATFORM_GEN4
 
-static pid_t eapp_pid[EAPPS_MAX];
-
+#ifdef EARLYINIT_DEBUG
 static inline bool is_empty_line(const char* p);
 static inline char *strstrip(char *s);
+#endif
 static inline int parse_line(char* p);
-static void set_permissions(char *path, int permissions, int user, int group, char *context);
-static void launch_early_apps(void);
+static void set_permissions(const char *path, int permissions, int user, int group, const char *context);
+static void __attribute__((unused)) launch_early_apps(void);
+static void set_splash_permission(void);
 static void set_video_permission(void);
-static void set_video1_permission(void);
-static int load_kmod_and_nodes(const char* mod_group);
+static void set_video_drm_permission(void);
+static void set_camera_media_permission(void);
+static void set_camera_video_permission(void);
+static void set_camera_v4l_permission(void);
+static void set_audio_permission(void);
 
-bool bc_get_ar();
+static int load_kmod_and_nodes(const char* mod_group);
+static int wait_for_file(const char* file, int sleep_msec, int count, bool log_fail = false);
+static int check_esplash_device_ready(void);
+static int check_video_device_ready(void);
+static int check_ais_device_ready(void);
+static int check_rvc_device_ready(void);
+static int check_pdmapper_ready(void);
+static int check_display_driver_ready(void);
+static int check_audio_device_ready(void);
 
 enum EnforcingStatus { SELINUX_PERMISSIVE, SELINUX_ENFORCING };
 
-char   chipId[32]  = { 0 };
-char   platformId[32]  = { 0 };
-char   socid[32]  = { 0 };
+char chipId[32]  = { 0 };
+char platformId[32]  = { 0 };
+char socid[32]  = { 0 };
+// Global variables
+bool _use_min_wait = true;
+bool _audio_reach = false;
+std::string _boot_slot;
+std::unordered_map<std::string, std::string> _module_params;
 
 static struct {
   char* appname;
@@ -255,6 +275,30 @@ static struct {
   char* group;
   char* wait;
 } app_launcher;
+
+const static struct {
+  char name[VS_STRING_MAX];
+  char kfile[VS_STRING_MAX];
+  char tag[VS_STRING_MAX];
+  int (*is_ready)(void);
+  int wait;
+} _eapp_info[] = {
+#if defined(PLATFORM_GEN4)
+ {"esplash", "modules_di.order", "splash", check_esplash_device_ready, EAPP_WAIT_DISP},
+#else
+ {"esplash", "", "splash", check_esplash_device_ready, EAPP_WAIT_DISP},
+#endif // PLATFORM_GEN4
+ {"earlyVideo", "modules_vi.order", "video", check_video_device_ready, EAPP_MOD_WAIT_FW},
+ {"ais_server", "modules_ais.order", "ais", check_ais_device_ready, EAPP_MOD_WAIT_FW},
+ {"qcarcam_edrm_rvc", "modules_rv.order", "rvc", check_rvc_device_ready, EAPP_MOD_WAIT_FW},
+ {"pd-mapper", "modules_r_au.order", "pd-mapper", check_pdmapper_ready, EAPP_MOD_WAIT_FW},
+ {"audio-nxp-auto", "", "audio-nxp", check_audio_device_ready, EAPP_MOD_WAIT_FW},
+ {"early_chime", "modules_au.order", "audio", check_audio_device_ready, EAPP_MOD_WAIT_FW},
+ {EMOD_END, "modules_end.order", "def_end", NULL, EAPP_WAIT_NONE},
+ {"", "", "", NULL, EAPP_WAIT_DEFAULT} // Last Entry
+};
+static pid_t _eapp_pid[EAPPS_MAX];
+static const char EARLY_DFL_APP[] = "early_services";
 
 #define BIT_SET(p,n) ((p) & (1 << (n)))
 #define uid_is_valid(uid) ((uid != (uid_t) UINT32_C(0xFFFFFFFF)) && \
@@ -295,6 +339,14 @@ static void inline write_marker(const char* name)
   return;
 }
 
+static void inline print_log(const char* str)
+{
+  if (str == NULL) return;
+  freopen("/dev/kmsg", "w", stdout);
+  printf("ES: %s \r\n", str);
+}
+
+#ifdef EARLYINIT_DEBUG
 static void inline write_smack_label(char* label)
 {
   int fd = -1;
@@ -309,6 +361,7 @@ static void inline write_smack_label(char* label)
 
   return;
 }
+#endif
 
 /*
  * Only support abs path
@@ -316,7 +369,7 @@ static void inline write_smack_label(char* label)
 static inline void mkdirs(const char* p, mode_t mode)
 {
   char str[1024] = {0};
-  struct stat st = {0};
+  struct stat st;
   int i = 0, len = 0, ret = 0;
 
   len = strlen(p);
@@ -356,7 +409,7 @@ static inline void mkdirs(const char* p, mode_t mode)
 
 static inline void prepare_dir(char* p)
 {
-  struct stat st = {0};
+  struct stat st;
   int ret = 0;
 
   switch (*p) {
@@ -472,6 +525,7 @@ static inline void prepare_dir(char* p)
   return;
 }
 
+#ifdef EARLYINIT_DEBUG
 /*
  * Remove trailing spaces
  */
@@ -491,6 +545,7 @@ static inline char *strstrip(char *s) {
 
   return s;
 }
+#endif
 
 // enforce_user according to user settings
 // if fail, fallback to root user
@@ -589,7 +644,7 @@ static void inline app_launcher_start_over(void)
   app_launcher.env_used = 0;
   app_launcher.bindcpumask = -1;
   app_launcher.priority = -1;
-  app_launcher.env[app_launcher.env_used++] = DEFAULT_PATH; //set DEFAULT_PATH as static env[0] path for all ES app's
+  app_launcher.env[app_launcher.env_used++] = (char*)DEFAULT_PATH; //set DEFAULT_PATH as static env[0] path for all ES app's
 
   return;
 }
@@ -709,8 +764,12 @@ static inline pid_t parse_line(char* p)
       if (strncmp(p, END_TAG, strlen(END_TAG)))
         goto out;
 
-      if (!strncmp(app_launcher.appname, ECHIME_APP, strlen(ECHIME_APP)) &&
-          bc_get_ar()) {
+      // Do not launch eChime if AR is true. Similarly do not launch pd_mapper
+      // if AR is false
+      if ((!strncmp(app_launcher.appname, ECHIME_APP, strlen(ECHIME_APP))
+             && _audio_reach) ||
+          (!strncmp(app_launcher.appname, PDMAPPER_APP, strlen(PDMAPPER_APP))
+             && !_audio_reach)) {
         LOG(INFO) << "ES : Not Launching app " << app_launcher.appname;
         goto out;
       }
@@ -740,9 +799,6 @@ static inline pid_t parse_line(char* p)
           dup2(fd, STDERR_FILENO);
           close(fd);
         }
-
-        // load kmod, if applicable for early app
-        load_kmod_and_nodes(app_launcher.appname);
 
         if (app_launcher.bindcpumask != -1) {
           cpu_set_t mask;
@@ -818,12 +874,18 @@ static inline pid_t parse_line(char* p)
         if (app_launcher.cmd) {
           if ((ret = access(app_launcher.cmd, F_OK)) != 0) {
             LOG(WARNING) << "ES : App " << app_launcher.appname << " doesn't exist ret " << ret << " err " << errno;
-            return -1;
+            exit(0);
           }
+
+          // load kmod, if applicable for early app
+          load_kmod_and_nodes(app_launcher.appname);
+
           memset(marker, 0, 50);
           snprintf(marker, 49 ,"M - Launch %s app", app_launcher.appname);
           write_marker(marker);
+#ifdef EARLYINIT_DEBUG
           LOG(INFO) << "ES : Launching app " << app_launcher.appname;
+#endif
           ret = execvpe(app_launcher.cmd,app_launcher.argv,app_launcher.env);
           if(ret < 0) {
             LOG(INFO) << "ES : App launch failed " << app_launcher.appname << " errno " << errno;
@@ -835,11 +897,6 @@ static inline pid_t parse_line(char* p)
         _exit(0);
       }
 
-      // wait for initial display before other apps launch
-      if (!strncmp(app_launcher.appname, ESPLASH_APP, strlen(ESPLASH_APP))) {
-        while(access(DRM_CARD3_PATH, F_OK) == -1) usleep(5*1000);
-      }
-
       printf("fire up %s \r\n", app_launcher.appname);
       break;
     default:
@@ -849,6 +906,8 @@ static inline pid_t parse_line(char* p)
 out:
   return pid;
 }
+
+#ifdef EARLYINIT_DEBUG
 /*
  * Check if line is empty or not
  */
@@ -856,6 +915,8 @@ static inline bool is_empty_line(const char* p)
 {
   return (strspn(p, WHITESPACE) == strlen(p));
 }
+#endif
+
 #ifdef LV_CODE
 static inline void trigger_firmware_loading(const char* path)
 {
@@ -893,53 +954,127 @@ static inline void trigger_firmware_loading(const char* path)
 }
 #endif
 
-bool bc_get_lmp() {
-  bool load_parallel = false;
+// Get Console logs enabled config from cmdline or bootconfig
+bool kcmd_bc_console_enabled(void)
+{
+  bool enabled = false, found = false;
+
+  android::earlyinit::import_kernel_cmdline(false,
+      [&](const std::string& key, const std::string& value, bool in_qemu) -> bool {
+    (void)in_qemu;
+    if (key == "console" && value.size() > 0) {
+      enabled = true;
+      found = true;
+    }
+    return found;
+  });
+
+  if (found)
+    return enabled;
+
   android::earlyinit::import_kernel_bootconfig(false,
-     [&](const std::string& key, const std::string& value, bool in_qemu) {
+     [&](const std::string& key, const std::string& value, bool in_qemu) -> bool {
+    (void)in_qemu;
+    if (key == "androidboot.console" && value.size() > 0) {
+      enabled = true;
+      found = true;
+    }
+    return found;
+  });
+
+  return enabled;
+}
+
+// Get parallel loading config from bootconfig
+bool bc_get_lmp()
+{
+  bool load_parallel = false, found = false;
+
+  android::earlyinit::import_kernel_bootconfig(false,
+     [&](const std::string& key, const std::string& value, bool in_qemu) -> bool {
     (void)in_qemu;
     if (key == "androidboot.load_modules_parallel" && value == "\"true\"") {
       load_parallel = true;
-#ifdef __ANDROID_U__
-      load_parallel = false;
-#endif
+      found = true;
     }
+    return found;
   });
-  // LOG(INFO) << "ES : Config Modules Parallel load: " << load_parallel;
+#ifdef EARLYINIT_DEBUG
+  LOG(INFO) << "ES : Config Modules Parallel load: " << load_parallel;
+#endif
+
   return load_parallel;
 }
 
+// Get current boot slot config from bootconfig
+bool bc_boot_slot(std::string& slot_suffix)
+{
+  bool found = false;
+  android::earlyinit::import_kernel_bootconfig(false,
+     [&](const std::string& key, const std::string& value, bool in_qemu) -> bool {
+    (void)in_qemu;
+    if (key == "androidboot.slot_suffix") {
+      if (value == "\"_a\"") {
+        slot_suffix ="_a";
+      } else if (value == "\"_b\"") {
+        slot_suffix ="_b";
+      }
+      found = true;
+    }
+    return found;
+  });
+#ifdef EARLYINIT_DEBUG
+  LOG(INFO) << "ES : Slot suffix: " << slot_suffix;
+#endif
+  return found;
+}
+
+// Get audio reach config from bootconfig
 bool bc_get_ar() {
   bool audio_reach = false;
+  bool found = false;
+
   android::earlyinit::import_kernel_bootconfig(false,
-     [&](const std::string& key, const std::string& value, bool in_qemu) {
+     [&](const std::string& key, const std::string& value, bool in_qemu) -> bool {
     (void)in_qemu;
     if (key == "androidboot.audio" && value == "\"audioreach\"") {
       audio_reach = true;
+      found = true;
     }
+    return found;
   });
-  LOG(WARNING) << "ES : Config Audio Reach: " << audio_reach;
+#ifdef EARLYINIT_DEBUG
+  LOG(INFO) << "ES : Config Audio Reach: " << audio_reach;
+#endif
+
   return audio_reach;
 }
 
-EnforcingStatus bc_get_se() {
+EnforcingStatus bc_get_se()
+{
   EnforcingStatus status = SELINUX_ENFORCING;
+  bool found = false;
   android::earlyinit::import_kernel_bootconfig(false,
-    [&](const std::string& key, const std::string& value, bool in_qemu) {
+    [&](const std::string& key, const std::string& value, bool in_qemu) -> bool {
     (void)in_qemu;
     if (key == "androidboot.selinux" && value == "\"permissive\"") {
       status = SELINUX_PERMISSIVE;
+      found = true;
     }
+    return found;
   });
   LOG(INFO) << "ES : Selinux mode: " << status;
+
   return status;
 }
 
-bool IsEnforcing() {
+bool IsEnforcing()
+{
   return bc_get_se() == SELINUX_ENFORCING;
 }
 
-void set_permissions(char *path, int permissions, int user, int group, char *context){
+void set_permissions(const char *path, int permissions, int user, int group, const char *context)
+{
   int ret;
   ret = chmod(path, permissions);
   if(ret){
@@ -982,7 +1117,8 @@ int listDir(char *dirName)
 return 0;
 }
 #endif
-int getSocId(char * fileName, char * strName) {
+
+int getSocId(const char * fileName, char * strName) {
   int fd,ret;
   fd = open(fileName, O_RDONLY);
   if (fd > 0)
@@ -998,7 +1134,8 @@ int getSocId(char * fileName, char * strName) {
   return 0;
 }
 
-int getSysInfo(char * fileName, char * strName) {
+int getSysInfo(const char * fileName, char * strName)
+{
   int fd,ret;
 
   fd = open(fileName, O_RDONLY);
@@ -1028,7 +1165,8 @@ int getSysInfo(char * fileName, char * strName) {
   return 0;
 }
 
-static int wait_for_file(const char* file, int sleep_msec, int count)
+// Wait for availability of file for given msec*count time
+static int wait_for_file(const char* file, int sleep_msec, int count, bool log_fail)
 {
   int i, ret;
   int delay = sleep_msec * 1000;
@@ -1041,10 +1179,56 @@ static int wait_for_file(const char* file, int sleep_msec, int count)
     usleep(delay);
   }
 
-  if (ret < 0) {
-    LOG(INFO) << "ES File '" << file << "' not found!";
-  } else {
-    LOG(INFO) << "ES File '" << file << "' found!";
+  if (log_fail) {
+    if (ret < 0) {
+      LOG(INFO) << "ES File '" << file << "' not found!";
+    } else {
+#ifdef EARLYINIT_DEBUG
+      LOG(INFO) << "ES File '" << file << "' found!";
+#endif
+    }
+  }
+
+  return ret;
+}
+
+// Wait for pid until exit or unavailable
+static int wait_for_pid(pid_t& pid, int sleep_usec, int count)
+{
+  pid_t wpid;
+  int wstatus;
+  int i = 0;
+
+  do {
+    wpid = waitpid(pid, &wstatus, 0);
+    if (wpid == -1 || wpid != 0 || i++ > count) break;
+    usleep(sleep_usec);
+  } while (wpid == 0);
+
+#ifdef EARLYINIT_DEBUG
+  if (wpid != -1 && wpid == 0) {
+    LOG(INFO) << "ES wait pid '" << pid << "'failed!";
+  }
+#endif
+
+  return 0;
+}
+
+static int wait_for_display_ready(int sleep_msec, int count)
+{
+  int i, ret = -1;
+  int delay = sleep_msec * 1000;
+
+  for (i = 0; i < count; i++) {
+    if (check_display_driver_ready()) {
+      ret = 0;
+      break;
+    }
+    usleep(delay);
+  }
+
+  if (ret == -1) {
+    LOG(ERROR) << "ES : Wait for Display failed!";
   }
 
   return ret;
@@ -1080,7 +1264,10 @@ int get_device_major_minor(const std::string& uevent_file, int *major, int *mino
     }
   }
 
-  LOG(INFO) << "ES device uevent "<< uevent_file <<" - "<< *major << ":" << *minor;
+  if (!_use_min_wait) {
+    LOG(INFO) << "ES device uevent "<< uevent_file <<" - "<< *major << ":" << *minor;
+  }
+
   if (*major > 0) {
     return 1;
   } else {
@@ -1090,76 +1277,58 @@ int get_device_major_minor(const std::string& uevent_file, int *major, int *mino
 
 static int check_dma_heap_device_ready(void)
 {
-  //camera
-  static int dma_heap_device_created = 0;
-  int major = 0, minor = 0;
+  //camera
+  static int dma_heap_device_created = 0;
+  int major = 0, minor = 0;
 
-
-#ifdef __ANDROID_U__
-  if (!dma_heap_device_created) {
+  if (!dma_heap_device_created) {
     if (access("/sys/class/dma_heap/qcom,system/uevent", F_OK) == 0) {
-      if(get_device_major_minor("/sys/class/dma_heap/qcom,system/uevent", &major, &minor))
-      {
-        mkdir(DMA_HEAP_DIR, 0666);
-        mknod(CAMERA_DMA_HEAP_PATH, S_IFCHR | 0666,
-            makedev(major, minor));
+      if(get_device_major_minor("/sys/class/dma_heap/qcom,system/uevent", &major, &minor))
+      {
+        mkdir(DMA_HEAP_DIR, 0666);
+        mknod(CAMERA_DMA_HEAP_PATH, S_IFCHR | 0666,
+            makedev(major, minor));
 
         set_permissions(DMA_HEAP_DIR, 0755, AID_ROOT,
             AID_ROOT, "u:object_r:dmabuf_heap_device:s0");
         set_permissions(CAMERA_DMA_HEAP_PATH, 0666, AID_SYSTEM,
             AID_SYSTEM, "u:object_r:vendor_dmabuf_system_heap_device:s0");
-        dma_heap_device_created = 1;
-        LOG(INFO) << "ES camera dma_heap device nodes ready";
-        write_marker("M - EarlyInit dma heap nodes ready");
-      }
-    }
-  }
-#else
-  if (!dma_heap_device_created) {
-    if (access("/sys/class/dma_heap/qcom,display/uevent", F_OK) == 0) {
-      if(get_device_major_minor("/sys/class/dma_heap/qcom,display/uevent", &major, &minor))
-      {
-        mkdir(DMA_HEAP_DIR, 0666);
-        mknod(CAMERA_DMA_HEAP_PATH, S_IFCHR | 0666,
-            makedev(major, minor));
-
-        set_permissions(DMA_HEAP_DIR, 0755, AID_ROOT,
-            AID_ROOT, "u:object_r:dmabuf_heap_device:s0");
-        set_permissions(CAMERA_DMA_HEAP_PATH, 0666, AID_SYSTEM,
-            AID_SYSTEM, "u:object_r:vendor_dmabuf_display_heap_device:s0");
-        dma_heap_device_created = 1;
-        LOG(INFO) << "ES camera dma_heap device nodes ready";
-        write_marker("M - EarlyInit dma heap nodes ready");
-      }
-    }
-  }
+        dma_heap_device_created = 1;
+#ifdef EARLYINIT_DEBUG
+        LOG(INFO) << "ES camera dma_heap device nodes ready";
 #endif
- 
+        write_marker("M - EarlyInit dma heap nodes ready");
+      }
+    }
+  }
+
   return dma_heap_device_created;
 }
 
 static int check_camera_card2_ready(void)
 {
-  //camera
-  static int card2_device_created = 0;
-  int major = 0, minor = 0;
+  //camera
+  static int card2_device_created = 0;
+  int major = 0, minor = 0;
 
-  if (!card2_device_created) {
-    if (access("/sys/class/drm/card2/uevent", F_OK) == 0) {
-      if(get_device_major_minor("/sys/class/drm/card2/uevent", &major, &minor))
-      {
-        mkdir("/dev/dri", 0666);
-        mknod(DRM_CARD2_PATH, S_IFCHR | 0666,
-            makedev(major, minor));
+  if (!card2_device_created) {
+    if (access("/sys/class/drm/card2/uevent", F_OK) == 0) {
+      if(get_device_major_minor("/sys/class/drm/card2/uevent", &major, &minor))
+      {
+        mkdir("/dev/dri", 0666);
+        mknod(DRM_CARD2_PATH, S_IFCHR | 0666,
+            makedev(major, minor));
 
         set_permissions(DRM_CARD2_PATH, 0666, AID_ROOT,
             AID_GRAPHICS, "u:object_r:graphics_device:s0");
-        card2_device_created = 1;
-        LOG(INFO) << "ES camera card2 device nodes ready";
-        write_marker("M - EarlyInit card2 nodes ready");
-      }
-    }
-  }
+        card2_device_created = 1;
+#ifdef EARLYINIT_DEBUG
+        LOG(INFO) << "ES camera card2 device nodes ready";
+#endif
+        write_marker("M - EarlyInit card2 nodes ready");
+      }
+    }
+  }
 
   return card2_device_created;
 }
@@ -1169,7 +1338,7 @@ static int check_spi_driver_ready(void)
   static int spi_device_created = 0;
   int major = 0, minor = 0;
 
-  if (!spi_device_created) {
+  if (!spi_device_created) {
     if (access("/sys/class/spidev/spidev22.0/uevent", F_OK) == 0) {
        if (get_device_major_minor("/sys/class/spidev/spidev22.0/uevent", &major, &minor)) {
           mknod(AUDIO_DEVICE_PATH, S_IFCHR | 0666,makedev(major, minor));
@@ -1177,12 +1346,18 @@ static int check_spi_driver_ready(void)
             set_permissions(AUDIO_DEVICE_PATH, 00666, AID_SYSTEM, AID_AUDIO, "u:object_r:audio_device:s0");
           }
           spi_device_created = 1;
+#ifdef EARLYINIT_DEBUG
           LOG(INFO) << "ES spi nodes are ready";
+#endif
           write_marker("M - EarlyInit spi22.0 nodes ready");
        }
-    } else
-       LOG(INFO) << "ES spi22.0 driver is not up";
+    } else {
+#ifdef EARLYINIT_DEBUG
+      LOG(INFO) << "ES spi22.0 driver is not up";
+#endif
+    }
   }
+
   return spi_device_created;
 }
 
@@ -1202,7 +1377,9 @@ static int check_gfx_device_ready(void)
             AID_SYSTEM, "u:object_r:gpu_device:s0");
       }
       gfx_device_created = 1;
+#ifdef EARLYINIT_DEBUG
       LOG(INFO) << "ES gfx device nodes ready";
+#endif
       write_marker("M - EarlyInit gfx nodes ready");
     }
   }
@@ -1211,6 +1388,12 @@ static int check_gfx_device_ready(void)
 }
 
 static int check_rvc_device_ready(void)
+{
+  return (int)(check_gfx_device_ready() &&
+           check_camera_card2_ready() && check_dma_heap_device_ready());
+}
+
+static int check_ais_device_ready(void)
 {
   //rvc
 
@@ -1309,9 +1492,14 @@ static int check_rvc_device_ready(void)
         mknod("/dev/v4l-subdev16", S_IFCHR | 0666,
           makedev(major, minor));
       }
+      set_camera_media_permission();
+      set_camera_video_permission();
+      set_camera_v4l_permission();
       rvc_device_created = 1;
-      LOG(INFO) << "ES rvc device nodes ready";
-      write_marker("M - EarlyInit rvc nodes ready");
+#ifdef EARLYINIT_DEBUG
+      LOG(INFO) << "ES ais device nodes ready";
+#endif
+      write_marker("M - EarlyInit ais nodes ready");
     }
   }
 
@@ -1335,23 +1523,25 @@ static int check_video_device_ready(void)
         mknod(DRM_CARD4_PATH, S_IFCHR | 0666,
             makedev(major, minor));
       }
-      if (get_device_major_minor("/sys/class/dma_heap/qcom,system/uevent", &major, &minor))
-      {
-        mkdir(DMA_HEAP_DIR, 0666);
-        mknod(VIDEO_SYS_DMA_HEAP_PATH, S_IFCHR | 0666,
-            makedev(major, minor));
+      if (get_device_major_minor("/sys/class/dma_heap/qcom,system/uevent", &major, &minor))
+      {
+        mkdir(DMA_HEAP_DIR, 0666);
+        mknod(VIDEO_SYS_DMA_HEAP_PATH, S_IFCHR | 0666,
+            makedev(major, minor));
         set_permissions(DMA_HEAP_DIR, 0755, AID_ROOT,
             AID_ROOT, "u:object_r:dmabuf_heap_device:s0");
         set_permissions(VIDEO_SYS_DMA_HEAP_PATH, 0666, AID_SYSTEM,
             AID_SYSTEM, "u:object_r:vendor_dmabuf_system_heap_device:s0");
-      }
+      }
       if (get_device_major_minor("/sys/class/video4linux/video32/uevent", &major, &minor)) {
         mknod("/dev/video32", S_IFCHR | 0666,
               makedev(major, minor));
       }
+      set_video_drm_permission();
       set_video_permission();
-      set_video1_permission();
+#ifdef EARLYINIT_DEBUG
       LOG(INFO) << "ES video device nodes ready";
+#endif
       write_marker("M - EarlyInit video nodes ready");
       video_device_created = 1;
     }
@@ -1360,41 +1550,55 @@ static int check_video_device_ready(void)
   return video_device_created;
 }
 
+#define SND_CARD_DIR "/dev/snd"
+static int check_snd_device_ready(void)
+{
+  //audio
+  static int audio_device_created = 0;
+  int major = 0, minor = 0;
+
+  if (!audio_device_created) {
+    if ((access("/sys/class/sound/controlC0/uevent", F_OK) == 0) &&
+        (access("/sys/class/sound/pcmC0D49c/uevent", F_OK) == 0) &&
+        (access("/sys/class/sound/pcmC0D48p/uevent", F_OK) == 0) &&
+        (access("/sys/class/sound/pcmC0D50p/uevent", F_OK) == 0)) {
+      LOG(INFO) << "ES check device node for /dev/snd";
+      mkdir(SND_CARD_DIR, 0755);
+
+      if (get_device_major_minor("/sys/class/sound/pcmC0D49c/uevent", &major, &minor)) {
+        mknod("/dev/snd/pcmC0D49c", S_IFCHR | 0660, makedev(major, minor));
+      }
+      if (get_device_major_minor("/sys/class/sound/pcmC0D48p/uevent", &major, &minor)) {
+        mknod("/dev/snd/pcmC0D48p", S_IFCHR | 0660, makedev(major, minor));
+      }
+      if (get_device_major_minor("/sys/class/sound/pcmC0D50p/uevent", &major, &minor)) {
+        mknod("/dev/snd/pcmC0D50p", S_IFCHR | 0660, makedev(major, minor));
+      }
+      if (get_device_major_minor("/sys/class/sound/pcmC0D53c/uevent", &major, &minor)) {
+        mknod("/dev/snd/pcmC0D53c", S_IFCHR | 0660, makedev(major, minor));
+      }
+      if (get_device_major_minor("/sys/class/sound/pcmC0D55p/uevent", &major, &minor)) {
+        mknod("/dev/snd/pcmC0D55p", S_IFCHR | 0660, makedev(major, minor));
+      }
+      if (get_device_major_minor("/sys/class/sound/controlC0/uevent", &major, &minor)) {
+        mknod("/dev/snd/controlC0", S_IFCHR | 0660, makedev(major, minor));
+      }
+      set_audio_permission();
+#ifdef EARLYINIT_DEBUG
+      LOG(INFO) << "ES audio device nodes ready";
+#endif
+      write_marker("M - EarlyInit audio nodes ready");
+      audio_device_created = 1;
+    }
+  }
+
+  return audio_device_created;
+}
+
 static int check_audio_device_ready(void)
 {
-    //audio
-    static int audio_device_created = 0;
-    int major = 0, minor = 0;
-
-    if (!audio_device_created) {
-        if (access("/sys/class/sound/controlC0/uevent", F_OK) == 0) {
-            LOG(INFO) << "ES check device node for /dev/snd";
-            mkdir("/dev/snd", 0755);
-
-            if (get_device_major_minor("/sys/class/sound/pcmC0D49c/uevent", &major, &minor)) {
-                mknod("/dev/snd/pcmC0D49c", S_IFCHR | 0660, makedev(major, minor));
-            }
-            if (get_device_major_minor("/sys/class/sound/pcmC0D48p/uevent", &major, &minor)) {
-                mknod("/dev/snd/pcmC0D48p", S_IFCHR | 0660, makedev(major, minor));
-            }
-            if (get_device_major_minor("/sys/class/sound/pcmC0D50p/uevent", &major, &minor)) {
-                mknod("/dev/snd/pcmC0D50p", S_IFCHR | 0660, makedev(major, minor));
-            }
-            if (get_device_major_minor("/sys/class/sound/pcmC0D53c/uevent", &major, &minor)) {
-                mknod("/dev/snd/pcmC0D53c", S_IFCHR | 0660, makedev(major, minor));
-            }
-            if (get_device_major_minor("/sys/class/sound/pcmC0D55p/uevent", &major, &minor)) {
-                mknod("/dev/snd/pcmC0D55p", S_IFCHR | 0660, makedev(major, minor));
-	    }
-            if (get_device_major_minor("/sys/class/sound/controlC0/uevent", &major, &minor)) {
-                mknod("/dev/snd/controlC0", S_IFCHR | 0660, makedev(major, minor));
-            }
-            LOG(ERROR) << "ES audio device nodes ready";
-            write_marker("M - EarlyInit audio nodes ready");
-            audio_device_created = 1;
-        }
-    }
-    return audio_device_created;
+  return (int)(check_snd_device_ready() &&
+           check_spi_driver_ready());
 }
 
 #define DRM_CARD3_DIR        "/dev/dri"
@@ -1412,7 +1616,10 @@ static int check_esplash_device_ready(void)
         mknod(DRM_CARD3_PATH, S_IFCHR | 0666,
             makedev(major, minor));
 
+        set_splash_permission();
+#ifdef EARLYINIT_DEBUG
         LOG(INFO) << "ES esplash device nodes ready";
+#endif
         write_marker("M - EarlyInit esplash nodes ready");
         esplash_device_created = 1;
       }
@@ -1421,20 +1628,60 @@ static int check_esplash_device_ready(void)
   return esplash_device_created;
 }
 
+static int check_display_driver_ready(void)
+{
+  int fd;
+  char status[32] = {0};
+  static int display_ready = 0;
+  if (display_ready)
+    return true;
+
+  fd = open(DISP_DRM_READY_PATH, O_RDONLY);
+  if (fd > 0 && read(fd, status, sizeof(status) - 1) > 0) {
+    if (status[0] == '1') {
+      display_ready = 1;
+    }
+    close(fd);
+  }
+
+  return display_ready;
+}
+
 static int check_storage_device_ready(void)
 {
   static int sto_device_created = 0;
 
   if (!sto_device_created) {
-    if (access("/sys/block/sda/uevent", F_OK) == 0 ||
-        access("/sys/block/sde/uevent", F_OK) == 0) {
+    if (access("/sys/block/sda/uevent", F_OK) == 0 &&
+        access("/sys/block/sdd/uevent", F_OK) == 0 &&
+        access("/sys/block/sde/uevent", F_OK) == 0 &&
+        access("/sys/block/sdf/uevent", F_OK) == 0) {
+#ifdef EARLYINIT_DEBUG
       LOG(INFO) << "ES SD nodes ready";
+#endif
       write_marker("M - EarlyInit SD nodes ready");
       sto_device_created = 1;
     }
   }
 
   return sto_device_created;
+}
+
+static int check_pdmapper_ready(void)
+{
+  // pd-mapper
+  static int adsp_path_ready = 0;
+  if (!adsp_path_ready) {
+    if (access(AUDIO_ADSP_FW_PATH, F_OK) == 0) {
+      adsp_path_ready = 1;
+#ifdef EARLYINIT_DEBUG
+      LOG(INFO) << "ES pd-mapper ready";
+#endif
+      write_marker("M - EarlyInit pd-mapper ready");
+    }
+  }
+
+  return adsp_path_ready;
 }
 
 static void set_audio_permission(void)
@@ -1462,90 +1709,91 @@ static void set_splash_permission(void)
 }
 
 // set permissions for video resources
-static void set_video_permission(void)
+static void set_video_drm_permission(void)
 {
   set_permissions(DRM_CARD4_PATH, 0666, AID_ROOT, AID_GRAPHICS, "u:object_r:graphics_device:s0");
   LOG(INFO) << "EarlyVideo Setting permission to dri card completed";
   return;
 }
 
-static void set_video1_permission(void)
+static void set_video_permission(void)
 {
   set_permissions(VIDEO_CARD_PATH, 0666, AID_ROOT, AID_GRAPHICS, "u:object_r:video_device:s0");
   LOG(INFO) << "EarlyVideo Setting permission to video device completed";
   return;
 }
 
-static void set_camera_permission(void)
+static void set_camera_media_permission(void)
 {
-  LOG(INFO) << "ES : Set Camera Permissionsi for mdev";
+#ifdef EARLYINIT_DEBUG
+  LOG(INFO) << "ES : Set Camera Permissions for mdev";
+#endif
   set_permissions("/dev/media0", 0666, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
-  set_permissions("/dev/media1", 0666, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
+  set_permissions("/dev/media1", 0666, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
   LOG(INFO) << "ES : Set Camera Permissions Completed for mdev";
   return;
 }
 
-static void set_camera_permission1(void)
+static void set_camera_video_permission(void)
 {
-  LOG(INFO) << "ES : Set Camera Permissions1 for vdev";
+#ifdef EARLYINIT_DEBUG
+  LOG(INFO) << "ES : Set Camera Permissions for vdev";
+#endif
   set_permissions("/dev/video0", 0666, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
-  set_permissions("/dev/video1", 0666, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
-  LOG(INFO) << "ES : Set Camera Permissions1 Completed for vdev";
+  set_permissions("/dev/video1", 0666, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
+  LOG(INFO) << "ES : Set Camera Permissions Completed for vdev";
   return;
 }
 
-static void set_camera_permission2(void)
+static void set_camera_v4l_permission(void)
 {
-  LOG(INFO) << "ES : Set Camera Permissions2 for v4l-subdev";
+#ifdef EARLYINIT_DEBUG
+  LOG(INFO) << "ES : Set Camera Permissions for v4l-subdev";
+#endif
   set_permissions("/dev/v4l-subdev1", 0666, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
-  set_permissions("/dev/v4l-subdev2", 0666, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
-  set_permissions("/dev/v4l-subdev3", 0666, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
-  set_permissions("/dev/v4l-subdev4", 0666, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
-  set_permissions("/dev/v4l-subdev5", 0666, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
-  set_permissions("/dev/v4l-subdev6", 0666, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
-  set_permissions("/dev/v4l-subdev7", 0666, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
-  set_permissions("/dev/v4l-subdev8", 0666, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
-  set_permissions("/dev/v4l-subdev9", 0666, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
-  set_permissions("/dev/v4l-subdev10", 0666, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
+  set_permissions("/dev/v4l-subdev2", 0666, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
+  set_permissions("/dev/v4l-subdev3", 0666, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
+  set_permissions("/dev/v4l-subdev4", 0666, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
+  set_permissions("/dev/v4l-subdev5", 0666, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
+  set_permissions("/dev/v4l-subdev6", 0666, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
+  set_permissions("/dev/v4l-subdev7", 0666, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
+  set_permissions("/dev/v4l-subdev8", 0666, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
+  set_permissions("/dev/v4l-subdev9", 0666, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
+  set_permissions("/dev/v4l-subdev10", 0666, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
   set_permissions("/dev/socket/camera", 0775, AID_ROOT, AID_CAMERA, "u:object_r:vendor_camera_socket:s0");
   selinux_android_restorecon("/dev/socket/camera", SELINUX_ANDROID_RESTORECON_RECURSE);
-  set_permissions("/dev/v4l-subdev11", 0666, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
-  set_permissions("/dev/v4l-subdev12", 0666, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
-  set_permissions("/dev/v4l-subdev13", 0666, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
-  set_permissions("/dev/v4l-subdev14", 0666, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
-  set_permissions("/dev/v4l-subdev15", 0666, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
-  set_permissions("/dev/v4l-subdev16", 0666, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
-  set_permissions("/dev/v4l-subdev0", 0666, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
-  LOG(INFO) << "ES : Set Camera Permissions2 Completed for v4l-subdev";
+  set_permissions("/dev/v4l-subdev11", 0666, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
+  set_permissions("/dev/v4l-subdev12", 0666, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
+  set_permissions("/dev/v4l-subdev13", 0666, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
+  set_permissions("/dev/v4l-subdev14", 0666, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
+  set_permissions("/dev/v4l-subdev15", 0666, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
+  set_permissions("/dev/v4l-subdev16", 0666, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
+  set_permissions("/dev/v4l-subdev0", 0666, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
+  LOG(INFO) << "ES : Set Camera Permissions Completed for v4l-subdev";
 
   return;
 }
 
+// Check uvent and
+// 1. set_km: initiate dev enumerations
+// 2. !set_km: mount fw partition.
 static int prepare_fw_dir(bool set_km)
 {
-  int i, len;
-  std::string modemTmpStr;
-  std::string modemStr("/dev/block");
-  const char* mnt = NULL;
+  // FW mount partition
+  std::string modemStr("/dev/block/by-name/modem");
   unsigned int count = 0, max = (WAIT_SET_PERM_SECS * 1000) / WAIT_SLEEP_MSEC;
   boot_clock::time_point module_start_time = boot_clock::now();
+  bool mounted = false;
+  if (_use_min_wait) {
+    max = (WAIT_SET_PERM_MSECS) / WAIT_SLEEP_MSEC;
+  }
 
-  android::earlyinit::import_kernel_cmdline(false,
-        [&](const std::string& key, const std::string& value, bool in_qemu) {
-    (void)in_qemu;
-    if (key == "modem") {
-      modemTmpStr = value;
-    }
-    if (key == "buildvariant" && value == "user") {
-      max = (WAIT_SET_PERM_MSECS) / WAIT_SLEEP_MSEC;
-    }
-  });
-
+  while (count++ < max) {
+    if (check_storage_device_ready())
+      break;
+    usleep(WAIT_SLEEP_MSEC * 1000);
+  }
   if (set_km) {
-    while (count++ < max) {
-      if (check_storage_device_ready()) break;
-      usleep(WAIT_SLEEP_MSEC * 1000);
-    }
     // Enumerate dev nodes - fw
     mknod("/dev/kmdone", S_IFREG | 0400, makedev(0,0));
 
@@ -1557,36 +1805,32 @@ static int prepare_fw_dir(bool set_km)
     mkdirs(AUDIO_FW_PATH, 0755);
   }
 
-  // use file name to attach to path /dev/block
-  len = modemTmpStr.length();
-  if (len) {
-    const char *p = modemTmpStr.c_str();
-    const char *p1 = p;
-    for (i = 0;  i < len; i++, p++) {
-      if (*p == '/') p1 = p;
-    }
-    modemStr += p1;
-  }
-
-  if (len && wait_for_file(modemStr.c_str(), 30, 50) == 0)
-    mnt = modemStr.c_str();
-  if (!mnt && len && wait_for_file(modemTmpStr.c_str(), 10, 10) == 0)
-    mnt = modemTmpStr.c_str();
-
-  if (mnt) {
-    if (mount(mnt, AUDIO_FW_PATH, "vfat", MS_RDONLY, "context=u:object_r:firmware_file:s0") < 0) {
+  modemStr += _boot_slot;
+  // wait for node creation
+  if (wait_for_file(modemStr.c_str(), WAIT_SLEEP_MSEC, max*2) == 0) {
+    // mount partition
+    if (mount(modemStr.c_str(), AUDIO_FW_PATH, "vfat",
+      MS_RDONLY, "context=u:object_r:firmware_file:s0") < 0) {
       LOG(WARNING) << "ES : modemstr mount failed, err " << errno;
     } else {
       LOG(INFO) << "ES : modemstr mount success.";
+      mounted = true;
+      print_log("modemstr mount success");
     }
   } else {
     LOG(WARNING) << "ES : modemstr Not Found!";
   }
+
   char str[SHORT_STRING_MAX] = {0};
   auto module_elapse_time = std::chrono::duration_cast<std::chrono::milliseconds>(
                 boot_clock::now() - module_start_time);
-  snprintf(str, SHORT_STRING_MAX, "%s%d%s", "M - ES fw-load took ",
+  if (mounted) {
+    snprintf(str, SHORT_STRING_MAX, "%s%d%s", "M - ES fw-load took ",
            (int)module_elapse_time.count(), "ms");
+  } else {
+    snprintf(str, SHORT_STRING_MAX, "%s%d%s", "M - ES fw-load FAILED, waited ",
+           (int)module_elapse_time.count(), "ms");
+  }
   write_marker(str);
 
   return 0;
@@ -1600,7 +1844,9 @@ static int es_selinux_android_load_policy_from_fd(int fd, const char *descriptio
   void *map = NULL;
   static int load_successful = 0;
 
+#ifdef EARLYINIT_DEBUG
   LOG(INFO) << "ES SELinux: Load Sepolicy from fd";
+#endif
   if (load_successful){
     LOG(INFO) << "ES SELinux: Attempted reload of SELinux policy!";
     return 0;
@@ -1632,11 +1878,15 @@ static int es_selinux_android_load_policy_from_fd(int fd, const char *descriptio
 
 static int load_precompiled_sepolicy()
 {
+  boot_clock::time_point module_start_time = boot_clock::now();
   // Load the vendor early service policy
   std::string precompiled_sepolicy_file = EARLY_SERVICES_SEPOL;
-  write_marker("M - EarlyInit SEPolicyLoad Start");
+
+#ifdef EARLYINIT_DEBUG
+  LOG(INFO) << "ES : Load  precompiled sepolicy ";
+#endif
   int fd1 = open(precompiled_sepolicy_file.c_str(),
-                 O_RDONLY | O_CLOEXEC | O_BINARY, 0775);
+                 O_RDONLY | O_CLOEXEC | O_BINARY);
   if (fd1 > 0) {
     if (
 #ifdef __ANDROID_U__
@@ -1647,182 +1897,155 @@ static int load_precompiled_sepolicy()
         precompiled_sepolicy_file.c_str()) < 0) {
       LOG(WARNING) << "ES : Failed to load SELinux policy " << precompiled_sepolicy_file.c_str();
     } else {
-      LOG(INFO) << "ES : Successfully loaded precompiled sepolicy file: "
-                << precompiled_sepolicy_file.c_str();
+#ifdef EARLYINIT_DEBUG
+      LOG(INFO) << "ES : Successfully loaded precompiled sepolicy";
+#endif
     }
     close(fd1);
   }
-  write_marker("M - EarlyInit SEPolicyLoad End");
+
+  // TODO: Set enforcing mode when cil loading takes less time.
+  // If enabled, while kmod loading causing denials for kernel context
+  // for which rules cannot be added.
+  char str[SHORT_STRING_MAX] = {0};
+  auto module_elapse_time = std::chrono::duration_cast<std::chrono::milliseconds>(
+                boot_clock::now() - module_start_time);
+  snprintf(str, SHORT_STRING_MAX, "%s%d%s", "M - ES Sepolicy-load took ",
+           (int)module_elapse_time.count(), "ms");
+  write_marker(str);
 
   return 0;
 }
 
+// Based on info for appname in _eapp_info
+// 1. Load kernel modules associated with appname.
+// 2. Wait for states EAPP_WAIT_*/EAPP_MOD_WAIT_*, if required.
+// 3. Wait for ready states (devnode, events, permisions etc), if required
 static int load_kmod_and_nodes(const char* appname)
 {
   pid_t pid;
-  int wstatus;
-  pid_t wpid;
-  unsigned int count = 0, max = (WAIT_SET_PERM_SECS * 1000)/WAIT_SLEEP_MSEC;
-  int set_count = 1;
-  const char* tag;
-  bool no_dev = false;
+  int i;
+  unsigned int count, max;
+  char str[SHORT_STRING_MAX];
 
-  void (*set_perm[WAIT_SET_PERM_COUNT])(void) = {0};
-  int (*check_dev[WAIT_SET_PERM_COUNT])(void) = {0};
-  char *dev_path[WAIT_SET_PERM_COUNT] = {0};
+#ifdef EARLYINIT_DEBUG
+  int chk = 0;
 
+  LOG(INFO) << "ES : Load kmod and wait node for " << appname;
+#endif
   // Add null check for appname to fix kw issue.
   if (appname == NULL) {
     LOG(INFO) << "ES : appname NULL pointer\n ";
     return -1;
   }
 
-  // Every set_perm must set dev_path. check_dev is independent.
-  if (!strncmp(appname, ESPLASH_APP, strlen(ESPLASH_APP))) {
-    check_dev[0] = check_esplash_device_ready;
-    set_perm[0] = set_splash_permission;
-    dev_path[0] = (char*)DRM_CARD3_PATH;
-    tag = ESPLASH_TAG;
-  } else if (!strncmp(appname, EVIDEO_APP, strlen(EVIDEO_APP))) {
-    check_dev[0] = check_video_device_ready;
-    set_perm[0] = set_video_permission;
-    dev_path[0] = (char*)DRM_CARD4_PATH;
-    tag = EVIDEO_TAG;
-  } else if (!strncmp(appname, EAIS_APP, strlen(EAIS_APP))) {
-    wait_for_file(DRM_CARD3_PATH, 30, 50);
-    check_dev[0] = check_rvc_device_ready;
-    set_perm[0] = set_camera_permission;
-    dev_path[0] = (char*)CAMERA_MDEV_PATH;
-    set_perm[1] = set_camera_permission1;
-    dev_path[1] = (char*)CAMERA_VDEV_PATH;
-    set_perm[2] = set_camera_permission2;
-    dev_path[2] = (char*)CAMERA_V4L_DEV_PATH;
-    tag = EAIS_TAG;
-  } else if (!strncmp(appname, ERVC_APP, strlen(ERVC_APP))) {
-    check_dev[0] = check_gfx_device_ready;
-    check_dev[1] = check_camera_card2_ready;
-    check_dev[2] = check_dma_heap_device_ready;
-    tag = ERVC_TAG;
-  } else if (!strncmp(appname, ECHIME_APP, strlen(ECHIME_APP))) {
-    //LOG(INFO) << "ES : setting permission for ECHIME_APP";
-    check_dev[0] = check_audio_device_ready;
-    set_perm[0] = set_audio_permission;
-    dev_path[0] = (char*)AUDIO_CTRL_PATH;
-    check_dev[1] = check_spi_driver_ready;
-    dev_path[1] = (char*)AUDIO_DEVICE_PATH;
-    tag = ECHIME_TAG;
-  } else if (!strncmp(appname, AUTO_NXP_APP, strlen(AUTO_NXP_APP))) {
-    //LOG(INFO) << "ES : setting permission for AUTO_NXP_APP";
-    check_dev[0] = check_audio_device_ready;
-    set_perm[0] = set_audio_permission;
-    dev_path[0] = (char*)AUDIO_CTRL_PATH;
-    check_dev[1] = check_spi_driver_ready;
-    dev_path[1] = (char*)AUDIO_DEVICE_PATH;
-    tag = AUTO_NXP_TAG;
-  } else if (!strncmp(appname, PD_MAPPER_APP, strlen(PD_MAPPER_APP))) {
-    wait_for_file(AUDIO_ADSP_FW_PATH, 50, 500);
-    tag = PD_MAPPER_TAG;
-  } else if (!strncmp(appname, EMOD_END, strlen(EMOD_END))) {
-    no_dev = true;
-  } else {
-    //LOG(INFO) << "ES : Can't load mod for this app " << appname;
-    return -1;
-  }
-
-#ifdef EARLYINIT_DEBUG
-  boot_clock::time_point module_start_time = boot_clock::now();
-#endif
-
-  if ((pid = fork()) == 0)  {
-    LOG(INFO) << "ES: Fork for mmmod " << appname;
-    setexeccon("u:r:vendor_init:s0");
-    char *path = "/vendor_early_services/bin/early_services_init";
-    char app[SHORT_STRING_MAX] = {0};
-    if (appname)
-      strlcpy(app, appname, sizeof(app));
-
-    char *args[] = { path, "mmmod", app, NULL };
-    execv(path, args);
-    LOG(WARNING) << "ES : Exec for mmmod, failed!";
-    _exit(0);
-  }
-
-  do {
-    wpid = waitpid(pid, &wstatus, 0);
-    if (wpid == -1 || wpid != 0) break;
-  } while (wpid == 0);
-
-  // If no dev nodes to check, just return
-  if (no_dev)
-    return 0;
-
-  char str[SHORT_STRING_MAX] = {0};
-#ifdef EARLYINIT_DEBUG
-  auto module_elapse_time = std::chrono::duration_cast<std::chrono::milliseconds>(
-                boot_clock::now() - module_start_time);
-  snprintf(str, SHORT_STRING_MAX, "%s%6s%s%d%s", "M - ES kmod-", tag,
-           " took ", (int)module_elapse_time.count(), "ms");
-  write_marker(str);
-#else
-  boot_clock::time_point module_start_time = boot_clock::now();
-#endif
-
   // get the max value based on build variant
-  android::earlyinit::import_kernel_cmdline(false,
-        [&](const std::string& key, const std::string& value, bool in_qemu) {
-    (void)in_qemu;
-    if (key == "buildvariant" && value == "user") {
-      max = (WAIT_SET_PERM_MSECS) / WAIT_SLEEP_MSEC;
+  max = (_use_min_wait)?(WAIT_SET_PERM_MSECS / WAIT_SLEEP_MSEC):
+                      ((WAIT_SET_PERM_SECS * 1000) / WAIT_SLEEP_MSEC);
+  for (i = 0; _eapp_info[i].name[0]; i++) {
+    if (!strncmp(appname, _eapp_info[i].name, sizeof(_eapp_info[i].name)-1)) {
+      break;
     }
-  });
-  LOG(INFO) << "ES : wait and set perm " << tag << " iter max " << max;
-  while (count++ < max && set_count) {
-    set_count = 0;
-    for (int i = 0; i < WAIT_SET_PERM_COUNT; i++) {
-      if (check_dev[i]) {
-        if (check_dev[i]())
-          check_dev[i] = NULL;
-        set_count++;
-        // LOG(INFO) << "ES : wait and set check perm " << tag << i;
-      }
-      if (set_perm[i]) {
-        if (access(dev_path[i], F_OK) == 0) {
-          set_perm[i]();
-          set_perm[i] = NULL;
-        }
-        set_count++;
-        // LOG(INFO) << "ES : wait and set perm " << tag << i;
-      }
+  }
+
+  // Wait for Display for all apps, if not set too
+  if (_eapp_info[i].wait != EAPP_WAIT_NONE && _eapp_info[i].wait != EAPP_WAIT_DISP) {
+    wait_for_display_ready(WAIT_SLEEP_MSEC, max*2);
+  }
+
+  // Wait for FW availability if set
+  if (_eapp_info[i].wait == EAPP_WAIT_DEFAULT || _eapp_info[i].wait & EAPP_MOD_WAIT_FW) {
+    wait_for_file((char*)ES_FW_CHK_PATH, WAIT_SLEEP_MSEC, max*2);
+    if (_eapp_info[i].name[0] == 0)
+      return 0;
+  }
+
+  // Initate Load modules
+  if (_eapp_info[i].kfile[0] != 0) {
+    snprintf(str, SHORT_STRING_MAX ,"M - Load mod-node %s", appname);
+    write_marker(str);
+
+    if ((pid = fork()) == 0) {
+      LOG(INFO) << "ES : Fork for mmmod " << appname;
+      setexeccon("u:r:vendor_init:s0");
+      const char *path = "/vendor_early_services/bin/early_services_init";
+      snprintf(str, SHORT_STRING_MAX, "%d", i);
+
+      const char *args[] = { path, "mmmod", str, NULL };
+      execv(path, const_cast<char**>(args));
+      LOG(WARNING) << "ES : Exec for mmmod, failed!";
+      _exit(0);
     }
 
+    int pmax = (_use_min_wait)?((WAIT_PID_MIN_MSECS * 1000) / WAIT_SLEEP_USECS):
+                      ((WAIT_PID_MAX_MSECS * 1000) / WAIT_SLEEP_USECS);
+    wait_for_pid(pid, WAIT_SLEEP_USECS, pmax);
+  }
+
+  // Wait if ready not set
+  if (_eapp_info[i].is_ready == NULL) {
+    if (_eapp_info[i].wait & EAPP_WAIT_DISP) {
+      wait_for_display_ready(WAIT_SLEEP_MSEC, max*2);
+    }
+    return 0;
+  }
+
+  LOG(INFO) << "ES : wait for ready, app " << _eapp_info[i].tag
+            << " iter max " << max;
+
+  count = 0;
+  bool ready = false;
+  // wait for device/perm ready
+  while (count++ < max) {
+    if (_eapp_info[i].is_ready()) {
+      ready = true;
+      break;
+    }
+#ifdef EARLYINIT_DEBUG
+    if (chk++ %30 ==0)
+      LOG(INFO) << "ES : wait and set check perm " << _eapp_info[i].tag;
+#endif
     usleep(WAIT_SLEEP_MSEC * 1000);
   }
-  LOG(INFO) << "ES : wait and set perm time " << (count * WAIT_SLEEP_MSEC)/1000
-            << "s app " << tag;
 
-  auto module_elapse_time1 = std::chrono::duration_cast<std::chrono::milliseconds>(
-                boot_clock::now() - module_start_time);
-  snprintf(str, SHORT_STRING_MAX, "%s%s%s%d%s", "M - ES wait-set-perm-", tag,
-           " took ", (int)module_elapse_time1.count(), "ms");
-  write_marker(str);
+  if (ready) {
+    LOG(INFO) << "ES : wait for ready took " << (count * WAIT_SLEEP_MSEC)/1000
+            << "s ready " << ready <<" app " << _eapp_info[i].tag;
+  } else {
+    char str[SHORT_STRING_MAX] = {0};
+    snprintf(str, SHORT_STRING_MAX, "M - ES %s ready FAILED", _eapp_info[i].tag);
+    write_marker(str);
+    LOG(INFO) << "ES : FAILED - wait for ready took " << (count * WAIT_SLEEP_MSEC)/1000
+            << "s ready " << ready <<" app " << _eapp_info[i].tag;
+  }
+
+  // Wait for Display - specific case where we have to wait here after kmod load
+  if (_eapp_info[i].wait & EAPP_WAIT_DISP) {
+    wait_for_display_ready(WAIT_SLEEP_MSEC, max*2);
+  }
 
   return 0;
 }
 
+#define MAX_MODULES_PER_LINE 64
 static int load_modules_parallel(const std::string& fl,
                    const std::string& mod_path, const int th_count,
-                   const std::string& logtag)
+                   const std::string& logtag, int flag)
 {
   boot_clock::time_point module_start_time = boot_clock::now();
   const int TH_MAX = th_count;
-  const int TH_MIN = 3;
   std::string mlist;
   int load_count = 0;
+  int fail_count = 0;
+  static const char ADSP_KO[] = ADSP_LOADER_KO;
 
   if (!android::base::ReadFileToString(fl, &mlist, false))
     return -1;
 
-  // LOG(INFO) << "Loading modules " << mod_path << " file " << fl;
+#ifdef EARLYINIT_DEBUG
+  LOG(INFO) << "Loading modules " << mod_path << " file " << fl;
+#endif
+
   std::vector<std::string> lines = android::base::Split(mlist, "\n");
   for (const std::string line : lines) {
     if (line.empty())
@@ -1830,53 +2053,94 @@ static int load_modules_parallel(const std::string& fl,
 
     std::vector<std::thread> th_mods;
     std::mutex mods_lock;
-    std::vector<std::string> m = android::base::Split(line, " ");
-    if (m.empty())
+    char mline[LINE_MAX] = {0};
+    char *kmod[MAX_MODULES_PER_LINE] = {0};
+    int i = 0, len = 0;
+    const char* ptr = line.c_str();
+    if (ptr == NULL)
       continue;
 
-    int num_threads = (m.size() < (TH_MIN +1) && TH_MAX > TH_MIN)?TH_MIN:TH_MAX;
+    kmod[len] = &mline[0];
+    // split the words as C strings
+    for (; i < (LINE_MAX-1) && (*ptr != 0 && len < MAX_MODULES_PER_LINE); i++, ptr++) {
+      if (*ptr != ' ') {
+         mline[i] = *ptr;
+      } else {
+         mline[i] = 0;
+         kmod[++len] = &mline[i+1];
+      }
+    }
+    if (i) {
+      mline[i] = 0;
+      len++;
+    }
+
+    if (len < 1)
+       continue;
+
+
+    int num_threads = (len > TH_MAX)?TH_MAX:len;
+    i = -1;
+#ifdef EARLYINIT_DEBUG
+    LOG(INFO) << "ES : init_module len  " << len << " tag " << logtag << " THR " << num_threads;
+#endif
     auto mod_load_thread_fn = [&] {
       std::unique_lock lk(mods_lock);
-      while (!m.empty()) {
-        auto ml = std::move(m.back());
-        m.pop_back();
-        if (ml.empty())
+      while (++i < len) {
+        char fl[SHORT_STRING_MAX];
+        int j = i;
+        if (kmod[j][0] == 0) {
           continue;
+        }
         load_count++;
         lk.unlock();
-        std::string mn = mod_path;
-        mn += ml;
-        mn +=".ko";
-        int fd = open(mn.c_str(), O_RDONLY);
+        if (flag == LMP_MODPROBE) {
+          if (android::earlyinit::insert_kernel_module(kmod[j]) == false) {
+            fail_count++;
+          }
+          lk.lock();
+          continue;
+        }
+        snprintf(fl, SHORT_STRING_MAX, "%s%s.ko", mod_path.c_str(), kmod[j]);
+        int fd = open(fl, O_RDONLY);
         if (fd > 0) {
           std::string param;
-          android::earlyinit::get_kernel_module_param(ml, param);
+          android::earlyinit::get_kernel_module_param(kmod[j], param, _module_params);
           int ret = finit_module(fd, param.c_str(), 0);
           if (ret < 0 && errno != EEXIST) {
-            LOG(INFO) << "fd = " << fd << "ES : init_module failed " << mn << " errno: " << errno;
+            LOG(WARNING) << "fd = " << fd << "ES : init_module failed " << fl << " errno: " << errno;
+            fail_count++;
           } else {
-            // LOG(INFO) << "ES : init_module success for: " << mn;
+#ifdef EARLYINIT_DEBUG
+            LOG(INFO) << "ES : init_module success for: " << fl;
+#endif
           }
           close(fd);
+
+          // Check for audio
+          if (flag == LMP_DIRECT_CHK_AUD
+             && !strncmp(kmod[j], ADSP_KO, sizeof(ADSP_KO)-1)) {
+            fd = open("/sys/kernel/boot_adsp/boot", O_WRONLY);
+            if (fd < 0) {
+              LOG(WARNING) << "ES : load_modules ADSP open sys entry failed";
+            } else if(-1 == write(fd, "1", 1)) {
+              LOG(WARNING) << "ES : load_modules ADSP Write to sys entry failed";
+            } else {
+              write_marker("M - ES Start ADSP");
+#ifdef EARLYINIT_DEBUG
+              LOG(INFO) << "ES : load_modules ADSP firmware loading triggered";
+#endif
+            }
+            if (fd > 0)
+              close(fd);
+          }
         } else {
-          LOG(WARNING) << "ES : Failed to open module " << mn;
+          fail_count++;
+          LOG(WARNING) << "ES : Failed to open module " << fl;
         }
-
-       if (0 == strcmp(mn.c_str(), ADSP_LOADER_KO)) {
-           fd = open("/sys/kernel/boot_adsp/boot", O_WRONLY);
-           if (fd < 0) {
-               LOG(ERROR) << "ES : load_modules ADSP open sys entry failed";
-           } else if(-1 == write(fd, "1", 1)) {
-               LOG(ERROR) << "ES : load_modules ADSP Write to sys entry failed";
-           } else {
-               write_marker("M - ES: Start ADSP");
-               LOG(ERROR) << "ES : load_modules ADSP firmware loading triggered";
-           }
-           close(fd);
-       }
-
         lk.lock();
       }
+      usleep(5);
     };
 
     std::generate_n(std::back_inserter(th_mods), num_threads,
@@ -1890,21 +2154,26 @@ static int load_modules_parallel(const std::string& fl,
   char str[SHORT_STRING_MAX] = {0};
   auto module_elapse_time = std::chrono::duration_cast<std::chrono::milliseconds>(
                 boot_clock::now() - module_start_time);
-  snprintf(str, SHORT_STRING_MAX, "M - ES %s-mod took %d%s", logtag.c_str(),
+  if (fail_count == 0) {
+    snprintf(str, SHORT_STRING_MAX, "M - ES %s-mod took %d%s", logtag.c_str(),
           (int)module_elapse_time.count(), "ms");
+  } else {
+    snprintf(str, SHORT_STRING_MAX, "M - ES %s-mod took %d%s Fail %d/%d", logtag.c_str(),
+          (int)module_elapse_time.count(), "ms", fail_count, load_count);
+  }
 
   write_marker(str);
 
-  LOG(INFO) << "ES : Load modules done, count " << load_count;
+  LOG(INFO) << "ES : Load modules done " << logtag << " count " << load_count
+     << " Failed: " << fail_count;
 
   return 0;
 }
 
-#if defined(__ANDROID_U__) || defined(PLATFORM_GEN4)
+#ifdef PLATFORM_GEN4
 static void launch_test_app(void)
 {
   int fd;
-  size_t i = 0;
   pid_t pid = -1;
   int ret = -1;
   char pid_file[10] = {0};
@@ -1964,7 +2233,7 @@ static void launch_test_app(void)
      }
   }
 
-  app_launcher.env[app_launcher.env_used] = "LD_LIBRARY_PATH=/vendor_early_services/system/lib64";
+  app_launcher.env[app_launcher.env_used] = (char *)"LD_LIBRARY_PATH=/vendor_early_services/system/lib64";
   app_launcher.env_used++;
   app_launcher.argv[app_launcher.argv_used] = NULL;
   app_launcher.env[app_launcher.env_used] = NULL;
@@ -1999,7 +2268,7 @@ static void launch_test_app(void)
 
 static void launch_early_apps(void)
 {
-std::string fl = DEFAULT_CONF;
+  std::string fl = DEFAULT_CONF;
 #ifdef __ANDROID_U__
   if(strncmp(socid, "405", 3) == 0)
     fl = ANDROID_U_POIPU_CONF;
@@ -2025,7 +2294,10 @@ std::string fl = DEFAULT_CONF;
     strlcpy(buf, line.c_str(), sizeof(buf));
     if ((pid = parse_line(buf)) > 0) {
       if (i < EAPPS_MAX) {
-        eapp_pid[i++] = pid;
+        _eapp_pid[i++] = pid;
+#ifdef EARLYINIT_DEBUG
+        LOG(INFO) << "ES: eappid " << pid;
+#endif
       }
     }
     memset(buf, 0, sizeof(buf));
@@ -2034,7 +2306,7 @@ std::string fl = DEFAULT_CONF;
     LOG(WARNING) << "ES : Max Apps limit reached!";
 }
 
-#if defined(__ANDROID_U__) || defined(PLATFORM_GEN4)
+#ifdef PLATFORM_GEN4
 static int load_default_modules()
 {
   int count = 0;
@@ -2049,63 +2321,184 @@ static int load_default_modules()
   write_marker(str);
   return 0;
 }
-#endif // __ANDROID_U__ || PLATFORM_GEN4
+#endif // PLATFORM_GEN4
 
-int early_init_kmod(const char *appname)
+static int wait_for_early_apps(void)
 {
-  android::earlyinit::InitKernelLogging(NULL);
-  std::string file, path, tag;
+  char comm[SHORT_STRING_MAX/2];
+  char comm_path[SHORT_STRING_MAX/2];
+  unsigned int count = 0, max;
+  int i, ret, fd, status;
 
-  // LOG(INFO) << "ES: Init kernel Module " << appname;
-  if (!strncmp(appname, ESPLASH_APP, strlen(ESPLASH_APP))) {
-    file = MM_MOD_ORDER_DI;
-    path = MM_DEPMOD_PATH;
-    tag = ESPLASH_TAG;
-  } else if (!strncmp(appname, EVIDEO_APP, strlen(EVIDEO_APP))) {
-    file = MM_MOD_ORDER_VI;
-    path = MM_MOD_PATH;
-    tag = EVIDEO_TAG;
-  } else if (!strncmp(appname, EAIS_APP, strlen(EAIS_APP))) {
-    file = MM_MOD_ORDER_AIS;
-    path = MM_MOD_PATH;
-    tag = EAIS_TAG;
-  } else if (!strncmp(appname, ERVC_APP, strlen(ERVC_APP))) {
-    file = MM_MOD_ORDER_RV;
-    path = MM_MOD_PATH;
-    tag = ERVC_TAG;
-  } else if (!strncmp(appname, ECHIME_APP, strlen(ECHIME_APP))) {
-    file = (bc_get_ar())?MM_R_MOD_ORDER_AU:MM_MOD_ORDER_AU;
-    path = MM_MOD_PATH;
-    tag = ECHIME_TAG;
-  } else if (!strncmp(appname, PD_MAPPER_APP, strlen(PD_MAPPER_APP))) {
-    if(bc_get_ar()) {
-      file = MM_R_MOD_ORDER_AU;
-      path = MM_MOD_PATH;
-      tag = PD_MAPPER_TAG;
+  // get the max value based on build variant
+  max = (_use_min_wait)?(WAIT_EAPP_MSECS/WAIT_SLEEP_MSEC):
+                      ((WAIT_EAPP_SECS * 1000)/WAIT_SLEEP_MSEC);
+
+  // wait till apps are launched
+  for (i = 0; i < EAPPS_MAX; i++) {
+    while (_eapp_pid[i] != 0 && count++ < max) {
+      usleep(WAIT_SLEEP_MSEC*1000);
+      waitpid(-1, &status, WNOHANG);
+      snprintf(comm_path, sizeof(comm_path), "/proc/%d/comm", _eapp_pid[i]);
+      memset(comm, 0x00, sizeof(comm));
+      fd = open(comm_path, O_RDONLY);
+      if (fd > 0) {
+        ret = read(fd, comm, sizeof(comm) - 1);
+        if (ret > 0) {
+          if (strncmp(comm, EARLY_DFL_APP, sizeof(EARLY_DFL_APP)-1)) {
+            _eapp_pid[i] = 0;
+          }
+        }
+        close(fd);
+      } else {
+        // child process exited
+        _eapp_pid[i] = 0;
+      }
+#ifdef EARLYINIT_DEBUG
+      LOG(INFO) << "ES: eapp Path " << comm_path << " eappid id " << i;
+#endif
     }
-  } else if (!strncmp(appname, EMOD_END, strlen(EMOD_END))) {
-    file = MM_DEPMOD_ORDER_END;
-    path = MM_DEPMOD_PATH;
-    tag = EMOD_END_TAG;
-  } else {
-    return 0;
+  }
+  LOG(INFO) << "ES : eapps wait done";
+
+  return (i < EAPPS_MAX)?0:-1;
+}
+
+int early_init_kmod(const char *idx)
+{
+  unsigned int i;
+  int flag;
+  int num_threads;
+
+  android::earlyinit::InitKernelLogging(NULL);
+#ifdef EARLYINIT_DEBUG
+  LOG(INFO) << "ES: Init kernel Module " << idx;
+#endif
+
+  i = idx[0] - '0';
+  if (i < sizeof(_eapp_info)/sizeof(_eapp_info[0]) &&
+      _eapp_info[i].name[0] != 0) {
+    char str[SHORT_STRING_MAX];
+    if (!strncmp(_eapp_info[i].name, EMOD_END, sizeof(_eapp_info[i].name)-1))
+      flag = LMP_MODPROBE;
+    else if (strncmp(_eapp_info[i].name, ECHIME_APP, sizeof(_eapp_info[i].name)-1))
+      flag = LMP_DIRECT;
+    else
+      flag = LMP_DIRECT_CHK_AUD;
+
+    num_threads = bc_get_lmp()?std::thread::hardware_concurrency():1;
+
+    snprintf(str, SHORT_STRING_MAX, "%s%s", ES_VMOD_PATH, _eapp_info[i].kfile);
+    load_modules_parallel(str, ES_DFLMOD_PATH, num_threads,
+        _eapp_info[i].tag, flag);
+     return 0;
+  }
+  LOG(WARNING) << "ES : Init Kernel Mod failed for app idx " << i;
+
+  return -1;
+}
+
+static pid_t __attribute__((unused)) fork_wait_for_child(int type, int run_if_fork_fail)
+{
+  pid_t pid = -1;
+  int pipe_fd[2];
+  int rdata;
+  bool pipe_created;
+
+  pipe_created = (pipe(pipe_fd) != -1)?true:false;
+  if (!pipe_created) {
+    LOG(WARNING) << "ES : pipe_fd failed, type " << type;
+    printf("ES : pipe_fd failed, type %d", type);
+  }
+  // Even if pipe fails, create child process
+  pid = fork();
+  if (pid < 0 && run_if_fork_fail <= 0) {
+    return -1;
   }
 
-  load_modules_parallel(file, path,
-     bc_get_lmp()?std::thread::hardware_concurrency():1, tag);
+  if (pid <= 0) {
+    int wdata = 1;
 
-  return 0;
+    // if fork fails sequetial execution
+    if (pid == 0) {
+      // Parent kill may cause child to exit, so ignore it.
+      signal(SIGTERM, SIG_IGN);
+      if (pipe_created) {
+        close(pipe_fd[PIPE_RD]);
+        write(pipe_fd[PIPE_WR], &wdata, sizeof(wdata));
+        close(pipe_fd[PIPE_WR]);
+      }
+    }
+
+    switch (type) {
+      case ES_CTYPE_FW: {
+        android::earlyinit::InitKernelLogging(NULL);
+        prepare_fw_dir(true);
+        break;
+      }
+      case ES_CTYPE_DEF2_MOD: {
+        bool load_parallel = bc_get_lmp();
+        load_modules_parallel(ES_DFLMOD_ORDER_2, ES_DFLMOD_PATH,
+          load_parallel?std::thread::hardware_concurrency():1,
+          EMOD_DEF_TAG_2, LMP_MODPROBE);
+        break;
+      }
+      case ES_CTYPE_DI_MOD: {
+        bool load_parallel = bc_get_lmp();
+        load_modules_parallel(ES_DFLMOD_ORDER_DI, ES_DFLMOD_PATH,
+          load_parallel?std::thread::hardware_concurrency():1,
+          EMOD_DI_TAG, LMP_MODPROBE);
+        break;
+      }
+      case ES_CTYPE_LOAD_SE: {
+        load_precompiled_sepolicy();
+        break;
+      }
+      default:
+      break;
+    }
+    if (pid == 0) {
+      _exit(0);
+    }
+  }
+  if (pipe_created) {
+    close(pipe_fd[PIPE_WR]);
+    if (pid > 0) {
+      read(pipe_fd[PIPE_RD], &rdata, sizeof(rdata)); // wait for child to start
+    }
+    close(pipe_fd[PIPE_RD]);
+  }
+
+  return pid;
 }
 
 int early_init(int init)
 {
   int ret;
+  bool log_fsinit = false;
 
   clearenv();
   setenv("PATH", DEFAULT_PATH, 1);
-  android::earlyinit::InitKernelLogging(NULL);
-  LOG(INFO) << "ES : Logging enabled at early-services, init " << init;
 
+  _use_min_wait = !kcmd_bc_console_enabled();
+  // Enable ES logging if console enabled or ES second stage
+#ifdef PLATFORM_GEN4
+  log_fsinit = true;
+#endif
+
+  // set kernel logging in perf build at stage II
+  if (log_fsinit || (!_use_min_wait || init )) {
+    android::earlyinit::InitKernelLogging(NULL);
+  }
+
+  boot_clock::time_point module_start_time = boot_clock::now();
+  LOG(INFO) << "ES : Logging enabled at early-services, init " << init << " console " << _use_min_wait;
+
+  // Get default cmdline and bootconfig values.
+  _audio_reach = bc_get_ar();
+  bc_boot_slot(_boot_slot);
+  std::string tmp;
+  android::earlyinit::get_kernel_module_param(tmp, tmp, _module_params, true);
   if (init) {
     ret = mount("/vendor_early_services", "/vendor_early_services", NULL,
                 MS_BIND | MS_REC, NULL);
@@ -2116,20 +2509,29 @@ int early_init(int init)
     }
 
     mount("sysfs", "/sys", "sysfs", 0, NULL);
-    prepare_dir("shm");
+    prepare_dir((char*)"shm");
 
-#if defined( __ANDROID_U__) || defined(PLATFORM_GEN4)
-     load_default_modules();
-#else
-    load_modules_parallel(MM_DEPMOD_ORDER, MM_DEPMOD_PATH,
-             bc_get_lmp()?std::thread::hardware_concurrency():1, EMOD_TAG);
-#endif // __ANDROID_U__ || PLATFORM_GEN4
-    if (fork() == 0) {
-      signal(SIGTERM, SIG_IGN);
-      prepare_fw_dir(true);
-      _exit(0);
-    }
-    load_precompiled_sepolicy();
+    bool load_parallel = bc_get_lmp();
+    pid_t pid_def2, pid_se;
+
+    load_modules_parallel(ES_DFLMOD_ORDER_1, ES_DFLMOD_PATH,
+         load_parallel?std::thread::hardware_concurrency():1,
+         EMOD_DEF_TAG_1, LMP_MODPROBE);
+
+    // Check for driver storage enumerations
+    fork_wait_for_child(ES_CTYPE_FW, 1);
+    // Load second set of def-modules in parallel
+    pid_def2 = fork_wait_for_child(ES_CTYPE_DEF2_MOD, 1);
+    // Load Display modules in parallel
+    fork_wait_for_child(ES_CTYPE_DI_MOD, 1);
+    // Load sepolicies in parallel
+    pid_se = fork_wait_for_child(ES_CTYPE_LOAD_SE, 1);
+
+    // wait for sepol loading and def2 modules as its required for next steps.
+    int max = (_use_min_wait)?((WAIT_PID_MIN_MSECS * 1000) / WAIT_SLEEP_USECS):
+                      ((WAIT_PID_MAX_MSECS * 1000) / WAIT_SLEEP_USECS);
+    wait_for_pid(pid_se, WAIT_SLEEP_USECS, max);
+    wait_for_pid(pid_def2, WAIT_SLEEP_USECS, max);
 
     selinux_android_restorecon("/vendor_early_services/early_services_init", 0);
     if (selinux_android_restorecon("/vendor_early_services/",
@@ -2140,16 +2542,36 @@ int early_init(int init)
     selabel_handle* sehandle = nullptr;
     sehandle = selinux_android_file_context_handle();
     selinux_android_set_sehandle(sehandle);
+
+    char str[SHORT_STRING_MAX] = {0};
+    auto module_elapse_time = std::chrono::duration_cast<std::chrono::milliseconds>(
+                boot_clock::now() - module_start_time);
+    snprintf(str, SHORT_STRING_MAX, "M - ES early-init-fs-exit %dms",
+          (int)module_elapse_time.count());
+
+    write_marker(str);
+
     setexeccon("u:r:init:s0");
-    char *path = "/vendor_early_services/bin/early_services_init";
-    char *args[] = { path, "selinux", NULL };
-    execv(path, args);
+    const char *path = "/vendor_early_services/bin/early_services_init";
+    const char *args[] = { path, "selinux", NULL };
+    execv(path, const_cast<char**>(args));
     LOG(WARNING) << "ES : Exec for early init failed!!!";
 
     return 0;
   } // init flag
 
-  prepare_fw_dir(false);
+#ifndef __ANDROID_U__
+  LOG(WARNING) << "ES : Config Audio Reach: " << _audio_reach;
+#endif
+  // exit status of child will be in wait_for_early_apps()
+  if (fork() == 0) {
+    signal(SIGTERM, SIG_IGN);
+    android::earlyinit::InitKernelLogging(NULL);
+    prepare_fw_dir(false);
+    usleep(50*000);
+    exit(0);
+  }
+
   getSysInfo("/sys/devices/soc0/soc_id", chipId);
   getSysInfo("/sys/devices/soc0/platform_subtype_id", platformId);
   getSocId("/sys/devices/soc0/soc_id", socid);
@@ -2162,56 +2584,26 @@ int early_init(int init)
     mkdir("/dev/socket", 0775);
     mkdir("/dev/socket/camera", 0775);
   }
-#ifdef __ANDROID_U__
-  launch_test_app();
-  launch_early_apps();
-#elif PLATFORM_GEN4
+
+#if PLATFORM_GEN4
   launch_test_app();
 #else
   launch_early_apps();
 #endif
-
-  char comm[SHORT_STRING_MAX/2];
-  char comm_path[SHORT_STRING_MAX/2];
-  unsigned int count = 0, max = (WAIT_EAPP_SECS * 1000)/WAIT_SLEEP_MSEC;
-  int i, fd;
-
-  // get the max value based on build variant
-  android::earlyinit::import_kernel_cmdline(false,
-        [&](const std::string& key, const std::string& value, bool in_qemu) {
-    (void)in_qemu;
-    if (key == "buildvariant" && value == "user") {
-      max = (WAIT_EAPP_MSECS)/WAIT_SLEEP_MSEC;
-    }
-  });
-
-  // wait till apps are launched
-  for (i = 0; i < EAPPS_MAX; i++) {
-    while (eapp_pid[i] != 0 && count++ < max) {
-      usleep(WAIT_SLEEP_MSEC*1000);
-      snprintf(comm_path, sizeof(comm_path), "/proc/%d/comm", eapp_pid[i]);
-      memset(comm, 0x00, sizeof(comm));
-      fd = open(comm_path, O_RDONLY);
-      if (fd > 0) {
-        ret = read(fd, comm, sizeof(comm) - 1);
-        if (ret > 0) {
-          if (strncmp(comm, EARLY_DFL_APP, strlen(EARLY_DFL_APP))) {
-            eapp_pid[i] = 0;
-          }
-        }
-        close(fd);
-      } else {
-        // LOG(INFO) << "ES : open failed " << comm_path << " err " << errno ;
-        // child process exited
-        eapp_pid[i] = 0;
-      }
-    }
-  }
+  // wait for app exec
+  wait_for_early_apps();
 
   load_kmod_and_nodes(EMOD_END);
 
   mknod("/dev/sedone", S_IFREG | 0400, makedev(0,0));
-  write_marker("M - early-init-exit");
+
+  char str[SHORT_STRING_MAX] = {0};
+  auto module_elapse_time = std::chrono::duration_cast<std::chrono::milliseconds>(
+                boot_clock::now() - module_start_time);
+  snprintf(str, SHORT_STRING_MAX, "M - ES early-init-exit %dms",
+          (int)module_elapse_time.count());
+
+  write_marker(str);
 
   LOG(INFO) << "ES Loading Apps done";
 
@@ -2223,8 +2615,7 @@ int early_init(int init)
 int main(int argc, char* argv[])
 {
   int init = 0;
-
-  if (argc < 1) {
+  if (argc < 2) {
     LOG(ERROR) << "ES started without args!";
     return -1;
   }
@@ -2236,7 +2627,7 @@ int main(int argc, char* argv[])
   } else if (!strcmp(argv[1], "selinux")) {
     LOG(INFO) << "ES Init with Load Apps";
     early_init(init);
-  } else if (!strcmp(argv[1], "mmmod")) {
+  } else if (!strcmp(argv[1], "mmmod") && argc > 2) {
     LOG(INFO) << "ES Init with load mmmod";
     early_init_kmod(argv[2]);
   }
