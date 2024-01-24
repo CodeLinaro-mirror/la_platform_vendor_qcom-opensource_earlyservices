@@ -82,6 +82,7 @@
 //#include <log/log.h>
 #include <cutils/list.h>
 #include "early_audiod.h"
+#include <linux/version.h>
 
 #define ID_RIFF 0x46464952
 #define ID_WAVE 0x45564157
@@ -195,11 +196,8 @@ void place_marker(char const *name)
        close(fd);
    }
 #else
-   int fd = freopen("/dev/kmsg", "w", stdout);
-   if (fd > 0)
-   {
-       printf("boot_kpi: %s\n", name);
-       close(fd);
+   if (freopen("/dev/kmsg", "w", stdout)) {
+       printf("boot_kpi: %s", name);
    }
 #endif
 }
@@ -277,6 +275,7 @@ void play_sample(FILE *file, unsigned int card, unsigned int device, unsigned in
 
 int main(int argc, char **argv)
 {
+    place_marker("M - Starting Audio_Chime App");
     char *filename;
     int card = 0;
     unsigned int device = 55;
