@@ -79,6 +79,7 @@
 
 #include <linux/types.h>
 #include <linux/ioctl.h>
+#include <linux/version.h>
 
 #define SPIDEVTEST_BUFLEN   16   /* one block */
 #define SPIDEVTEST_DEVLEN   50
@@ -103,10 +104,8 @@ static void inline write_marker(const char* name)
     }
     close(fd);
 #else
-    int fd = freopen("/early_services/dev/kmsg", "w", stdout);
-    if (fd > 0) {
+    if (freopen("/early_services/dev/kmsg", "w", stdout)) {
         printf("boot_kpi: %s", name);
-        close(fd);
     }
 #endif
     return;

@@ -119,7 +119,8 @@
 
 #define EARLY_SERVICES_SEPOL   "/vendor_early_services/vendor/etc/selinux/precompiled_sepolicy"
 #define EARLY_DFL_APP          "early_services"
-#define ECHIME_APP             "early_chime_Disabled"
+#define ECHIME_APP             "early_chime"
+#define AUTO_NXP_APP           "audio-nxp-auto"
 #define ECHIME_APP_TMP         "early_chime"
 #define ESPLASH_APP            "esplash"
 #define EVIDEO_APP             "earlyVideo"
@@ -131,6 +132,7 @@
 #define EMOD_TAG               "def"
 #define EMOD_END_TAG           "def-end"
 #define ECHIME_TAG             "audio"
+#define AUTO_NXP_TAG            "audio"
 #define ESPLASH_TAG            "splash"
 #define EVIDEO_TAG             "video"
 #define EAIS_TAG               "ais"
@@ -175,6 +177,7 @@ using android::base::boot_clock;
 #define DRM_CARD3_PATH          "/dev/dri/card3"
 #define DRM_CARD4_PATH          "/dev/dri/card4"
 #define AUDIO_CTRL_PATH         "/dev/snd/pcmC0D50p"
+#define AUDIO_DEVICE_PATH       "/dev/spidev22.0"
 #define CAMERA_MDEV_PATH        "/dev/media0"
 #define CAMERA_VDEV_PATH        "/dev/video0"
 #define CAMERA_V4L_DEV_PATH     "/dev/v4l-subdev0"
@@ -706,7 +709,7 @@ static inline pid_t parse_line(char* p)
       if (strncmp(p, END_TAG, strlen(END_TAG)))
         goto out;
 
-      if (!strncmp(app_launcher.appname, ECHIME_APP_TMP, strlen(ECHIME_APP)) &&
+      if (!strncmp(app_launcher.appname, ECHIME_APP, strlen(ECHIME_APP)) &&
           bc_get_ar()) {
         LOG(INFO) << "ES : Not Launching app " << app_launcher.appname;
         goto out;
@@ -1143,7 +1146,7 @@ static int check_camera_card2_ready(void)
 
   if (!card2_device_created) {
     if (access("/sys/class/drm/card2/uevent", F_OK) == 0) {
-      if(get_device_major_minor("/sys/class/drm/card2/uevent", &major, &minor))
+      if(get_device_major_minor("/sys/class/drm/card2/uevent", &major, &minor))
       {
         mkdir("/dev/dri", 0666);
         mknod(DRM_CARD2_PATH, S_IFCHR | 0666,
@@ -1159,6 +1162,28 @@ static int check_camera_card2_ready(void)
   }
 
   return card2_device_created;
+}
+
+static int check_spi_driver_ready(void)
+{
+  static int spi_device_created = 0;
+  int major = 0, minor = 0;
+
+  if (!spi_device_created) {
+    if (access("/sys/class/spidev/spidev22.0/uevent", F_OK) == 0) {
+       if (get_device_major_minor("/sys/class/spidev/spidev22.0/uevent", &major, &minor)) {
+          mknod(AUDIO_DEVICE_PATH, S_IFCHR | 0666,makedev(major, minor));
+          if (access("/dev/spidev22.0",F_OK) == 0) {
+            set_permissions(AUDIO_DEVICE_PATH, 00666, AID_SYSTEM,AID_AUDIO, " u:object_r:audio_device:s0");
+          }
+          spi_device_created = 1;
+          LOG(INFO) << "ES spi nodes are ready";
+          write_marker("M - EarlyInit spi22.0 nodes ready");
+       }
+    } else
+       LOG(INFO) << "ES spi22.0 driver is not up";
+  }
+  return spi_device_created;
 }
 
 static int check_gfx_device_ready(void)
@@ -1333,6 +1358,43 @@ static int check_video_device_ready(void)
   }
 
   return video_device_created;
+}
+
+static int check_audio_device_ready(void)
+{
+    //audio
+    static int audio_device_created = 0;
+    int major = 0, minor = 0;
+
+    if (!audio_device_created) {
+        if (access("/sys/class/sound/controlC0/uevent", F_OK) == 0) {
+            LOG(INFO) << "ES check device node for /dev/snd";
+            mkdir("/dev/snd", 0755);
+
+            if (get_device_major_minor("/sys/class/sound/pcmC0D49c/uevent", &major, &minor)) {
+                mknod("/dev/snd/pcmC0D49c", S_IFCHR | 0660, makedev(major, minor));
+            }
+            if (get_device_major_minor("/sys/class/sound/pcmC0D48p/uevent", &major, &minor)) {
+                mknod("/dev/snd/pcmC0D48p", S_IFCHR | 0660, makedev(major, minor));
+            }
+            if (get_device_major_minor("/sys/class/sound/pcmC0D50p/uevent", &major, &minor)) {
+                mknod("/dev/snd/pcmC0D50p", S_IFCHR | 0660, makedev(major, minor));
+            }
+            if (get_device_major_minor("/sys/class/sound/pcmC0D53c/uevent", &major, &minor)) {
+                mknod("/dev/snd/pcmC0D53c", S_IFCHR | 0660, makedev(major, minor));
+            }
+            if (get_device_major_minor("/sys/class/sound/pcmC0D55p/uevent", &major, &minor)) {
+                mknod("/dev/snd/pcmC0D55p", S_IFCHR | 0660, makedev(major, minor));
+	    }
+            if (get_device_major_minor("/sys/class/sound/controlC0/uevent", &major, &minor)) {
+                mknod("/dev/snd/controlC0", S_IFCHR | 0660, makedev(major, minor));
+            }
+            LOG(ERROR) << "ES audio device nodes ready";
+            write_marker("M - EarlyInit audio nodes ready");
+            audio_device_created = 1;
+        }
+    }
+    return audio_device_created;
 }
 
 #define DRM_CARD3_DIR        "/dev/dri"
@@ -1642,10 +1704,21 @@ static int load_kmod_and_nodes(const char* appname)
     check_dev[2] = check_dma_heap_device_ready;
     tag = ERVC_TAG;
   } else if (!strncmp(appname, ECHIME_APP, strlen(ECHIME_APP))) {
-    check_dev[0] = check_esplash_device_ready;
+    //LOG(INFO) << "ES : setting permission for ECHIME_APP";
+    check_dev[0] = check_audio_device_ready;
     set_perm[0] = set_audio_permission;
     dev_path[0] = (char*)AUDIO_CTRL_PATH;
+    check_dev[1] = check_spi_driver_ready;
+    dev_path[1] = (char*)AUDIO_DEVICE_PATH;
     tag = ECHIME_TAG;
+  } else if (!strncmp(appname, AUTO_NXP_APP, strlen(AUTO_NXP_APP))) {
+    //LOG(INFO) << "ES : setting permission for AUTO_NXP_APP";
+    check_dev[0] = check_audio_device_ready;
+    set_perm[0] = set_audio_permission;
+    dev_path[0] = (char*)AUDIO_CTRL_PATH;
+    check_dev[1] = check_spi_driver_ready;
+    dev_path[1] = (char*)AUDIO_DEVICE_PATH;
+    tag = AUTO_NXP_TAG;
   } else if (!strncmp(appname, PD_MAPPER_APP, strlen(PD_MAPPER_APP))) {
     wait_for_file(AUDIO_ADSP_FW_PATH, 50, 500);
     tag = PD_MAPPER_TAG;
@@ -1788,6 +1861,19 @@ static int load_modules_parallel(const std::string& fl,
         } else {
           LOG(WARNING) << "ES : Failed to open module " << mn;
         }
+
+       if (0 == strcmp(mn.c_str(), ADSP_LOADER_KO)) {
+           fd = open("/sys/kernel/boot_adsp/boot", O_WRONLY);
+           if (fd < 0) {
+               LOG(ERROR) << "ES : load_modules ADSP open sys entry failed";
+           } else if(-1 == write(fd, "1", 1)) {
+               LOG(ERROR) << "ES : load_modules ADSP Write to sys entry failed";
+           } else {
+               write_marker("M - ES: Start ADSP");
+               LOG(ERROR) << "ES : load_modules ADSP firmware loading triggered";
+           }
+           close(fd);
+       }
 
         lk.lock();
       }
@@ -2071,7 +2157,7 @@ int early_init(int init)
   set_permissions("/dev/urandom", 0666, AID_ROOT, AID_ROOT, "u:object_r:random_device:s0");
 
   /* Create ais_server socket dir and camera data dir */
-  if(strncmp(socid, "405", 3)!=0){
+  if (strncmp(socid, "405", 3)!= 0) {
     LOG(INFO) << "Create ais_server socket dir for SA8155 and SA6155 with socid:"<<socid;
     mkdir("/dev/socket", 0775);
     mkdir("/dev/socket/camera", 0775);
