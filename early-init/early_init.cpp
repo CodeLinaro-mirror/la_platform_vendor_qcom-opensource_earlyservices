@@ -156,7 +156,11 @@ using android::base::boot_clock;
 #define DRM_CARD3_PATH          "/dev/dri/card3"
 #define DRM_CARD4_PATH          "/dev/dri/card4"
 #define AUDIO_CTRL_PATH         "/dev/snd/pcmC0D50p"
+#ifdef PLATFORM_SM6150
+#define AUDIO_DEVICE_PATH_D10   "/dev/spidev10.0"
+#else
 #define AUDIO_DEVICE_PATH       "/dev/spidev22.0"
+#endif
 #define CAMERA_MDEV_PATH        "/dev/media0"
 #define CAMERA_VDEV_PATH        "/dev/video0"
 #define CAMERA_V4L_DEV_PATH     "/dev/v4l-subdev0"
@@ -287,9 +291,13 @@ const static struct {
 #else
  {"esplash", "", "splash", check_esplash_device_ready, EAPP_WAIT_DISP},
 #endif // PLATFORM_GEN4
+#ifndef PLATFORM_SM6150 // TODO: Currently Disabled, enable after Video dependencies are up
  {"earlyVideo", "modules_vi.order", "video", check_video_device_ready, EAPP_MOD_WAIT_FW},
+#endif
  {"ais_server", "modules_ais.order", "ais", check_ais_device_ready, EAPP_MOD_WAIT_FW},
+#ifndef PLATFORM_SM6150 // TODO: Currently Disabled, enable after fixing issues
  {"qcarcam_edrm_rvc", "modules_rv.order", "rvc", check_rvc_device_ready, EAPP_MOD_WAIT_FW},
+#endif
  {"pd-mapper", "modules_r_au.order", "pd-mapper", check_pdmapper_ready, EAPP_MOD_WAIT_FW},
  {"audio-nxp-auto", "", "audio-nxp", check_audio_device_ready, EAPP_MOD_WAIT_FW},
  {"early_chime", "modules_au.order", "audio", check_audio_device_ready, EAPP_MOD_WAIT_FW},
@@ -1338,11 +1346,31 @@ static int check_spi_driver_ready(void)
   int major = 0, minor = 0;
 
   if (!spi_device_created) {
+#ifdef PLATFORM_SM6150
+    if (access("/sys/class/spidev/spidev10.0/uevent", F_OK) == 0) {
+       if (get_device_major_minor("/sys/class/spidev/spidev10.0/uevent", &major, &minor)) {
+          mknod(AUDIO_DEVICE_PATH_D10, S_IFCHR | 0666,makedev(major, minor));
+          if (access(AUDIO_DEVICE_PATH_D10, F_OK) == 0) {
+            set_permissions(AUDIO_DEVICE_PATH_D10, 00666,
+              AID_SYSTEM,AID_AUDIO, "u:object_r:audio_device:s0");
+          }
+          spi_device_created = 1;
+#ifdef EARLYINIT_DEBUG
+          LOG(INFO) << "ES spi nodes are ready";
+#endif
+          write_marker("M - EarlyInit spi10.0 nodes ready");
+       }
+    } else {
+#ifdef EARLYINIT_DEBUG
+      LOG(INFO) << "ES spi10.0 driver is not up";
+#endif
+    }
+#else // PLATFORM_SM6150
     if (access("/sys/class/spidev/spidev22.0/uevent", F_OK) == 0) {
        if (get_device_major_minor("/sys/class/spidev/spidev22.0/uevent", &major, &minor)) {
           mknod(AUDIO_DEVICE_PATH, S_IFCHR | 0666,makedev(major, minor));
-          if (access("/dev/spidev22.0",F_OK) == 0) {
-            set_permissions(AUDIO_DEVICE_PATH, 00666, AID_SYSTEM, AID_AUDIO, "u:object_r:audio_device:s0");
+          if (access(AUDIO_DEVICE_PATH, F_OK) == 0) {
+            set_permissions(AUDIO_DEVICE_PATH, 00666, AID_SYSTEM,AID_AUDIO, "u:object_r:audio_device:s0");
           }
           spi_device_created = 1;
 #ifdef EARLYINIT_DEBUG
@@ -1355,8 +1383,8 @@ static int check_spi_driver_ready(void)
       LOG(INFO) << "ES spi22.0 driver is not up";
 #endif
     }
+#endif // !PLATFORM_SM6150
   }
-
   return spi_device_created;
 }
 
@@ -1475,6 +1503,7 @@ static int check_ais_device_ready(void)
         mknod("/dev/v4l-subdev12", S_IFCHR | 0666,
           makedev(major, minor));
       }
+#ifndef PLATFORM_SM6150
       if(get_device_major_minor("/sys/class/video4linux/v4l-subdev13/uevent", &major, &minor)) {
         mknod("/dev/v4l-subdev13", S_IFCHR | 0666,
           makedev(major, minor));
@@ -1491,6 +1520,7 @@ static int check_ais_device_ready(void)
         mknod("/dev/v4l-subdev16", S_IFCHR | 0666,
           makedev(major, minor));
       }
+#endif
       set_camera_media_permission();
       set_camera_video_permission();
       set_camera_v4l_permission();
@@ -1582,6 +1612,14 @@ static int check_snd_device_ready(void)
       if (get_device_major_minor("/sys/class/sound/controlC0/uevent", &major, &minor)) {
         mknod("/dev/snd/controlC0", S_IFCHR | 0660, makedev(major, minor));
       }
+#ifdef PLATFORM_SM6150
+      if (get_device_major_minor("/sys/class/sound/pcmC0D52p/uevent", &major, &minor)) {
+        mknod("/dev/snd/pcmC0D52p", S_IFCHR | 0660, makedev(major, minor));
+      }
+      if (get_device_major_minor("/sys/class/sound/pcmC0D51c/uevent", &major, &minor)) {
+        mknod("/dev/snd/pcmC0D51c", S_IFCHR | 0660, makedev(major, minor));
+      }
+#endif
       set_audio_permission();
 #ifdef EARLYINIT_DEBUG
       LOG(INFO) << "ES audio device nodes ready";
@@ -1651,10 +1689,16 @@ static int check_storage_device_ready(void)
   static int sto_device_created = 0;
 
   if (!sto_device_created) {
-    if (access("/sys/block/sda/uevent", F_OK) == 0 &&
+    if (
+#ifdef PLATFORM_SM6150
+        access("/sys/block/mmcblk0/uevent", F_OK) == 0
+#else
+        access("/sys/block/sda/uevent", F_OK) == 0 &&
         access("/sys/block/sdd/uevent", F_OK) == 0 &&
         access("/sys/block/sde/uevent", F_OK) == 0 &&
-        access("/sys/block/sdf/uevent", F_OK) == 0) {
+        access("/sys/block/sdf/uevent", F_OK) == 0
+#endif
+    ) {
 #ifdef EARLYINIT_DEBUG
       LOG(INFO) << "ES SD nodes ready";
 #endif
@@ -1694,7 +1738,10 @@ static void set_audio_permission(void)
   set_permissions("/dev/snd/pcmC0D53c", 00666, AID_SYSTEM, AID_AUDIO, "u:object_r:audio_device:s0");
   set_permissions("/dev/snd/pcmC0D55p", 00666, AID_SYSTEM, AID_AUDIO, "u:object_r:audio_device:s0");
   set_permissions("/dev/snd/pcmC0D48p", 00666, AID_SYSTEM, AID_AUDIO, "u:object_r:audio_device:s0");
-
+#ifdef PLATFORM_SM6150
+  set_permissions("/dev/snd/pcmC0D52p", 00666, AID_SYSTEM, AID_AUDIO, "u:object_r:audio_device:s0");
+  set_permissions("/dev/snd/pcmC0D51c", 00666, AID_SYSTEM, AID_AUDIO, "u:object_r:audio_device:s0");
+#endif
   return;
 }
 
@@ -1763,10 +1810,12 @@ static void set_camera_v4l_permission(void)
   selinux_android_restorecon("/dev/socket/camera", SELINUX_ANDROID_RESTORECON_RECURSE);
   set_permissions("/dev/v4l-subdev11", 0666, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
   set_permissions("/dev/v4l-subdev12", 0666, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
+#ifndef PLATFORM_SM6150
   set_permissions("/dev/v4l-subdev13", 0666, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
   set_permissions("/dev/v4l-subdev14", 0666, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
   set_permissions("/dev/v4l-subdev15", 0666, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
   set_permissions("/dev/v4l-subdev16", 0666, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
+#endif
   set_permissions("/dev/v4l-subdev0", 0666, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
   LOG(INFO) << "ES : Set Camera Permissions Completed for v4l-subdev";
 
@@ -2509,6 +2558,10 @@ int early_init(int init)
 
     mount("sysfs", "/sys", "sysfs", 0, NULL);
     prepare_dir((char*)"shm");
+#ifdef PLATFORM_SM6150
+    mkdir("/dev/socket", 0775);
+    mkdir("/dev/socket/camera", 0775);
+#endif
 
     bool load_parallel = bc_get_lmp();
     pid_t pid_def2, pid_se;
