@@ -173,7 +173,11 @@ using android::base::boot_clock;
 #define EMOD_END                "mod_end"
 
 #define WAIT_SET_PERM_SECS  15
+#ifdef PLATFORM_GEN4
+#define WAIT_SET_PERM_MSECS 1000
+#else
 #define WAIT_SET_PERM_MSECS 400
+#endif
 #define WAIT_EAPP_SECS      20
 #define WAIT_EAPP_MSECS     2500
 #define WAIT_SLEEP_MSEC     5
@@ -189,9 +193,14 @@ using android::base::boot_clock;
 #define EMOD_DEF_TAG_2   "def_2"
 #define EMOD_DI_TAG      "display"
 
+#if defined(PLATFORM_GEN4)
+#define ES_DFLMOD_ORDER_1     ES_VMOD_PATH"modules_gen4.order"
+#define ES_DFLMOD_ORDER_DI    ES_VMOD_PATH"modules_di_gen4.order"
+#else
 #define ES_DFLMOD_ORDER_1     ES_VMOD_PATH"modules.order"
-#define ES_DFLMOD_ORDER_2     ES_VMOD_PATH"modules_2.order"
 #define ES_DFLMOD_ORDER_DI    ES_VMOD_PATH"modules_di.order"
+#endif
+#define ES_DFLMOD_ORDER_2     ES_VMOD_PATH"modules_2.order"
 
 #define EAPP_WAIT_DEFAULT 0x00
 #define EAPP_WAIT_NONE   0x01
@@ -279,21 +288,21 @@ const static struct {
   int (*is_ready)(void);
   int wait;
 } _eapp_info[] = {
-#if defined(__ANDROID_U__) || defined(PLATFORM_GEN4)
- {"esplash", "modules_di.order", "splash", NULL, EAPP_WAIT_DISP},
+#ifdef PLATFORM_GEN4
  {"qcxserver", "modules_qcx.order", "qcx", check_ais_device_ready, EAPP_MOD_WAIT_FW},
  {"qcarcam_edrm_rvc", "modules_rv_gen4.order", "rvc", check_rvc_device_ready, EAPP_MOD_WAIT_FW},
+ {EMOD_END, "modules_end_gen4.order", "def_end", NULL, EAPP_WAIT_NONE},
 #else
- {"esplash", "", "splash", NULL, EAPP_WAIT_DISP},
  {"ais_server", "modules_ais.order", "ais", check_ais_device_ready, EAPP_MOD_WAIT_FW},
  {"qcarcam_edrm_rvc", "modules_rv.order", "rvc", check_rvc_device_ready, EAPP_MOD_WAIT_FW},
-#endif //__ANDROID_U__ || PLATFORM_GEN4
+ {EMOD_END, "modules_end.order", "def_end", NULL, EAPP_WAIT_NONE},
+#endif //PLATFORM_GEN4
+ {"esplash", "", "splash", NULL, EAPP_WAIT_DISP},
  {"earlyVideo", "modules_vi.order", "video", check_video_device_ready, EAPP_MOD_WAIT_FW},
  {"pd-mapper", "modules_r_au.order", "pd-mapper", check_pdmapper_ready, EAPP_MOD_WAIT_FW},
 #ifdef ES_AUDIOE_DISABLED
  {"", "modules_au.order", "audio", check_audio_device_ready, EAPP_MOD_WAIT_FW},
 #endif
- {EMOD_END, "modules_end.order", "def_end", NULL, EAPP_WAIT_NONE},
  {"", "", "", NULL, EAPP_WAIT_DEFAULT} // Last Entry
 };
 static pid_t _eapp_pid[EAPPS_MAX];
@@ -1047,7 +1056,7 @@ bool bc_get_lmp()
     (void)in_qemu;
     if (key == "androidboot.load_modules_parallel" && value == "\"true\"") {
       load_parallel = true;
-#if defined(__ANDROID_U__) || defined(PLATFORM_GEN4)
+#if defined(__ANDROID_U__)
        load_parallel = false;
 #endif
       found = true;
@@ -2243,7 +2252,7 @@ static void launch_early_apps(void)
     LOG(WARNING) << "ES : Max Apps limit reached!";
 }
 
-#if defined(__ANDROID_U__) || defined(PLATFORM_GEN4)
+#if defined(__ANDROID_U__)
 static int load_default_modules()
 {
   int count = 0;
@@ -2258,7 +2267,7 @@ static int load_default_modules()
   write_marker(str);
   return 0;
 }
-#endif // __ANDROID_U__ || PLATFORM_GEN4
+#endif // __ANDROID_U__
 
 static int wait_for_early_apps(void)
 {
@@ -2452,13 +2461,13 @@ int early_init(int init)
     mkdir("/dev/socket", 0775);
     mkdir("/dev/socket/camera", 0775);
 
-#if defined( __ANDROID_U__) || defined(PLATFORM_GEN4)
+#if defined( __ANDROID_U__)
      load_default_modules();
      prepare_fw_dir(true);
      load_precompiled_sepolicy();
 #else
     bool load_parallel = bc_get_lmp();
-    pid_t pid_def2, pid_se;
+    pid_t pid_se;
 
     load_modules_parallel(ES_DFLMOD_ORDER_1, ES_DFLMOD_PATH,
          load_parallel?std::thread::hardware_concurrency():1,
@@ -2466,8 +2475,10 @@ int early_init(int init)
 
     // Check for driver storage enumerations
     fork_wait_for_child(ES_CTYPE_FW, 1);
+#ifndef PLATFORM_GEN4
     // Load second set of def-modules in parallel
-    pid_def2 = fork_wait_for_child(ES_CTYPE_DEF2_MOD, 1);
+    pid_t pid_def2 = fork_wait_for_child(ES_CTYPE_DEF2_MOD, 1);
+#endif
     // Load Display modules in parallel
     fork_wait_for_child(ES_CTYPE_DI_MOD, 1);
     // Load sepolicies in parallel
@@ -2477,7 +2488,10 @@ int early_init(int init)
     int max = (_use_min_wait)?((WAIT_PID_MIN_MSECS * 1000) / WAIT_SLEEP_USECS):
                       ((WAIT_PID_MAX_MSECS * 1000) / WAIT_SLEEP_USECS);
     wait_for_pid(pid_se, WAIT_SLEEP_USECS, max);
+#ifndef PLATFORM_GEN4
     wait_for_pid(pid_def2, WAIT_SLEEP_USECS, max);
+#endif
+
 #endif // ! __ANDROID_U__
 
     selinux_android_restorecon("/vendor_early_services/early_services_init", 0);
