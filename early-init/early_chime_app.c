@@ -33,7 +33,7 @@
 
 /*
 * Changes from Qualcomm Innovation Center are provided under the following license:
-* Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
+* Copyright (c) 2023-2024 Qualcomm Innovation Center, Inc. All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without
 * modification, are permitted (subject to the limitations in the
@@ -119,6 +119,42 @@ void play_sample(FILE *file, unsigned int card, unsigned int device, unsigned in
                  unsigned int period_count);
 
 int early_chime_pb(char *filename, unsigned int card, unsigned int device, unsigned int period_size, unsigned int period_count);
+
+#if defined (SILENT_BOOT_ANDROID_U)
+#define SYS_PATH_SILENT_MODE "/sys/kernel/silent_boot/pm_silentmode_kernel_state"
+#else
+#define SYS_PATH_SILENT_MODE "/sys/power/pm_silentmode_kernel_state"
+#endif
+
+static uint8_t fetch_silent_mode_status()
+{
+    unsigned char buf;
+    int silent_mode_fd;
+    uint8_t curr_silent_mode = 0;
+    int bytes_read;
+
+        if(access(SYS_PATH_SILENT_MODE, F_OK) == 0) {
+            silent_mode_fd = open(SYS_PATH_SILENT_MODE, O_RDONLY);
+            if (silent_mode_fd < 0) {
+                printf("%s: Failed to open silent mode file: %s\n", __func__,
+                    strerror(errno));
+                return 0;
+            }
+
+            bytes_read = read(silent_mode_fd, (void*)&buf, sizeof(unsigned char));
+            if (bytes_read < 0) {
+                printf("%s: Error reading silent mode file: %s", __func__,
+                    strerror(errno));
+            } else
+                curr_silent_mode = buf - '0';
+
+            if (silent_mode_fd != -1)
+                close(silent_mode_fd);
+        }
+
+        printf("%s: curr_silent_mode %d",__func__, curr_silent_mode);
+        return curr_silent_mode;
+}
 
 void stream_close(int sig)
 {
@@ -275,12 +311,19 @@ void play_sample(FILE *file, unsigned int card, unsigned int device, unsigned in
 
 int main(int argc, char **argv)
 {
-    place_marker("M - Starting Audio_Chime App");
     char *filename;
     int card = 0;
     unsigned int device = 55;
     unsigned int period_size = 1024;
     unsigned int period_count = 4;
+    uint8_t curr_silence_mode = 0;
+
+    if(fetch_silent_mode_status() == 1) {
+        place_marker("M - silent boot no chime playback");
+        return 0;
+    }
+
+    place_marker("M - Starting Audio_Chime App");
 
     /* Set sound card and establish hostless pcm session */
     set_snd_card_enable_hostless(card);
