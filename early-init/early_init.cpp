@@ -29,7 +29,7 @@
 
 /*
 * Changes from Qualcomm Innovation Center are provided under the following license:
-* Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+* Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without
 * modification, are permitted (subject to the limitations in the
@@ -1174,7 +1174,7 @@ static int check_spi_driver_ready(void)
        if (get_device_major_minor("/sys/class/spidev/spidev22.0/uevent", &major, &minor)) {
           mknod(AUDIO_DEVICE_PATH, S_IFCHR | 0666,makedev(major, minor));
           if (access("/dev/spidev22.0",F_OK) == 0) {
-            set_permissions(AUDIO_DEVICE_PATH, 00666, AID_SYSTEM,AID_AUDIO, " u:object_r:audio_device:s0");
+            set_permissions(AUDIO_DEVICE_PATH, 00666, AID_SYSTEM, AID_AUDIO, "u:object_r:audio_device:s0");
           }
           spi_device_created = 1;
           LOG(INFO) << "ES spi nodes are ready";
