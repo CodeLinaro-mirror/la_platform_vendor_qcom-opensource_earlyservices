@@ -2027,23 +2027,24 @@ static int load_modules_parallel(const std::string& fl,
       std::unique_lock lk(mods_lock);
       while (++i < len) {
         char fl[SHORT_STRING_MAX];
-        if (kmod[i][0] == 0) {
+        int j = i;
+        if (kmod[j][0] == 0) {
           continue;
         }
         load_count++;
         lk.unlock();
         if (flag == LMP_MODPROBE) {
-          if (android::earlyinit::insert_kernel_module(kmod[i]) == false) {
+          if (android::earlyinit::insert_kernel_module(kmod[j]) == false) {
             fail_count++;
           }
           lk.lock();
           continue;
         }
-        snprintf(fl, SHORT_STRING_MAX, "%s%s.ko", mod_path.c_str(), kmod[i]);
+        snprintf(fl, SHORT_STRING_MAX, "%s%s.ko", mod_path.c_str(), kmod[j]);
         int fd = open(fl, O_RDONLY);
         if (fd > 0) {
           std::string param;
-          android::earlyinit::get_kernel_module_param(kmod[i], param, _module_params);
+          android::earlyinit::get_kernel_module_param(kmod[j], param, _module_params);
           int ret = finit_module(fd, param.c_str(), 0);
           if (ret < 0 && errno != EEXIST) {
             LOG(WARNING) << "fd = " << fd << "ES : init_module failed " << fl << " errno: " << errno;
@@ -2057,7 +2058,7 @@ static int load_modules_parallel(const std::string& fl,
 
           // Check for audio
           if (flag == LMP_DIRECT_CHK_AUD
-             && !strncmp(kmod[i], ADSP_KO, sizeof(ADSP_KO)-1)) {
+             && !strncmp(kmod[j], ADSP_KO, sizeof(ADSP_KO)-1)) {
             fd = open("/sys/kernel/boot_adsp/boot", O_WRONLY);
             if (fd < 0) {
               LOG(WARNING) << "ES : load_modules ADSP open sys entry failed";
