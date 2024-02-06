@@ -2163,6 +2163,9 @@ static int load_modules_parallel(const std::string& fl,
 
   write_marker(str);
 
+  if (!strcmp(logtag.c_str(), "rvc"))
+      write_marker("K - Early RVC EarlyInit rvc nodes ready");
+
   LOG(INFO) << "ES : Load modules done " << logtag << " count " << load_count
      << " Failed: " << fail_count;
 
