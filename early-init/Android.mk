@@ -22,15 +22,22 @@ LOCAL_CFLAGS += -D__ANDROID_U__
 endif
 
 LOCAL_MODULE := early_services_init
-LOCAL_LDFLAGS := -Wl,-rpath,'/vendor_early_services/system/lib64' -Wl,--dynamic-linker,/vendor_early_services/system/bin/bootstrap/linker64
-LOCAL_MODULE_PATH := $(TARGET_VENDOR_RAMDISK_OUT)/vendor_early_services/bin
+#LOCAL_STATIC_LIBRARIES := libc++_static
+LOCAL_FORCE_STATIC_EXECUTABLE := true
+LOCAL_MODULE_PATH := $(TARGET_RAMDISK_OUT)/vendor_early_services/bin
 LOCAL_POST_INSTALL_CMD := $(hide) mkdir -p $(TARGET_ROOT_OUT)/vendor_early_services; \
                                   mkdir -p $(TARGET_ROOT_OUT)/vendor_early_services/dev; \
+                                  mkdir -p $(TARGET_RAMDISK_OUT)/vendor_early_services;
 
-
-LOCAL_SHARED_LIBRARIES +=  libbase liblog libselinux libcutils libcrypto_utils
-
-LOCAL_STATIC_LIBRARIES := libmodprobe
+LOCAL_STATIC_LIBRARIES := libc++_static \
+     libbase \
+     libcrypto_utils \
+     libcutils\
+     liblog \
+     libseccomp_policy \
+     libselinux \
+     libfs_mgr \
+     libmodprobe \
 
 LOCAL_CPPFLAGS := -std=c++17
 include $(BUILD_EXECUTABLE)
