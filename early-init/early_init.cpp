@@ -812,12 +812,9 @@ static inline pid_t parse_line(char* p)
         goto out;
       }
 
-#if defined(PLATFORM_GEN4)
-      //Enable Gen3 once tested
+
       pid = clone(nullptr, nullptr, (CLONE_FS | SIGCHLD), nullptr);
-#else
-      pid = fork();
-#endif
+
       if (pid < 0) {
         LOG(INFO) << " early_init fork child process failed ";
         perror("fork child process failed \r\n");
