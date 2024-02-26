@@ -1690,8 +1690,8 @@ static void set_video_permission(void)
 static void set_camera_media_permission(void)
 {
   LOG(INFO) << "ES : Set Camera Permissions for mdev";
-  set_permissions("/dev/media0", 0666, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
-  set_permissions("/dev/media1", 0666, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
+  set_permissions("/dev/media0", 0666, AID_CAMERA, AID_CAMERA, "u:object_r:video_device:s0");
+  set_permissions("/dev/media1", 0666, AID_CAMERA, AID_CAMERA, "u:object_r:video_device:s0");
   LOG(INFO) << "ES : Set Camera Permissions Completed for mdev";
   return;
 }
@@ -1699,8 +1699,8 @@ static void set_camera_media_permission(void)
 static void set_camera_video_permission(void)
 {
   LOG(INFO) << "ES : Set Camera Permissions for vdev";
-  set_permissions("/dev/video0", 0666, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
-  set_permissions("/dev/video1", 0666, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
+  set_permissions("/dev/video0", 0666, AID_CAMERA, AID_CAMERA, "u:object_r:video_device:s0");
+  set_permissions("/dev/video1", 0666, AID_CAMERA, AID_CAMERA, "u:object_r:video_device:s0");
   LOG(INFO) << "ES : Set Camera Permissions Completed for vdev";
   return;
 }
@@ -1708,25 +1708,26 @@ static void set_camera_video_permission(void)
 static void set_camera_v4l_permission(void)
 {
   LOG(INFO) << "ES : Set Camera Permissions for v4l-subdev";
-  set_permissions("/dev/v4l-subdev1", 0666, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
-  set_permissions("/dev/v4l-subdev2", 0666, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
-  set_permissions("/dev/v4l-subdev3", 0666, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
-  set_permissions("/dev/v4l-subdev4", 0666, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
-  set_permissions("/dev/v4l-subdev5", 0666, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
-  set_permissions("/dev/v4l-subdev6", 0666, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
-  set_permissions("/dev/v4l-subdev7", 0666, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
-  set_permissions("/dev/v4l-subdev8", 0666, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
-  set_permissions("/dev/v4l-subdev9", 0666, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
-  set_permissions("/dev/v4l-subdev10", 0666, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
+  set_permissions("/dev/v4l-subdev1", 0666, AID_CAMERA, AID_CAMERA, "u:object_r:video_device:s0");
+  set_permissions("/dev/v4l-subdev2", 0666, AID_CAMERA, AID_CAMERA, "u:object_r:video_device:s0");
+  set_permissions("/dev/v4l-subdev3", 0666, AID_CAMERA, AID_CAMERA, "u:object_r:video_device:s0");
+  set_permissions("/dev/v4l-subdev4", 0666, AID_CAMERA, AID_CAMERA, "u:object_r:video_device:s0");
+  set_permissions("/dev/v4l-subdev5", 0666, AID_CAMERA, AID_CAMERA, "u:object_r:video_device:s0");
+  set_permissions("/dev/v4l-subdev6", 0666, AID_CAMERA, AID_CAMERA, "u:object_r:video_device:s0");
+  set_permissions("/dev/v4l-subdev7", 0666, AID_CAMERA, AID_CAMERA, "u:object_r:video_device:s0");
+  set_permissions("/dev/v4l-subdev8", 0666, AID_CAMERA, AID_CAMERA, "u:object_r:video_device:s0");
+  set_permissions("/dev/v4l-subdev9", 0666, AID_CAMERA, AID_CAMERA, "u:object_r:video_device:s0");
+  set_permissions("/dev/v4l-subdev10", 0666, AID_CAMERA, AID_CAMERA, "u:object_r:video_device:s0");
+  //For directories, only ROOT is able to apply permissions at ES stage.
   set_permissions("/dev/socket/camera", 0775, AID_ROOT, AID_CAMERA, "u:object_r:vendor_camera_socket:s0");
   selinux_android_restorecon("/dev/socket/camera", SELINUX_ANDROID_RESTORECON_RECURSE);
-  set_permissions("/dev/v4l-subdev11", 0666, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
-  set_permissions("/dev/v4l-subdev12", 0666, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
-  set_permissions("/dev/v4l-subdev13", 0666, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
-  set_permissions("/dev/v4l-subdev14", 0666, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
-  set_permissions("/dev/v4l-subdev15", 0666, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
-  set_permissions("/dev/v4l-subdev16", 0666, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
-  set_permissions("/dev/v4l-subdev0", 0666, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
+  set_permissions("/dev/v4l-subdev11", 0666, AID_CAMERA, AID_CAMERA, "u:object_r:video_device:s0");
+  set_permissions("/dev/v4l-subdev12", 0666, AID_CAMERA, AID_CAMERA, "u:object_r:video_device:s0");
+  set_permissions("/dev/v4l-subdev13", 0666, AID_CAMERA, AID_CAMERA, "u:object_r:video_device:s0");
+  set_permissions("/dev/v4l-subdev14", 0666, AID_CAMERA, AID_CAMERA, "u:object_r:video_device:s0");
+  set_permissions("/dev/v4l-subdev15", 0666, AID_CAMERA, AID_CAMERA, "u:object_r:video_device:s0");
+  set_permissions("/dev/v4l-subdev16", 0666, AID_CAMERA, AID_CAMERA, "u:object_r:video_device:s0");
+  set_permissions("/dev/v4l-subdev0", 0666, AID_CAMERA, AID_CAMERA, "u:object_r:video_device:s0");
   LOG(INFO) << "ES : Set Camera Permissions Completed for v4l-subdev";
 
   return;
