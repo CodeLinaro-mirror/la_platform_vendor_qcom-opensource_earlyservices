@@ -91,6 +91,7 @@
 #include <sys/wait.h>
 #include <sys/mman.h>
 #include <utils/Log.h>
+#include <fstream>
 
 // for file copy
 #include <filesystem>
@@ -228,6 +229,16 @@ using android::base::boot_clock;
 #define TEST_APP_PID "/vendor_early_services/run/early/init_early_test.pid"
 #define TEST_APP_LOG "/vendor_early_services/run/init_early_test.txt"
 #endif //__ANDROID_U__ || PLATFORM_GEN4
+
+const std::string& mEarlyAppStatus = "/dev/early_app_done_status";
+const std::string& mEarlyAppAudioStatus = "/dev/early_app_done_status/audio";
+const std::string mEarlyAppCameraStatus = "/dev/early_app_done_status/camera";
+const std::string& mEarlyAppDisplayStatus = "/dev/early_app_done_status/disp";
+const std::string& mEarlyAppVideoStatus = "/dev/early_app_done_status/video";
+// Once implementation done from respective module, this need to be enabled.
+//std::vector<std::string> mEarlyAppFile = { mEarlyAppAudioStatus.c_str(), mEarlyAppVideoStatus.c_str(), mEarlyAppDisplayStatus.c_str(), mEarlyAppCameraStatus.c_str() };
+std::vector<std::string> mEarlyAppFile = { mEarlyAppCameraStatus };
+
 
 #ifdef EARLYINIT_DEBUG
 static inline bool is_empty_line(const char* p);
@@ -382,14 +393,12 @@ static void inline write_marker(const char* name)
   return;
 }
 
-#ifndef PLATFORM_GEN4
 static void inline print_log(const char* str)
 {
   if (str == NULL) return;
   freopen("/dev/kmsg", "w", stdout);
   printf("ES: %s \r\n", str);
 }
-#endif
 
 #ifdef EARLYINIT_DEBUG
 static void inline write_smack_label(char* label)
@@ -2447,6 +2456,35 @@ static pid_t __attribute__((unused)) fork_wait_for_child(int type, int run_if_fo
   return pid;
 }
 
+bool checkEarlyAppsIntialization() {
+    std::unordered_map<std::string, char> earlyAppsStatus;
+    earlyAppsStatus[mEarlyAppCameraStatus.c_str()] = '0';
+//  Below To be enabled once support is added
+//  earlyAppsStatus[mEarlyAppAudioStatus.c_str()] = '0';
+//  earlyAppsStatus[mEarlyAppDisplayStatus.c_str()] = '0';
+//  earlyAppsStatus[mEarlyAppVideoStatus.c_str()] = '0';
+    char str[SHORT_STRING_MAX] = {0};
+    for (const std::string& filename : mEarlyAppFile) {
+        std::ifstream inputFile(filename);
+        char character;
+        while (inputFile.get(character)) {
+            if (earlyAppsStatus.find(filename) != earlyAppsStatus.end()) {
+                earlyAppsStatus[filename] = character;
+            }
+        }
+        inputFile.close();
+        character = '0';
+    }
+    for (const auto& pair : earlyAppsStatus ) {
+        snprintf(str, SHORT_STRING_MAX, "ES : first : %s and second : %c", pair.first.c_str(), pair.second);
+        print_log(str);
+        if (pair.second == '0') {
+            return false;
+        }
+    }
+    return true;
+}
+
 int early_init(int init)
 {
   int ret;
@@ -2485,6 +2523,27 @@ int early_init(int init)
 
     mount("sysfs", "/sys", "sysfs", 0, NULL);
     prepare_dir((char*)"shm");
+
+    // Create a file system node to update the status of ES clients
+    mkdir(mEarlyAppStatus.c_str(), S_IFREG | 0666);
+
+    //write 0 to early app status nodes
+    char value = '0';
+    for (const std::string& filename : mEarlyAppFile) {
+        if (mknod(filename.c_str(), S_IFREG | 0666, makedev(0,0)) == 0) {
+            int fd = open(filename.c_str(), O_WRONLY);
+            if (fd != -1) {
+                if (write(fd, &value, sizeof(value)) == sizeof(value)) {
+                   LOG(ERROR) << "ES : " << value << " is written successfully to a file " << filename;
+                }
+                close(fd);
+            } else {
+                LOG(ERROR) << "ES : Error opening the file!" << filename;
+            }
+        } else {
+            LOG(ERROR) << "ES : Error creating file system node!";
+        }
+    }
 
     /* Create ais_server/qcxserver socket dir and camera data dir */
     mkdir("/dev/socket", 0775);
@@ -2574,6 +2633,21 @@ int early_init(int init)
   // wait for app exec
   wait_for_early_apps();
   load_kmod_and_nodes(EMOD_END);
+
+  print_log("ES : checking early app status");
+  auto start_time = std::chrono::high_resolution_clock::now();
+  while (true) {
+    if (checkEarlyAppsIntialization()) {
+        break;
+    }
+    auto current_time = std::chrono::high_resolution_clock::now();
+    auto elapsed_seconds = std::chrono::duration_cast<std::chrono::seconds>(current_time - start_time).count();
+
+    if (elapsed_seconds >= 3) {
+        break;
+    }
+  }
+  print_log("ES :early apps are ready");
 
   mknod("/dev/sedone", S_IFREG | 0400, makedev(0,0));
 
