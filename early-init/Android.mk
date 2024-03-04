@@ -13,9 +13,15 @@ ifneq ($(filter $(MSMSTEPPE),$(TARGET_BOARD_PLATFORM)),)
 	LOCAL_CFLAGS := -DPLATFORM_MSMSTEPPE
 endif
 
+ifneq ($(filter gen4, $(TARGET_BOARD_PLATFORM)),)
+        LOCAL_CFLAGS := -DPLATFORM_GEN4
+endif
+
 ifneq (,$(filter U 14 UpsideDownCake, $(PLATFORM_VERSION)))
 LOCAL_CFLAGS += -D__ANDROID_U__
 endif
+
+LOCAL_CFLAGS += -Wall -Werror
 
 LOCAL_MODULE := early_services_init
 #LOCAL_STATIC_LIBRARIES := libc++_static
@@ -83,6 +89,17 @@ LOCAL_SHARED_LIBRARIES:=  libselinux
 LOCAL_MODULE_PATH := $(TARGET_VENDOR_RAMDISK_OUT)/vendor_early_services/bin
 include $(BUILD_EXECUTABLE)
 
+
+ifneq ($(filter gen4, $(TARGET_BOARD_PLATFORM)),)
+include $(CLEAR_VARS)
+LOCAL_MODULE_TAGS := optional
+LOCAL_MODULE := early_init_gen4.conf
+LOCAL_SRC_FILES := $(LOCAL_MODULE)
+LOCAL_MODULE_CLASS = ETC
+LOCAL_MODULE_PATH := $(TARGET_VENDOR_RAMDISK_OUT)/vendor_early_services/etc
+include $(BUILD_PREBUILT)
+endif
+
 include $(CLEAR_VARS)
 LOCAL_MODULE_TAGS := optional
 LOCAL_MODULE := early_init.conf
@@ -113,6 +130,13 @@ LOCAL_POST_INSTALL_CMD := $(hide) mkdir -p $(LOCAL_MODULE_PATH)/../sbin; \
 
 include $(BUILD_PREBUILT)
 
+include $(CLEAR_VARS)
+LOCAL_MODULE_TAGS := optional
+LOCAL_MODULE := early_init_u.conf
+LOCAL_SRC_FILES := $(LOCAL_MODULE)
+LOCAL_MODULE_CLASS = ETC
+LOCAL_MODULE_PATH := $(TARGET_VENDOR_RAMDISK_OUT)/vendor_early_services/etc
+include $(BUILD_PREBUILT)
 
 include $(CLEAR_VARS)
 LOCAL_MODULE_TAGS := optional
@@ -130,6 +154,9 @@ ifneq ($(filter sdmshrike msmnile,$(TARGET_BOARD_PLATFORM)),)
 endif
 ifneq ($(filter $(MSMSTEPPE),$(TARGET_BOARD_PLATFORM)),)
 	LOCAL_CFLAGS := -DPLATFORM_MSMSTEPPE
+endif
+ifneq ($(filter gen4, $(TARGET_BOARD_PLATFORM)),)
+        LOCAL_CFLAGS := -DPLATFORM_GEN4
 endif
 LOCAL_LDFLAGS := -Wl,-rpath,'/vendor_early_services/system/lib64' -Wl,--dynamic-linker,/vendor_early_services/system/bin/bootstrap/linker64
 LOCAL_C_INCLUDES:= hardware/libhardware/include \
