@@ -289,8 +289,8 @@ const static struct {
   int wait;
 } _eapp_info[] = {
 #ifdef PLATFORM_GEN4
- {"qcxserver", "modules_qcx.order", "qcx", check_ais_device_ready, EAPP_MOD_WAIT_FW},
- {"qcarcam_edrm_rvc", "modules_rv_gen4.order", "rvc", check_rvc_device_ready, EAPP_MOD_WAIT_FW},
+ {"qcxserver", "modules_qcx.order", "qcx", check_ais_device_ready, EAPP_WAIT_NONE},
+ {"qcarcam_edrm_rvc", "modules_rv_gen4.order", "rvc", check_rvc_device_ready, EAPP_WAIT_NONE},
  {EMOD_END, "modules_end_gen4.order", "def_end", NULL, EAPP_WAIT_NONE},
 #else
  {"ais_server", "modules_ais.order", "ais", check_ais_device_ready, EAPP_MOD_WAIT_FW},
@@ -382,12 +382,14 @@ static void inline write_marker(const char* name)
   return;
 }
 
+#ifndef PLATFORM_GEN4
 static void inline print_log(const char* str)
 {
   if (str == NULL) return;
   freopen("/dev/kmsg", "w", stdout);
   printf("ES: %s \r\n", str);
 }
+#endif
 
 #ifdef EARLYINIT_DEBUG
 static void inline write_smack_label(char* label)
@@ -1338,6 +1340,13 @@ static int check_dma_heap_device_ready(void)
         dma_heap_device_created = 1;
         LOG(INFO) << "ES camera dma_heap device nodes ready";
         write_marker("M - EarlyInit dma heap nodes ready");
+#ifdef PLATFORM_GEN4
+        //Create drm cards for rvc once display dpu is ready
+        int max = (_use_min_wait)?(WAIT_SET_PERM_MSECS / WAIT_SLEEP_MSEC):
+                ((WAIT_SET_PERM_SECS * 1000) / WAIT_SLEEP_MSEC);
+        wait_for_display_ready(WAIT_SLEEP_MSEC, max*2);
+#endif
+
       }
     }
   }
@@ -1583,6 +1592,8 @@ static int check_display_driver_ready(void)
     close(fd);
   }
   rc = dpu0_ready & dpu1_ready;
+  if (rc)
+    create_drm_udev_cards();
 #endif
 
   return rc;
@@ -1738,8 +1749,10 @@ static int prepare_fw_dir(bool set_km)
   // FW mount partition
   std::string modemStr("/dev/block/by-name/modem");
   unsigned int count = 0, max = (WAIT_SET_PERM_SECS * 1000) / WAIT_SLEEP_MSEC;
+#ifndef PLATFORM_GEN4
   boot_clock::time_point module_start_time = boot_clock::now();
   bool mounted = false;
+#endif
   if (_use_min_wait) {
     max = (WAIT_SET_PERM_MSECS) / WAIT_SLEEP_MSEC;
   }
@@ -1756,6 +1769,7 @@ static int prepare_fw_dir(bool set_km)
     return 0;
   }
 
+#ifndef PLATFORM_GEN4
   if (access(AUDIO_FW_PATH, F_OK) == -1) {
     LOG(WARNING) << "ES : AUDIO_FW_PATH doesn't exist";
     mkdirs(AUDIO_FW_PATH, 0755);
@@ -1788,6 +1802,7 @@ static int prepare_fw_dir(bool set_km)
            (int)module_elapse_time.count(), "ms");
   }
   write_marker(str);
+#endif
 
   return 0;
 }
@@ -2388,6 +2403,14 @@ static pid_t __attribute__((unused)) fork_wait_for_child(int type, int run_if_fo
         break;
       }
       case ES_CTYPE_DI_MOD: {
+        //Increase process priority for display module loading
+        struct sched_param sp;
+        memset(&sp, 0, sizeof(sp));
+        sp.sched_priority = sched_get_priority_max(SCHED_FIFO);
+        if (0 != sched_setscheduler( pid, SCHED_FIFO, &sp))
+        {
+            LOG(INFO) << " sched_setparam display "<<sp.sched_priority<<strerror(errno);
+        }
         bool load_parallel = bc_get_lmp();
         load_modules_parallel(ES_DFLMOD_ORDER_DI, ES_DFLMOD_PATH,
           load_parallel?std::thread::hardware_concurrency():1,
@@ -2395,6 +2418,14 @@ static pid_t __attribute__((unused)) fork_wait_for_child(int type, int run_if_fo
         break;
       }
       case ES_CTYPE_LOAD_SE: {
+        //Increase process priority for loading sepolicy
+        struct sched_param sp;
+        memset(&sp, 0, sizeof(sp));
+        sp.sched_priority = sched_get_priority_max(SCHED_FIFO)-1;
+        if (0 != sched_setscheduler( pid, SCHED_FIFO, &sp))
+        {
+            LOG(INFO) << " sched_setparam sepol "<<sp.sched_priority<<strerror(errno);
+        }
         load_precompiled_sepolicy();
         break;
       }
