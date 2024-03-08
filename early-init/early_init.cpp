@@ -2562,10 +2562,6 @@ int early_init(int init)
 
     mount("sysfs", "/sys", "sysfs", 0, NULL);
     prepare_dir((char*)"shm");
-#ifdef PLATFORM_SM6150
-    mkdir("/dev/socket", 0775);
-    mkdir("/dev/socket/camera", 0775);
-#endif
 
     bool load_parallel = bc_get_lmp();
     pid_t pid_def2, pid_se;
