@@ -171,6 +171,7 @@ using android::base::boot_clock;
 #define VIDEO_SYS_DMA_HEAP_PATH "/dev/dma_heap/qcom,system"
 
 #define ES_FW_CHK_PATH          "/vendor_early_services/vendor/firmware_mnt/image"
+#define ES_AIS_CHK_PATH         "/sys/class/video4linux/v4l-subdev0"
 #define ES_KMOD_DONE            "/dev/kmdone"
 
 #define ECHIME_APP              "early_chime"
@@ -200,9 +201,11 @@ using android::base::boot_clock;
 #define ES_DFLMOD_ORDER_DI    ES_VMOD_PATH"modules_di.order"
 
 #define EAPP_WAIT_DEFAULT 0x00
-#define EAPP_WAIT_NONE   0x01
-#define EAPP_WAIT_DISP   0x02
-#define EAPP_MOD_WAIT_FW 0x04
+#define EAPP_WAIT_NONE    0x01
+#define EAPP_WAIT_DISP    0x02
+#define EAPP_MOD_WAIT_FW  0x04
+// ais wait should wait for FW too
+#define EAPP_MOD_WAIT_AIS (EAPP_MOD_WAIT_FW + 1)
 
 #define LMP_MODPROBE       0
 #define LMP_DIRECT         1
@@ -297,7 +300,7 @@ const static struct {
 #endif
  {"ais_server", "modules_ais.order", "ais", check_ais_device_ready, EAPP_MOD_WAIT_FW},
 #ifndef PLATFORM_SM6150 // TODO: Currently Disabled, enable after fixing issues
- {"qcarcam_edrm_rvc", "modules_rv.order", "rvc", check_rvc_device_ready, EAPP_MOD_WAIT_FW},
+ {"qcarcam_edrm_rvc", "modules_rv.order", "rvc", check_rvc_device_ready, EAPP_MOD_WAIT_AIS},
 #endif
  {"pd-mapper", "modules_r_au.order", "pd-mapper", check_pdmapper_ready, EAPP_MOD_WAIT_FW},
  {"audio-nxp-auto", "", "audio-nxp", check_audio_device_ready, EAPP_MOD_WAIT_FW},
@@ -1417,18 +1420,25 @@ static int check_gfx_device_ready(void)
 
 static int check_rvc_device_ready(void)
 {
-  return (int)(check_gfx_device_ready() &&
-           check_camera_card2_ready() && check_dma_heap_device_ready());
+  //rvc
+
+  if (check_gfx_device_ready() &&
+      check_camera_card2_ready() && check_dma_heap_device_ready()) {
+     write_marker("K - Early RVC EarlyInit rvc nodes ready");
+     return 1;
+  }
+
+  return 0;
 }
 
 static int check_ais_device_ready(void)
 {
-  //rvc
+  // ais
 
-  static int rvc_device_created = 0;
+  static int ais_device_created = 0;
   int major = 0, minor = 0;
 
-  if (!rvc_device_created) {
+  if (!ais_device_created) {
     if ((access("/sys/bus/media/devices/media0/uevent", F_OK) == 0) &&
         (access("/sys/class/video4linux/video0/uevent", F_OK) == 0) &&
         (access("/sys/class/video4linux/v4l-subdev0/uevent", F_OK) == 0)) {
@@ -1525,7 +1535,7 @@ static int check_ais_device_ready(void)
       set_camera_media_permission();
       set_camera_video_permission();
       set_camera_v4l_permission();
-      rvc_device_created = 1;
+      ais_device_created = 1;
 #ifdef EARLYINIT_DEBUG
       LOG(INFO) << "ES ais device nodes ready";
 #endif
@@ -1533,7 +1543,7 @@ static int check_ais_device_ready(void)
     }
   }
 
-  return rvc_device_created;
+  return ais_device_created;
 }
 
 #define DRM_CARD4_DIR        "/dev/dri"
@@ -2009,6 +2019,11 @@ static int load_kmod_and_nodes(const char* appname)
       return 0;
   }
 
+  // Wait for AIS
+  if (_eapp_info[i].wait == EAPP_MOD_WAIT_AIS) {
+    wait_for_file((char*)ES_AIS_CHK_PATH, WAIT_SLEEP_MSEC, max*2);
+  }
+
   // Initate Load modules
   if (_eapp_info[i].kfile[0] != 0) {
     snprintf(str, SHORT_STRING_MAX ,"M - Load mod-node %s", appname);
@@ -2212,9 +2227,6 @@ static int load_modules_parallel(const std::string& fl,
   }
 
   write_marker(str);
-
-  if (!strcmp(logtag.c_str(), "rvc"))
-      write_marker("K - Early RVC EarlyInit rvc nodes ready");
 
   LOG(INFO) << "ES : Load modules done " << logtag << " count " << load_count
      << " Failed: " << fail_count;
@@ -2497,9 +2509,29 @@ static pid_t __attribute__((unused)) fork_wait_for_child(int type, int run_if_fo
       }
       case ES_CTYPE_DI_MOD: {
         bool load_parallel = bc_get_lmp();
+        unsigned int count = 0, max = (WAIT_SET_PERM_SECS * 1000) / WAIT_SLEEP_MSEC;
+        if (_use_min_wait) {
+          max = (WAIT_SET_PERM_MSECS) / WAIT_SLEEP_MSEC;
+        }
+
+        while (count++ < max) {
+#ifdef PLATFORM_SM6150
+          if (access("/sys/block/mmcblk0/uevent", F_OK) == 0) break;
+#else
+          if (access("/sys/block/sda/uevent", F_OK) == 0 ||
+            access("/sys/block/sdb/uevent", F_OK) == 0 ||
+            access("/sys/block/sdd/uevent", F_OK) == 0 ||
+            access("/sys/block/sde/uevent", F_OK) == 0 ||
+            access("/sys/block/sdf/uevent", F_OK) == 0) {
+            break;
+          }
+#endif
+          usleep(WAIT_SLEEP_MSEC * 1000);
+        }
+
         load_modules_parallel(ES_DFLMOD_ORDER_DI, ES_DFLMOD_PATH,
           load_parallel?std::thread::hardware_concurrency():1,
-          EMOD_DI_TAG, LMP_MODPROBE);
+          EMOD_DI_TAG, LMP_DIRECT);
         break;
       }
       case ES_CTYPE_LOAD_SE: {
