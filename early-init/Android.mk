@@ -89,6 +89,17 @@ LOCAL_SHARED_LIBRARIES:=  libselinux
 LOCAL_MODULE_PATH := $(TARGET_VENDOR_RAMDISK_OUT)/vendor_early_services/bin
 include $(BUILD_EXECUTABLE)
 
+
+ifneq ($(filter gen4, $(TARGET_BOARD_PLATFORM)),)
+include $(CLEAR_VARS)
+LOCAL_MODULE_TAGS := optional
+LOCAL_MODULE := early_init_gen4.conf
+LOCAL_SRC_FILES := $(LOCAL_MODULE)
+LOCAL_MODULE_CLASS = ETC
+LOCAL_MODULE_PATH := $(TARGET_VENDOR_RAMDISK_OUT)/vendor_early_services/etc
+include $(BUILD_PREBUILT)
+endif
+
 include $(CLEAR_VARS)
 LOCAL_MODULE_TAGS := optional
 LOCAL_MODULE := early_init.conf
