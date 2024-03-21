@@ -299,9 +299,7 @@ const static struct {
  {"earlyVideo", "modules_vi.order", "video", check_video_device_ready, EAPP_MOD_WAIT_FW},
 #endif
  {"ais_server", "modules_ais.order", "ais", check_ais_device_ready, EAPP_MOD_WAIT_FW},
-#ifndef PLATFORM_SM6150 // TODO: Currently Disabled, enable after fixing issues
  {"qcarcam_edrm_rvc", "modules_rv.order", "rvc", check_rvc_device_ready, EAPP_MOD_WAIT_AIS},
-#endif
  {"pd-mapper", "modules_r_au.order", "pd-mapper", check_pdmapper_ready, EAPP_MOD_WAIT_FW},
  {"audio-nxp-auto", "", "audio-nxp", check_audio_device_ready, EAPP_MOD_WAIT_FW},
  {"early_chime", "modules_au.order", "audio", check_audio_device_ready, EAPP_MOD_WAIT_FW},
