@@ -2463,7 +2463,6 @@ bool checkEarlyAppsIntialization() {
 //  earlyAppsStatus[mEarlyAppAudioStatus.c_str()] = '0';
 //  earlyAppsStatus[mEarlyAppDisplayStatus.c_str()] = '0';
 //  earlyAppsStatus[mEarlyAppVideoStatus.c_str()] = '0';
-    char str[SHORT_STRING_MAX] = {0};
     for (const std::string& filename : mEarlyAppFile) {
         std::ifstream inputFile(filename);
         char character;
@@ -2476,8 +2475,11 @@ bool checkEarlyAppsIntialization() {
         character = '0';
     }
     for (const auto& pair : earlyAppsStatus ) {
+#ifdef EARLYINIT_DEBUG
+        char str[SHORT_STRING_MAX] = {0};
         snprintf(str, SHORT_STRING_MAX, "ES : first : %s and second : %c", pair.first.c_str(), pair.second);
         print_log(str);
+#endif
         if (pair.second == '0') {
             return false;
         }
