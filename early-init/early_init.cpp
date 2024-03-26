@@ -338,6 +338,7 @@ struct drm_cards_info {
   bool is_created;
 } _drm_cards[] = {
 #ifdef PLATFORM_GEN4
+  {"/sys/class/drm/card2/uevent", "card2", "/dev/dri", "/dev/dri/card2", false},
   {"/sys/class/drm/card3/uevent", "card3", "/dev/dri", "/dev/dri/card3", false},
   {"/sys/class/drm/card4/uevent", "card4", "/dev/dri", "/dev/dri/card4", false},
   {"/sys/class/drm/card5/uevent", "card5", "/dev/dri", "/dev/dri/card5", false},
