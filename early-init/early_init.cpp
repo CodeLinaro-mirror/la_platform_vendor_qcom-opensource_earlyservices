@@ -295,9 +295,7 @@ const static struct {
 #else
  {"esplash", "", "splash", check_esplash_device_ready, EAPP_WAIT_DISP},
 #endif // PLATFORM_GEN4
-#ifndef PLATFORM_SM6150 // TODO: Currently Disabled, enable after Video dependencies are up
  {"earlyVideo", "modules_vi.order", "video", check_video_device_ready, EAPP_MOD_WAIT_FW},
-#endif
  {"ais_server", "modules_ais.order", "ais", check_ais_device_ready, EAPP_MOD_WAIT_FW},
 #ifndef PLATFORM_SM6150 // TODO: Currently Disabled, enable after fixing issues
  {"qcarcam_edrm_rvc", "modules_rv.order", "rvc", check_rvc_device_ready, EAPP_MOD_WAIT_AIS},
