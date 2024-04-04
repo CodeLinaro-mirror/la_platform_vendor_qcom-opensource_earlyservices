@@ -1542,7 +1542,7 @@ static void create_drm_udev_cards(void)
   int major = 0, minor = 0;
   char buf[128];
 
-  while (i < cards_max) {
+  while (i < (sizeof(_drm_cards)/sizeof(drm_cards_info))) {
     if (!_drm_cards[i].is_created) {
       // check if sysfs entry is created
       if (access(_drm_cards[i].sysfs_path, F_OK) == 0) {
