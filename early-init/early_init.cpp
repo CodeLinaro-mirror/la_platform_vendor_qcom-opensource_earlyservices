@@ -28,7 +28,7 @@
  */
 
 /*
-* Changes from Qualcomm Innovation Center are provided under the following license:
+* Changes from Qualcomm Innovation Center, Inc. are provided under the following license:
 * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without
@@ -1889,6 +1889,10 @@ static int prepare_fw_dir(bool set_km)
   } else {
     snprintf(str, SHORT_STRING_MAX, "%s%d%s", "M - ES fw-load FAILED, waited ",
            (int)module_elapse_time.count(), "ms");
+           (int)module_elapse_time.count(), "ms");
+  } else {
+    snprintf(str, SHORT_STRING_MAX, "%s%d%s", "M - ES fw-load FAILED, waited ",
+           (int)module_elapse_time.count(), "ms");
   }
   write_marker(str);
 
@@ -2011,6 +2015,30 @@ static int load_kmod_and_nodes(const char* appname)
   if (_eapp_info[i].wait != EAPP_WAIT_NONE && _eapp_info[i].wait != EAPP_WAIT_DISP) {
     wait_for_display_ready(WAIT_SLEEP_MSEC, max*2);
   }
+
+  // Wait for FW availability if set
+  if (_eapp_info[i].wait == EAPP_WAIT_DEFAULT || _eapp_info[i].wait & EAPP_MOD_WAIT_FW) {
+    wait_for_file((char*)ES_FW_CHK_PATH, WAIT_SLEEP_MSEC, max*2);
+    if (_eapp_info[i].name[0] == 0)
+      return 0;
+  }
+
+  // Wait for AIS
+  if (_eapp_info[i].wait == EAPP_MOD_WAIT_AIS) {
+    wait_for_file((char*)ES_AIS_CHK_PATH, WAIT_SLEEP_MSEC, max*2);
+  }
+
+  // Initate Load modules
+  if (_eapp_info[i].kfile[0] != 0) {
+    snprintf(str, SHORT_STRING_MAX ,"M - Load mod-node %s", appname);
+    write_marker(str);
+
+    if ((pid = fork()) == 0) {
+      LOG(INFO) << "ES : Fork for mmmod " << appname;
+      setexeccon("u:r:vendor_init:s0");
+      const char *path = "/vendor_early_services/bin/early_services_init";
+      snprintf(str, SHORT_STRING_MAX, "%d", i);
+
 
   // Wait for FW availability if set
   if (_eapp_info[i].wait == EAPP_WAIT_DEFAULT || _eapp_info[i].wait & EAPP_MOD_WAIT_FW) {
