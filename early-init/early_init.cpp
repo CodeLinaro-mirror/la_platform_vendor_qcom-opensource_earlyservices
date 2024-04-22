@@ -91,6 +91,7 @@
 #include <sys/wait.h>
 #include <sys/mman.h>
 #include <utils/Log.h>
+#include <fstream>
 
 // for file copy
 #include <filesystem>
@@ -173,7 +174,11 @@ using android::base::boot_clock;
 #define EMOD_END                "mod_end"
 
 #define WAIT_SET_PERM_SECS  15
+#ifdef PLATFORM_GEN4
+#define WAIT_SET_PERM_MSECS 1000
+#else
 #define WAIT_SET_PERM_MSECS 400
+#endif
 #define WAIT_EAPP_SECS      20
 #define WAIT_EAPP_MSECS     2500
 #define WAIT_SLEEP_MSEC     5
@@ -189,9 +194,14 @@ using android::base::boot_clock;
 #define EMOD_DEF_TAG_2   "def_2"
 #define EMOD_DI_TAG      "display"
 
+#if defined(PLATFORM_GEN4)
+#define ES_DFLMOD_ORDER_1     ES_VMOD_PATH"modules_gen4.order"
+#define ES_DFLMOD_ORDER_DI    ES_VMOD_PATH"modules_di_gen4.order"
+#else
 #define ES_DFLMOD_ORDER_1     ES_VMOD_PATH"modules.order"
-#define ES_DFLMOD_ORDER_2     ES_VMOD_PATH"modules_2.order"
 #define ES_DFLMOD_ORDER_DI    ES_VMOD_PATH"modules_di.order"
+#endif
+#define ES_DFLMOD_ORDER_2     ES_VMOD_PATH"modules_2.order"
 
 #define EAPP_WAIT_DEFAULT 0x00
 #define EAPP_WAIT_NONE   0x01
@@ -219,6 +229,16 @@ using android::base::boot_clock;
 #define TEST_APP_PID "/vendor_early_services/run/early/init_early_test.pid"
 #define TEST_APP_LOG "/vendor_early_services/run/init_early_test.txt"
 #endif //__ANDROID_U__ || PLATFORM_GEN4
+
+const std::string& mEarlyAppStatus = "/dev/early_app_done_status";
+const std::string& mEarlyAppAudioStatus = "/dev/early_app_done_status/audio";
+const std::string mEarlyAppCameraStatus = "/dev/early_app_done_status/camera";
+const std::string& mEarlyAppDisplayStatus = "/dev/early_app_done_status/disp";
+const std::string& mEarlyAppVideoStatus = "/dev/early_app_done_status/video";
+// Once implementation done from respective module, this need to be enabled.
+//std::vector<std::string> mEarlyAppFile = { mEarlyAppAudioStatus.c_str(), mEarlyAppVideoStatus.c_str(), mEarlyAppDisplayStatus.c_str(), mEarlyAppCameraStatus.c_str() };
+std::vector<std::string> mEarlyAppFile = { mEarlyAppCameraStatus };
+
 
 #ifdef EARLYINIT_DEBUG
 static inline bool is_empty_line(const char* p);
@@ -279,21 +299,21 @@ const static struct {
   int (*is_ready)(void);
   int wait;
 } _eapp_info[] = {
-#if defined(__ANDROID_U__) || defined(PLATFORM_GEN4)
- {"esplash", "modules_di.order", "splash", NULL, EAPP_WAIT_DISP},
- {"qcxserver", "modules_qcx.order", "qcx", check_ais_device_ready, EAPP_MOD_WAIT_FW},
- {"qcarcam_edrm_rvc", "modules_rv_gen4.order", "rvc", check_rvc_device_ready, EAPP_MOD_WAIT_FW},
+#ifdef PLATFORM_GEN4
+ {"qcxserver", "modules_qcx.order", "qcx", check_ais_device_ready, EAPP_WAIT_NONE},
+ {"qcarcam_edrm_rvc", "modules_rv_gen4.order", "rvc", check_rvc_device_ready, EAPP_WAIT_NONE},
+ {EMOD_END, "modules_end_gen4.order", "def_end", NULL, EAPP_WAIT_NONE},
 #else
- {"esplash", "", "splash", NULL, EAPP_WAIT_DISP},
  {"ais_server", "modules_ais.order", "ais", check_ais_device_ready, EAPP_MOD_WAIT_FW},
  {"qcarcam_edrm_rvc", "modules_rv.order", "rvc", check_rvc_device_ready, EAPP_MOD_WAIT_FW},
-#endif //__ANDROID_U__ || PLATFORM_GEN4
+ {EMOD_END, "modules_end.order", "def_end", NULL, EAPP_WAIT_NONE},
+#endif //PLATFORM_GEN4
+ {"esplash", "", "splash", NULL, EAPP_WAIT_DISP},
  {"earlyVideo", "modules_vi.order", "video", check_video_device_ready, EAPP_MOD_WAIT_FW},
  {"pd-mapper", "modules_r_au.order", "pd-mapper", check_pdmapper_ready, EAPP_MOD_WAIT_FW},
 #ifdef ES_AUDIOE_DISABLED
  {"", "modules_au.order", "audio", check_audio_device_ready, EAPP_MOD_WAIT_FW},
 #endif
- {EMOD_END, "modules_end.order", "def_end", NULL, EAPP_WAIT_NONE},
  {"", "", "", NULL, EAPP_WAIT_DEFAULT} // Last Entry
 };
 static pid_t _eapp_pid[EAPPS_MAX];
@@ -329,6 +349,7 @@ struct drm_cards_info {
   bool is_created;
 } _drm_cards[] = {
 #ifdef PLATFORM_GEN4
+  {"/sys/class/drm/card2/uevent", "card2", "/dev/dri", "/dev/dri/card2", false},
   {"/sys/class/drm/card3/uevent", "card3", "/dev/dri", "/dev/dri/card3", false},
   {"/sys/class/drm/card4/uevent", "card4", "/dev/dri", "/dev/dri/card4", false},
   {"/sys/class/drm/card5/uevent", "card5", "/dev/dri", "/dev/dri/card5", false},
@@ -812,12 +833,9 @@ static inline pid_t parse_line(char* p)
         goto out;
       }
 
-#if defined(PLATFORM_GEN4)
-      //Enable Gen3 once tested
+
       pid = clone(nullptr, nullptr, (CLONE_FS | SIGCHLD), nullptr);
-#else
-      pid = fork();
-#endif
+
       if (pid < 0) {
         LOG(INFO) << " early_init fork child process failed ";
         perror("fork child process failed \r\n");
@@ -1047,7 +1065,7 @@ bool bc_get_lmp()
     (void)in_qemu;
     if (key == "androidboot.load_modules_parallel" && value == "\"true\"") {
       load_parallel = true;
-#if defined(__ANDROID_U__) || defined(PLATFORM_GEN4)
+#if defined(__ANDROID_U__)
        load_parallel = false;
 #endif
       found = true;
@@ -1332,6 +1350,13 @@ static int check_dma_heap_device_ready(void)
         dma_heap_device_created = 1;
         LOG(INFO) << "ES camera dma_heap device nodes ready";
         write_marker("M - EarlyInit dma heap nodes ready");
+#ifdef PLATFORM_GEN4
+        //Create drm cards for rvc once display dpu is ready
+        int max = (_use_min_wait)?(WAIT_SET_PERM_MSECS / WAIT_SLEEP_MSEC):
+                ((WAIT_SET_PERM_SECS * 1000) / WAIT_SLEEP_MSEC);
+        wait_for_display_ready(WAIT_SLEEP_MSEC, max*2);
+#endif
+
       }
     }
   }
@@ -1517,7 +1542,7 @@ static void create_drm_udev_cards(void)
   int major = 0, minor = 0;
   char buf[128];
 
-  while (i < cards_max) {
+  while (i < (sizeof(_drm_cards)/sizeof(drm_cards_info))) {
     if (!_drm_cards[i].is_created) {
       // check if sysfs entry is created
       if (access(_drm_cards[i].sysfs_path, F_OK) == 0) {
@@ -1577,6 +1602,8 @@ static int check_display_driver_ready(void)
     close(fd);
   }
   rc = dpu0_ready & dpu1_ready;
+  if (rc)
+    create_drm_udev_cards();
 #endif
 
   return rc;
@@ -1681,8 +1708,8 @@ static void set_video_permission(void)
 static void set_camera_media_permission(void)
 {
   LOG(INFO) << "ES : Set Camera Permissions for mdev";
-  set_permissions("/dev/media0", 0666, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
-  set_permissions("/dev/media1", 0666, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
+  set_permissions("/dev/media0", 0666, AID_CAMERA, AID_CAMERA, "u:object_r:video_device:s0");
+  set_permissions("/dev/media1", 0666, AID_CAMERA, AID_CAMERA, "u:object_r:video_device:s0");
   LOG(INFO) << "ES : Set Camera Permissions Completed for mdev";
   return;
 }
@@ -1690,8 +1717,8 @@ static void set_camera_media_permission(void)
 static void set_camera_video_permission(void)
 {
   LOG(INFO) << "ES : Set Camera Permissions for vdev";
-  set_permissions("/dev/video0", 0666, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
-  set_permissions("/dev/video1", 0666, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
+  set_permissions("/dev/video0", 0666, AID_CAMERA, AID_CAMERA, "u:object_r:video_device:s0");
+  set_permissions("/dev/video1", 0666, AID_CAMERA, AID_CAMERA, "u:object_r:video_device:s0");
   LOG(INFO) << "ES : Set Camera Permissions Completed for vdev";
   return;
 }
@@ -1699,25 +1726,26 @@ static void set_camera_video_permission(void)
 static void set_camera_v4l_permission(void)
 {
   LOG(INFO) << "ES : Set Camera Permissions for v4l-subdev";
-  set_permissions("/dev/v4l-subdev1", 0666, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
-  set_permissions("/dev/v4l-subdev2", 0666, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
-  set_permissions("/dev/v4l-subdev3", 0666, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
-  set_permissions("/dev/v4l-subdev4", 0666, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
-  set_permissions("/dev/v4l-subdev5", 0666, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
-  set_permissions("/dev/v4l-subdev6", 0666, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
-  set_permissions("/dev/v4l-subdev7", 0666, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
-  set_permissions("/dev/v4l-subdev8", 0666, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
-  set_permissions("/dev/v4l-subdev9", 0666, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
-  set_permissions("/dev/v4l-subdev10", 0666, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
+  set_permissions("/dev/v4l-subdev1", 0666, AID_CAMERA, AID_CAMERA, "u:object_r:video_device:s0");
+  set_permissions("/dev/v4l-subdev2", 0666, AID_CAMERA, AID_CAMERA, "u:object_r:video_device:s0");
+  set_permissions("/dev/v4l-subdev3", 0666, AID_CAMERA, AID_CAMERA, "u:object_r:video_device:s0");
+  set_permissions("/dev/v4l-subdev4", 0666, AID_CAMERA, AID_CAMERA, "u:object_r:video_device:s0");
+  set_permissions("/dev/v4l-subdev5", 0666, AID_CAMERA, AID_CAMERA, "u:object_r:video_device:s0");
+  set_permissions("/dev/v4l-subdev6", 0666, AID_CAMERA, AID_CAMERA, "u:object_r:video_device:s0");
+  set_permissions("/dev/v4l-subdev7", 0666, AID_CAMERA, AID_CAMERA, "u:object_r:video_device:s0");
+  set_permissions("/dev/v4l-subdev8", 0666, AID_CAMERA, AID_CAMERA, "u:object_r:video_device:s0");
+  set_permissions("/dev/v4l-subdev9", 0666, AID_CAMERA, AID_CAMERA, "u:object_r:video_device:s0");
+  set_permissions("/dev/v4l-subdev10", 0666, AID_CAMERA, AID_CAMERA, "u:object_r:video_device:s0");
+  //For directories, only ROOT is able to apply permissions at ES stage.
   set_permissions("/dev/socket/camera", 0775, AID_ROOT, AID_CAMERA, "u:object_r:vendor_camera_socket:s0");
   selinux_android_restorecon("/dev/socket/camera", SELINUX_ANDROID_RESTORECON_RECURSE);
-  set_permissions("/dev/v4l-subdev11", 0666, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
-  set_permissions("/dev/v4l-subdev12", 0666, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
-  set_permissions("/dev/v4l-subdev13", 0666, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
-  set_permissions("/dev/v4l-subdev14", 0666, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
-  set_permissions("/dev/v4l-subdev15", 0666, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
-  set_permissions("/dev/v4l-subdev16", 0666, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
-  set_permissions("/dev/v4l-subdev0", 0666, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
+  set_permissions("/dev/v4l-subdev11", 0666, AID_CAMERA, AID_CAMERA, "u:object_r:video_device:s0");
+  set_permissions("/dev/v4l-subdev12", 0666, AID_CAMERA, AID_CAMERA, "u:object_r:video_device:s0");
+  set_permissions("/dev/v4l-subdev13", 0666, AID_CAMERA, AID_CAMERA, "u:object_r:video_device:s0");
+  set_permissions("/dev/v4l-subdev14", 0666, AID_CAMERA, AID_CAMERA, "u:object_r:video_device:s0");
+  set_permissions("/dev/v4l-subdev15", 0666, AID_CAMERA, AID_CAMERA, "u:object_r:video_device:s0");
+  set_permissions("/dev/v4l-subdev16", 0666, AID_CAMERA, AID_CAMERA, "u:object_r:video_device:s0");
+  set_permissions("/dev/v4l-subdev0", 0666, AID_CAMERA, AID_CAMERA, "u:object_r:video_device:s0");
   LOG(INFO) << "ES : Set Camera Permissions Completed for v4l-subdev";
 
   return;
@@ -1731,8 +1759,10 @@ static int prepare_fw_dir(bool set_km)
   // FW mount partition
   std::string modemStr("/dev/block/by-name/modem");
   unsigned int count = 0, max = (WAIT_SET_PERM_SECS * 1000) / WAIT_SLEEP_MSEC;
+#ifndef PLATFORM_GEN4
   boot_clock::time_point module_start_time = boot_clock::now();
   bool mounted = false;
+#endif
   if (_use_min_wait) {
     max = (WAIT_SET_PERM_MSECS) / WAIT_SLEEP_MSEC;
   }
@@ -1749,6 +1779,7 @@ static int prepare_fw_dir(bool set_km)
     return 0;
   }
 
+#ifndef PLATFORM_GEN4
   if (access(AUDIO_FW_PATH, F_OK) == -1) {
     LOG(WARNING) << "ES : AUDIO_FW_PATH doesn't exist";
     mkdirs(AUDIO_FW_PATH, 0755);
@@ -1781,6 +1812,7 @@ static int prepare_fw_dir(bool set_km)
            (int)module_elapse_time.count(), "ms");
   }
   write_marker(str);
+#endif
 
   return 0;
 }
@@ -2027,23 +2059,24 @@ static int load_modules_parallel(const std::string& fl,
       std::unique_lock lk(mods_lock);
       while (++i < len) {
         char fl[SHORT_STRING_MAX];
-        if (kmod[i][0] == 0) {
+        int j = i;
+        if (kmod[j][0] == 0) {
           continue;
         }
         load_count++;
         lk.unlock();
         if (flag == LMP_MODPROBE) {
-          if (android::earlyinit::insert_kernel_module(kmod[i]) == false) {
+          if (android::earlyinit::insert_kernel_module(kmod[j]) == false) {
             fail_count++;
           }
           lk.lock();
           continue;
         }
-        snprintf(fl, SHORT_STRING_MAX, "%s%s.ko", mod_path.c_str(), kmod[i]);
+        snprintf(fl, SHORT_STRING_MAX, "%s%s.ko", mod_path.c_str(), kmod[j]);
         int fd = open(fl, O_RDONLY);
         if (fd > 0) {
           std::string param;
-          android::earlyinit::get_kernel_module_param(kmod[i], param, _module_params);
+          android::earlyinit::get_kernel_module_param(kmod[j], param, _module_params);
           int ret = finit_module(fd, param.c_str(), 0);
           if (ret < 0 && errno != EEXIST) {
             LOG(WARNING) << "fd = " << fd << "ES : init_module failed " << fl << " errno: " << errno;
@@ -2057,7 +2090,7 @@ static int load_modules_parallel(const std::string& fl,
 
           // Check for audio
           if (flag == LMP_DIRECT_CHK_AUD
-             && !strncmp(kmod[i], ADSP_KO, sizeof(ADSP_KO)-1)) {
+             && !strncmp(kmod[j], ADSP_KO, sizeof(ADSP_KO)-1)) {
             fd = open("/sys/kernel/boot_adsp/boot", O_WRONLY);
             if (fd < 0) {
               LOG(WARNING) << "ES : load_modules ADSP open sys entry failed";
@@ -2242,7 +2275,7 @@ static void launch_early_apps(void)
     LOG(WARNING) << "ES : Max Apps limit reached!";
 }
 
-#if defined(__ANDROID_U__) || defined(PLATFORM_GEN4)
+#if defined(__ANDROID_U__)
 static int load_default_modules()
 {
   int count = 0;
@@ -2257,7 +2290,7 @@ static int load_default_modules()
   write_marker(str);
   return 0;
 }
-#endif // __ANDROID_U__ || PLATFORM_GEN4
+#endif // __ANDROID_U__
 
 static int wait_for_early_apps(void)
 {
@@ -2380,6 +2413,14 @@ static pid_t __attribute__((unused)) fork_wait_for_child(int type, int run_if_fo
         break;
       }
       case ES_CTYPE_DI_MOD: {
+        //Increase process priority for display module loading
+        struct sched_param sp;
+        memset(&sp, 0, sizeof(sp));
+        sp.sched_priority = sched_get_priority_max(SCHED_FIFO);
+        if (0 != sched_setscheduler( pid, SCHED_FIFO, &sp))
+        {
+            LOG(INFO) << " sched_setparam display "<<sp.sched_priority<<strerror(errno);
+        }
         bool load_parallel = bc_get_lmp();
         load_modules_parallel(ES_DFLMOD_ORDER_DI, ES_DFLMOD_PATH,
           load_parallel?std::thread::hardware_concurrency():1,
@@ -2387,6 +2428,14 @@ static pid_t __attribute__((unused)) fork_wait_for_child(int type, int run_if_fo
         break;
       }
       case ES_CTYPE_LOAD_SE: {
+        //Increase process priority for loading sepolicy
+        struct sched_param sp;
+        memset(&sp, 0, sizeof(sp));
+        sp.sched_priority = sched_get_priority_max(SCHED_FIFO)-1;
+        if (0 != sched_setscheduler( pid, SCHED_FIFO, &sp))
+        {
+            LOG(INFO) << " sched_setparam sepol "<<sp.sched_priority<<strerror(errno);
+        }
         load_precompiled_sepolicy();
         break;
       }
@@ -2406,6 +2455,37 @@ static pid_t __attribute__((unused)) fork_wait_for_child(int type, int run_if_fo
   }
 
   return pid;
+}
+
+bool checkEarlyAppsIntialization() {
+    std::unordered_map<std::string, char> earlyAppsStatus;
+    earlyAppsStatus[mEarlyAppCameraStatus.c_str()] = '0';
+//  Below To be enabled once support is added
+//  earlyAppsStatus[mEarlyAppAudioStatus.c_str()] = '0';
+//  earlyAppsStatus[mEarlyAppDisplayStatus.c_str()] = '0';
+//  earlyAppsStatus[mEarlyAppVideoStatus.c_str()] = '0';
+    for (const std::string& filename : mEarlyAppFile) {
+        std::ifstream inputFile(filename);
+        char character;
+        while (inputFile.get(character)) {
+            if (earlyAppsStatus.find(filename) != earlyAppsStatus.end()) {
+                earlyAppsStatus[filename] = character;
+            }
+        }
+        inputFile.close();
+        character = '0';
+    }
+    for (const auto& pair : earlyAppsStatus ) {
+#ifdef EARLYINIT_DEBUG
+        char str[SHORT_STRING_MAX] = {0};
+        snprintf(str, SHORT_STRING_MAX, "ES : first : %s and second : %c", pair.first.c_str(), pair.second);
+        print_log(str);
+#endif
+        if (pair.second == '0') {
+            return false;
+        }
+    }
+    return true;
 }
 
 int early_init(int init)
@@ -2447,17 +2527,38 @@ int early_init(int init)
     mount("sysfs", "/sys", "sysfs", 0, NULL);
     prepare_dir((char*)"shm");
 
+    // Create a file system node to update the status of ES clients
+    mkdir(mEarlyAppStatus.c_str(), S_IFREG | 0666);
+
+    //write 0 to early app status nodes
+    char value = '0';
+    for (const std::string& filename : mEarlyAppFile) {
+        if (mknod(filename.c_str(), S_IFREG | 0666, makedev(0,0)) == 0) {
+            int fd = open(filename.c_str(), O_WRONLY);
+            if (fd != -1) {
+                if (write(fd, &value, sizeof(value)) == sizeof(value)) {
+                   LOG(ERROR) << "ES : " << value << " is written successfully to a file " << filename;
+                }
+                close(fd);
+            } else {
+                LOG(ERROR) << "ES : Error opening the file!" << filename;
+            }
+        } else {
+            LOG(ERROR) << "ES : Error creating file system node!";
+        }
+    }
+
     /* Create ais_server/qcxserver socket dir and camera data dir */
     mkdir("/dev/socket", 0775);
     mkdir("/dev/socket/camera", 0775);
 
-#if defined( __ANDROID_U__) || defined(PLATFORM_GEN4)
+#if defined( __ANDROID_U__)
      load_default_modules();
      prepare_fw_dir(true);
      load_precompiled_sepolicy();
 #else
     bool load_parallel = bc_get_lmp();
-    pid_t pid_def2, pid_se;
+    pid_t pid_se;
 
     load_modules_parallel(ES_DFLMOD_ORDER_1, ES_DFLMOD_PATH,
          load_parallel?std::thread::hardware_concurrency():1,
@@ -2465,8 +2566,10 @@ int early_init(int init)
 
     // Check for driver storage enumerations
     fork_wait_for_child(ES_CTYPE_FW, 1);
+#ifndef PLATFORM_GEN4
     // Load second set of def-modules in parallel
-    pid_def2 = fork_wait_for_child(ES_CTYPE_DEF2_MOD, 1);
+    pid_t pid_def2 = fork_wait_for_child(ES_CTYPE_DEF2_MOD, 1);
+#endif
     // Load Display modules in parallel
     fork_wait_for_child(ES_CTYPE_DI_MOD, 1);
     // Load sepolicies in parallel
@@ -2476,7 +2579,10 @@ int early_init(int init)
     int max = (_use_min_wait)?((WAIT_PID_MIN_MSECS * 1000) / WAIT_SLEEP_USECS):
                       ((WAIT_PID_MAX_MSECS * 1000) / WAIT_SLEEP_USECS);
     wait_for_pid(pid_se, WAIT_SLEEP_USECS, max);
+#ifndef PLATFORM_GEN4
     wait_for_pid(pid_def2, WAIT_SLEEP_USECS, max);
+#endif
+
 #endif // ! __ANDROID_U__
 
     selinux_android_restorecon("/vendor_early_services/early_services_init", 0);
@@ -2530,6 +2636,21 @@ int early_init(int init)
   // wait for app exec
   wait_for_early_apps();
   load_kmod_and_nodes(EMOD_END);
+
+  print_log("ES : checking early app status");
+  auto start_time = std::chrono::high_resolution_clock::now();
+  while (true) {
+    if (checkEarlyAppsIntialization()) {
+        break;
+    }
+    auto current_time = std::chrono::high_resolution_clock::now();
+    auto elapsed_seconds = std::chrono::duration_cast<std::chrono::seconds>(current_time - start_time).count();
+
+    if (elapsed_seconds >= 3) {
+        break;
+    }
+  }
+  print_log("ES :early apps are ready");
 
   mknod("/dev/sedone", S_IFREG | 0400, makedev(0,0));
 
