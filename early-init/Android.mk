@@ -13,6 +13,11 @@ ifneq ($(filter $(MSMSTEPPE),$(TARGET_BOARD_PLATFORM)),)
 	LOCAL_CFLAGS := -DPLATFORM_MSMSTEPPE
 endif
 
+ifneq (,$(filter $(TARGET_BOARD_PLATFORM)$(TARGET_BOARD_SUFFIX), sm6150_au))
+LOCAL_CFLAGS := -DPLATFORM_SM6150
+endif
+
+
 ifneq ($(filter gen4, $(TARGET_BOARD_PLATFORM)),)
         LOCAL_CFLAGS := -DPLATFORM_GEN4
 endif
@@ -20,6 +25,8 @@ endif
 ifneq (,$(filter U 14 UpsideDownCake, $(PLATFORM_VERSION)))
 LOCAL_CFLAGS += -D__ANDROID_U__
 endif
+
+LOCAL_CFLAGS += -Wall -Werror
 
 LOCAL_MODULE := early_services_init
 #LOCAL_STATIC_LIBRARIES := libc++_static

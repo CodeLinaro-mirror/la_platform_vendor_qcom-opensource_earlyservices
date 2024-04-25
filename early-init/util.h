@@ -16,22 +16,30 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+/*
+ * Changes from Qualcomm Innovation Center, Inc. are provided under the following license:
+ * Copyright (c) 2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * SPDX-License-Identifier: BSD-3-Clause-Clear
+ */
 
 #ifndef _EARLYINIT_UTIL_H_
 #define _EARLYINIT_UTIL_H_
 
 #include <string>
+#include <unordered_map>
 
 namespace android {
 namespace earlyinit {
 
 void import_kernel_cmdline(bool in_qemu,
-                           const std::function<void(const std::string&, const std::string&, bool)>&);
+                           const std::function<bool(const std::string&, const std::string&, bool)>&);
 bool load_kernel_modules(int& loaded_count, bool is_parallel);
+bool insert_kernel_module(const std::string& mod);
 
-int get_kernel_module_param(const std::string& mod_name, std::string& params);
+int get_kernel_module_param(const std::string &mod_name, std::string& params,
+     std::unordered_map<std::string, std::string>& opt, bool init = false);
 void import_kernel_bootconfig(bool in_qemu,
-                           const std::function<void(const std::string&, const std::string&, bool)>&);
+                           const std::function<bool(const std::string&, const std::string&, bool)>&);
 }  // namespace earlyinit
 }  // namespace android
 
