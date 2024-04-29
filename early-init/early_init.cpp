@@ -174,6 +174,7 @@ using android::base::boot_clock;
 #define ES_AIS_CHK_PATH         "/sys/class/video4linux/v4l-subdev0"
 #define ES_KMOD_DONE            "/dev/kmdone"
 
+#define CAM_AIS_APP             "ais_server"
 #define ECHIME_APP              "early_chime"
 #define AUTO_NXP_APP            "audio-nxp-auto"
 #define PDMAPPER_APP            "pd-mapper"
@@ -370,6 +371,32 @@ static void inline write_smack_label(char* label)
   return;
 }
 #endif
+
+static int get_sku_qultivate_ver()
+{
+   char buffer[8];
+   char buf[32];
+   int qultivate_flag = 0;
+
+   FILE* fp = fopen("/sys/devices/soc0/camera", "r");
+   if (!fp)
+   {
+       LOG(ERROR) << "fopen failed";
+   }
+   else
+   {
+       fgets(buffer,sizeof(buffer),fp);
+       snprintf(buf, 32, "%s", buffer);
+       LOG(INFO) << "camera node value" << buf;
+       fclose(fp);
+       if (!strncmp(buffer,"0x1",3))
+       {
+          qultivate_flag = 1;
+          LOG(INFO) << "Qultivate HW detected" << buf;
+       }
+   }
+   return qultivate_flag;
+}
 
 /*
  * Only support abs path
@@ -786,6 +813,15 @@ static inline pid_t parse_line(char* p)
              && !_audio_reach)) {
         LOG(INFO) << "ES : Not Launching app " << app_launcher.appname;
         goto out;
+      }
+
+      if (!strncmp(app_launcher.appname, CAM_AIS_APP, strlen(CAM_AIS_APP)))
+      {
+        if (get_sku_qultivate_ver())
+        {
+           write_marker("M - Qultivate HW Camera not supported");
+           goto out;
+        }
       }
 
 #ifdef __ANDROID_U__
