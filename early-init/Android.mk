@@ -22,7 +22,7 @@ ifneq ($(filter gen4, $(TARGET_BOARD_PLATFORM)),)
         LOCAL_CFLAGS := -DPLATFORM_GEN4
 endif
 
-ifneq (,$(filter U 14 UpsideDownCake, $(PLATFORM_VERSION)))
+ifneq (,$(filter U 14 UpsideDownCake V 15 VanillaIceCream, $(PLATFORM_VERSION)))
 LOCAL_CFLAGS += -D__ANDROID_U__
 endif
 
@@ -161,7 +161,7 @@ ifneq ($(filter gen4, $(TARGET_BOARD_PLATFORM)),)
         LOCAL_CFLAGS := -DPLATFORM_GEN4
 endif
 
-ifneq (,$(filter U 14 UpsideDownCake, $(PLATFORM_VERSION)))
+ifneq (,$(filter U 14 UpsideDownCake V 15 VanillaIceCream, $(PLATFORM_VERSION)))
         LOCAL_CFLAGS += -DSILENT_BOOT_ANDROID_U
 endif
 

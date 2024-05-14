@@ -915,7 +915,7 @@ static inline pid_t parse_line(char* p)
         if (app_launcher.usleep > 0)
           usleep(app_launcher.usleep);
 
-        app_launcher.env[app_launcher.env_used] = "LD_LIBRARY_PATH=/vendor_early_services/system/lib64";
+        app_launcher.env[app_launcher.env_used] = (char*)"LD_LIBRARY_PATH=/vendor_early_services/system/lib64";
         app_launcher.env_used++;
         app_launcher.argv[app_launcher.argv_used] = NULL;
         app_launcher.env[app_launcher.env_used] = NULL;
