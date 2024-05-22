@@ -67,6 +67,7 @@
 #endif
 //#define TEMP_SOLUTION
 //#define EARLYINIT_DEBUG
+//#define EARLYINIT_KO_INSTRUMENTATION
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -2142,6 +2143,56 @@ static int load_kmod_and_nodes(const char* appname)
   return 0;
 }
 
+#ifdef EARLYINIT_KO_INSTRUMENTATION
+static int ko_load_time_start(const char *tag, int curr_time)
+{
+  char ko_p[SHORT_STRING_MAX] = {0};
+  snprintf(ko_p, SHORT_STRING_MAX, "%s_%s.log",
+           "/vendor_early_services/ko_time", tag);
+  int ko_fd = open(ko_p, O_RDWR | O_CREAT, 0665);
+
+  if (ko_fd > 0) {
+     // Write start tag for this modules group, format:
+     // <module_tag> <current_time> START
+     int ko_sz_st = snprintf(ko_p, SHORT_STRING_MAX, "%s %d START",
+                    tag, curr_time);
+     write(ko_fd, ko_p, ko_sz_st);
+  } else {
+    LOG(WARNING) << "ES : ko_fd open failed, errno: " << errno;
+  }
+
+  return ko_fd;
+}
+
+static void ko_load_time_add(int ko_fd, const char* ko_name, int load_time, int fail_count)
+{
+  // write to file
+  if (ko_fd > 0) {
+    // Write current ko module load time, format:
+    // <module_name> <load_time> <total_load_fail_count>
+    char ko_str[SHORT_STRING_MAX] = {0};
+    int ko_sz = snprintf(ko_str, SHORT_STRING_MAX, "\n%s %d %d", ko_name,
+                  load_time, fail_count);
+    write(ko_fd, ko_str, ko_sz);
+  }
+}
+
+static void ko_load_time_end(int ko_fd, const char* tag, int curr_time, int tot_time)
+{
+  char ko_p[SHORT_STRING_MAX] = {0};
+  if (ko_fd > 0) {
+    // Write end tag for this modules group, format:
+    // <module_tag> <current_time> Tot <total_load_time> END
+    // total_load_time - Time taken to load all the ko files in current group
+    int ko_sz_end = snprintf(ko_p, SHORT_STRING_MAX, "\n%s %d Tot %d END\n",
+                    tag, curr_time, tot_time);
+    write(ko_fd, ko_p, ko_sz_end);
+    close(ko_fd);
+  }
+}
+
+#endif //EARLYINIT_KO_INSTRUMENTATION
+
 #define MAX_MODULES_PER_LINE 64
 static int load_modules_parallel(const std::string& fl,
                    const std::string& mod_path, const int th_count,
@@ -2159,6 +2210,11 @@ static int load_modules_parallel(const std::string& fl,
 
 #ifdef EARLYINIT_DEBUG
   LOG(INFO) << "Loading modules " << mod_path << " file " << fl;
+#endif
+#ifdef EARLYINIT_KO_INSTRUMENTATION
+  int ko_fd = ko_load_time_start(logtag.c_str(),
+              (int)std::chrono::duration_cast<std::chrono::milliseconds>(
+              module_start_time.time_since_epoch()).count());
 #endif
 
   std::vector<std::string> lines = android::base::Split(mlist, "\n");
@@ -2209,11 +2265,23 @@ static int load_modules_parallel(const std::string& fl,
         }
         load_count++;
         lk.unlock();
+#ifdef EARLYINIT_KO_INSTRUMENTATION
+        boot_clock::time_point ko_st = boot_clock::now();
+        std::chrono::milliseconds ko_el;
+#endif
         if (flag == LMP_MODPROBE) {
           if (android::earlyinit::insert_kernel_module(kmod[j]) == false) {
             fail_count++;
           }
+#ifdef EARLYINIT_KO_INSTRUMENTATION
+          ko_el = std::chrono::duration_cast<std::chrono::milliseconds>(
+                          boot_clock::now() - ko_st);
+#endif
           lk.lock();
+#ifdef EARLYINIT_KO_INSTRUMENTATION
+          // write to file
+          ko_load_time_add(ko_fd, kmod[j], (int)ko_el.count(), fail_count);
+#endif
           continue;
         }
         snprintf(fl, SHORT_STRING_MAX, "%s%s.ko", mod_path.c_str(), kmod[j]);
@@ -2230,6 +2298,10 @@ static int load_modules_parallel(const std::string& fl,
             LOG(INFO) << "ES : init_module success for: " << fl;
 #endif
           }
+#ifdef EARLYINIT_KO_INSTRUMENTATION
+          ko_el = std::chrono::duration_cast<std::chrono::milliseconds>(
+                                    boot_clock::now() - ko_st);
+#endif
           close(fd);
 
           // Check for audio
@@ -2254,6 +2326,10 @@ static int load_modules_parallel(const std::string& fl,
           LOG(WARNING) << "ES : Failed to open module " << fl;
         }
         lk.lock();
+#ifdef EARLYINIT_KO_INSTRUMENTATION
+        // write to file
+        ko_load_time_add(ko_fd, kmod[j], (int)ko_el.count(), fail_count);
+#endif
       }
       usleep(5);
     };
@@ -2277,6 +2353,13 @@ static int load_modules_parallel(const std::string& fl,
           (int)module_elapse_time.count(), "ms", fail_count, load_count);
   }
 
+#ifdef EARLYINIT_KO_INSTRUMENTATION
+  ko_load_time_end(ko_fd, logtag.c_str(),
+         (int)std::chrono::duration_cast<std::chrono::milliseconds>(
+           boot_clock::now().time_since_epoch()).count(),
+         (int)module_elapse_time.count());
+  ko_fd = -1;
+#endif
   write_marker(str);
 
   LOG(INFO) << "ES : Load modules done " << logtag << " count " << load_count
@@ -2737,6 +2820,19 @@ int early_init(int init)
 
   load_kmod_and_nodes(EMOD_END);
 
+#ifdef  EARLYINIT_KO_INSTRUMENTATION
+  set_permissions("/vendor_early_services", 0755, AID_ROOT, AID_SHELL, "u:object_r:vendor_file:s0");
+  set_permissions("/vendor_early_services/ko_time_def_1.log", 0775, AID_ROOT, AID_SHELL, "u:object_r:vendor_file:s0");
+  set_permissions("/vendor_early_services/ko_time_def_2.log", 0775, AID_ROOT, AID_SHELL, "u:object_r:vendor_file:s0");
+  set_permissions("/vendor_early_services/ko_time_display.log", 0775, AID_ROOT, AID_SHELL, "u:object_r:vendor_file:s0");
+  set_permissions("/vendor_early_services/ko_time_splash.log", 0775, AID_ROOT, AID_SHELL, "u:object_r:vendor_file:s0");
+  set_permissions("/vendor_early_services/ko_time_video.log", 0775, AID_ROOT, AID_SHELL, "u:object_r:vendor_file:s0");
+  set_permissions("/vendor_early_services/ko_time_audio.log", 0775, AID_ROOT, AID_SHELL, "u:object_r:vendor_file:s0");
+  set_permissions("/vendor_early_services/ko_time_pd-mapper.log", 0775, AID_ROOT, AID_SHELL, "u:object_r:vendor_file:s0");
+  set_permissions("/vendor_early_services/ko_time_ais.log", 0775, AID_ROOT, AID_SHELL, "u:object_r:vendor_file:s0");
+  set_permissions("/vendor_early_services/ko_time_rvc.log", 0775, AID_ROOT, AID_SHELL, "u:object_r:vendor_file:s0");
+  set_permissions("/vendor_early_services/ko_time_def_end.log", 0775, AID_ROOT, AID_SHELL, "u:object_r:vendor_file:s0");
+#endif
   mknod("/dev/sedone", S_IFREG | 0400, makedev(0,0));
 
   char str[SHORT_STRING_MAX] = {0};
