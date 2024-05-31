@@ -1750,16 +1750,12 @@ static int check_storage_device_ready(void)
   static int sto_device_created = 0;
 
   if (!sto_device_created) {
-    if (
-#ifdef PLATFORM_SM6150
-        access("/sys/block/mmcblk0/uevent", F_OK) == 0
-#else
+    if ((access("/sys/block/mmcblk0/uevent", F_OK) == 0) || (
         access("/sys/block/sda/uevent", F_OK) == 0 &&
         access("/sys/block/sdd/uevent", F_OK) == 0 &&
         access("/sys/block/sde/uevent", F_OK) == 0 &&
-        access("/sys/block/sdf/uevent", F_OK) == 0
-#endif
-    ) {
+        access("/sys/block/sdf/uevent", F_OK) == 0)) {
+
 #ifdef EARLYINIT_DEBUG
       LOG(INFO) << "ES SD nodes ready";
 #endif
