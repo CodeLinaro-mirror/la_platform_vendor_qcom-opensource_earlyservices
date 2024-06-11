@@ -174,7 +174,9 @@ using android::base::boot_clock;
 #define ES_AIS_CHK_PATH         "/sys/class/video4linux/v4l-subdev0"
 #define ES_KMOD_DONE            "/dev/kmdone"
 
+#define CAM_AIS_APP             "ais_server"
 #define ECHIME_APP              "early_chime"
+#define ERVC_APP                "qcarcam_edrm_rvc"
 #define AUTO_NXP_APP            "audio-nxp-auto"
 #define PDMAPPER_APP            "pd-mapper"
 #define EMOD_END                "mod_end"
@@ -184,6 +186,7 @@ using android::base::boot_clock;
 #define WAIT_EAPP_SECS      20
 #define WAIT_EAPP_MSECS     2500
 #define WAIT_SLEEP_MSEC     5
+#define WAIT_DISP_MSEC      25
 #define WAIT_SLEEP_USECS    500
 #define WAIT_PID_MIN_MSECS  2000
 #define WAIT_PID_MAX_MSECS  5000
@@ -205,7 +208,7 @@ using android::base::boot_clock;
 #define EAPP_WAIT_DISP    0x02
 #define EAPP_MOD_WAIT_FW  0x04
 // ais wait should wait for FW too
-#define EAPP_MOD_WAIT_AIS (EAPP_MOD_WAIT_FW + 1)
+//#define EAPP_MOD_WAIT_AIS (EAPP_MOD_WAIT_FW + 1)
 
 #define LMP_MODPROBE       0
 #define LMP_DIRECT         1
@@ -281,6 +284,7 @@ static struct {
   char* username;
   char* group;
   char* wait;
+  char* selabel;
 } app_launcher;
 
 const static struct {
@@ -296,10 +300,8 @@ const static struct {
  {"esplash", "", "splash", check_esplash_device_ready, EAPP_WAIT_DISP},
 #endif // PLATFORM_GEN4
  {"earlyVideo", "modules_vi.order", "video", check_video_device_ready, EAPP_MOD_WAIT_FW},
- {"ais_server", "modules_ais.order", "ais", check_ais_device_ready, EAPP_MOD_WAIT_FW},
-#ifndef PLATFORM_SM6150 // TODO: Currently Disabled, enable after fixing issues
- {"qcarcam_edrm_rvc", "modules_rv.order", "rvc", check_rvc_device_ready, EAPP_MOD_WAIT_AIS},
-#endif
+ {"ais_server", "modules_ais.order", "ais", check_ais_device_ready, EAPP_WAIT_NONE},
+ {"qcarcam_edrm_rvc", "modules_rv.order", "rvc", check_rvc_device_ready, EAPP_WAIT_NONE},
  {"pd-mapper", "modules_r_au.order", "pd-mapper", check_pdmapper_ready, EAPP_MOD_WAIT_FW},
  {"audio-nxp-auto", "", "audio-nxp", check_audio_device_ready, EAPP_MOD_WAIT_FW},
  {"early_chime", "modules_au.order", "audio", check_audio_device_ready, EAPP_MOD_WAIT_FW},
@@ -371,6 +373,32 @@ static void inline write_smack_label(char* label)
   return;
 }
 #endif
+
+static int get_sku_qultivate_ver()
+{
+   char buffer[8];
+   char buf[32];
+   int qultivate_flag = 0;
+
+   FILE* fp = fopen("/sys/devices/soc0/camera", "r");
+   if (!fp)
+   {
+       LOG(ERROR) << "fopen failed";
+   }
+   else
+   {
+       fgets(buffer,sizeof(buffer),fp);
+       snprintf(buf, 32, "%s", buffer);
+       LOG(INFO) << "camera node value" << buf;
+       fclose(fp);
+       if (!strncmp(buffer,"0x1",3))
+       {
+          qultivate_flag = 1;
+          LOG(INFO) << "Qultivate HW detected" << buf;
+       }
+   }
+   return qultivate_flag;
+}
 
 /*
  * Only support abs path
@@ -641,6 +669,7 @@ static void inline app_launcher_start_over(void)
   safe_free(&app_launcher.wait);
   safe_free(&app_launcher.username);
   safe_free(&app_launcher.group);
+  safe_free(&app_launcher.selabel);
   app_launcher.usleep = -1;
 
   for (i = 0; i < app_launcher.argv_used; i++)
@@ -766,6 +795,11 @@ static inline pid_t parse_line(char* p)
         app_launcher.username = strdup(p);
       }
       break;
+    case 's':
+      if (0 == strncmp(p + 1, "elabel", strlen("elabel")) && 0 == find_rvalue(&p)) {
+        app_launcher.selabel = strdup(p);
+      }
+      break;
     case '<':/* end */
       /*
        * When comes to the end, start up the app
@@ -783,7 +817,21 @@ static inline pid_t parse_line(char* p)
         goto out;
       }
 
+      if (!strncmp(app_launcher.appname, CAM_AIS_APP, strlen(CAM_AIS_APP)))
+      {
+        if (get_sku_qultivate_ver())
+        {
+           write_marker("M - Qultivate HW Camera not supported");
+           goto out;
+        }
+      }
+
+#ifdef __ANDROID_U__
+      //Enable for android V once tested
+      pid = clone(nullptr, nullptr, (CLONE_FS | SIGCHLD), nullptr);
+#else
       pid = fork();
+#endif
       if (pid < 0) {
         LOG(INFO) << " early_init fork child process failed ";
         perror("fork child process failed \r\n");
@@ -867,7 +915,7 @@ static inline pid_t parse_line(char* p)
         if (app_launcher.usleep > 0)
           usleep(app_launcher.usleep);
 
-        app_launcher.env[app_launcher.env_used] = "LD_LIBRARY_PATH=/vendor_early_services/system/lib64";
+        app_launcher.env[app_launcher.env_used] = (char*)"LD_LIBRARY_PATH=/vendor_early_services/system/lib64";
         app_launcher.env_used++;
         app_launcher.argv[app_launcher.argv_used] = NULL;
         app_launcher.env[app_launcher.env_used] = NULL;
@@ -884,6 +932,10 @@ static inline pid_t parse_line(char* p)
           if ((ret = access(app_launcher.cmd, F_OK)) != 0) {
             LOG(WARNING) << "ES : App " << app_launcher.appname << " doesn't exist ret " << ret << " err " << errno;
             exit(0);
+          }
+
+          if (app_launcher.selabel) {
+            setexeccon(app_launcher.selabel);
           }
 
           // load kmod, if applicable for early app
@@ -1864,7 +1916,7 @@ static int prepare_fw_dir(bool set_km)
 
   modemStr += _boot_slot;
   // wait for node creation
-  if (wait_for_file(modemStr.c_str(), WAIT_SLEEP_MSEC, max*2) == 0) {
+  if (wait_for_file(modemStr.c_str(), WAIT_DISP_MSEC, max*2) == 0) {
     // mount partition
     if (mount(modemStr.c_str(), AUDIO_FW_PATH, "vfat",
       MS_RDONLY, "context=u:object_r:firmware_file:s0") < 0) {
@@ -2005,11 +2057,6 @@ static int load_kmod_and_nodes(const char* appname)
     }
   }
 
-  // Wait for Display for all apps, if not set too
-  if (_eapp_info[i].wait != EAPP_WAIT_NONE && _eapp_info[i].wait != EAPP_WAIT_DISP) {
-    wait_for_display_ready(WAIT_SLEEP_MSEC, max*2);
-  }
-
   // Wait for FW availability if set
   if (_eapp_info[i].wait == EAPP_WAIT_DEFAULT || _eapp_info[i].wait & EAPP_MOD_WAIT_FW) {
     wait_for_file((char*)ES_FW_CHK_PATH, WAIT_SLEEP_MSEC, max*2);
@@ -2017,10 +2064,10 @@ static int load_kmod_and_nodes(const char* appname)
       return 0;
   }
 
-  // Wait for AIS
+/*  // Wait for AIS
   if (_eapp_info[i].wait == EAPP_MOD_WAIT_AIS) {
     wait_for_file((char*)ES_AIS_CHK_PATH, WAIT_SLEEP_MSEC, max*2);
-  }
+  }*/
 
   // Initate Load modules
   if (_eapp_info[i].kfile[0] != 0) {
@@ -2030,6 +2077,11 @@ static int load_kmod_and_nodes(const char* appname)
     if ((pid = fork()) == 0) {
       LOG(INFO) << "ES : Fork for mmmod " << appname;
       setexeccon("u:r:vendor_init:s0");
+      if ((!strncmp(app_launcher.appname, ERVC_APP, strlen(ERVC_APP))) || (!strncmp(app_launcher.appname, CAM_AIS_APP, strlen(CAM_AIS_APP)))) {
+        int ret = setpriority(PRIO_PROCESS, 0, -20);
+        if(ret < 0)
+          LOG(WARNING) << "ES : setpriority fails for app :" <<app_launcher.appname<<" error:"<<strerror(errno) ;
+      }
       const char *path = "/vendor_early_services/bin/early_services_init";
       snprintf(str, SHORT_STRING_MAX, "%d", i);
 
@@ -2043,11 +2095,16 @@ static int load_kmod_and_nodes(const char* appname)
                       ((WAIT_PID_MAX_MSECS * 1000) / WAIT_SLEEP_USECS);
     wait_for_pid(pid, WAIT_SLEEP_USECS, pmax);
   }
-
+  
+    // Wait for Display for all apps, if not set too
+  if (_eapp_info[i].wait != EAPP_WAIT_NONE && _eapp_info[i].wait != EAPP_WAIT_DISP) {
+    wait_for_display_ready(WAIT_DISP_MSEC, max*2);
+  }
+  
   // Wait if ready not set
   if (_eapp_info[i].is_ready == NULL) {
     if (_eapp_info[i].wait & EAPP_WAIT_DISP) {
-      wait_for_display_ready(WAIT_SLEEP_MSEC, max*2);
+      wait_for_display_ready(WAIT_DISP_MSEC, max*2);
     }
     return 0;
   }
@@ -2083,7 +2140,7 @@ static int load_kmod_and_nodes(const char* appname)
 
   // Wait for Display - specific case where we have to wait here after kmod load
   if (_eapp_info[i].wait & EAPP_WAIT_DISP) {
-    wait_for_display_ready(WAIT_SLEEP_MSEC, max*2);
+    wait_for_display_ready(WAIT_DISP_MSEC, max*2);
   }
 
   return 0;
@@ -2499,6 +2556,13 @@ static pid_t __attribute__((unused)) fork_wait_for_child(int type, int run_if_fo
         break;
       }
       case ES_CTYPE_DEF2_MOD: {
+        struct sched_param sp;
+        memset(&sp, 0, sizeof(sp));
+        sp.sched_priority = sched_get_priority_max(SCHED_FIFO);
+        if (0 != sched_setscheduler( pid, SCHED_FIFO, &sp))
+        {
+            LOG(INFO) << " sched_setparam def2 "<<sp.sched_priority<<strerror(errno);
+        }
         bool load_parallel = bc_get_lmp();
         load_modules_parallel(ES_DFLMOD_ORDER_2, ES_DFLMOD_PATH,
           load_parallel?std::thread::hardware_concurrency():1,
@@ -2604,8 +2668,6 @@ int early_init(int init)
     fork_wait_for_child(ES_CTYPE_FW, 1);
     // Load second set of def-modules in parallel
     pid_def2 = fork_wait_for_child(ES_CTYPE_DEF2_MOD, 1);
-    // Load Display modules in parallel
-    fork_wait_for_child(ES_CTYPE_DI_MOD, 1);
     // Load sepolicies in parallel
     pid_se = fork_wait_for_child(ES_CTYPE_LOAD_SE, 1);
 
@@ -2614,6 +2676,8 @@ int early_init(int init)
                       ((WAIT_PID_MAX_MSECS * 1000) / WAIT_SLEEP_USECS);
     wait_for_pid(pid_se, WAIT_SLEEP_USECS, max);
     wait_for_pid(pid_def2, WAIT_SLEEP_USECS, max);
+    // Load Display modules in parallel
+    fork_wait_for_child(ES_CTYPE_DI_MOD, 1);
 
     selinux_android_restorecon("/vendor_early_services/early_services_init", 0);
     if (selinux_android_restorecon("/vendor_early_services/",
