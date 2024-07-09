@@ -259,6 +259,7 @@ static int wait_for_file(const char* file, int sleep_msec, int count, bool log_f
 static int check_esplash_device_ready(void);
 static int check_video_device_ready(void);
 static int check_ais_device_ready(void);
+static int check_dma_heap_device_ready(void);
 static int check_rvc_device_ready(void);
 static int check_pdmapper_ready(void);
 static int check_display_driver_ready(void);
@@ -301,14 +302,14 @@ const static struct {
   int (*is_ready)(void);
   int wait;
 } _eapp_info[] = {
-#if defined(PLATFORM_GEN4)
- {"esplash", "modules_di.order", "splash", check_esplash_device_ready, EAPP_WAIT_DISP},
+#ifdef __ANDROID_U__
+ {"qcarcam_edrm_rvc", "modules_rv.order", "rvc", check_dma_heap_device_ready, EAPP_WAIT_NONE},
 #else
+ {"qcarcam_edrm_rvc", "modules_rv.order", "rvc", check_rvc_device_ready, EAPP_WAIT_NONE},
+#endif
  {"esplash", "", "splash", check_esplash_device_ready, EAPP_WAIT_DISP},
-#endif // PLATFORM_GEN4
  {"earlyVideo", "modules_vi.order", "video", check_video_device_ready, EAPP_MOD_WAIT_FW},
  {"ais_server", "modules_ais.order", "ais", check_ais_device_ready, EAPP_WAIT_NONE},
- {"qcarcam_edrm_rvc", "modules_rv.order", "rvc", check_rvc_device_ready, EAPP_WAIT_NONE},
  {"pd-mapper", "modules_r_au.order", "pd-mapper", check_pdmapper_ready, EAPP_MOD_WAIT_FW},
  {"audio-nxp-auto", "", "audio-nxp", check_audio_device_ready, EAPP_MOD_WAIT_FW},
  {"early_chime", "modules_au.order", "audio", check_audio_device_ready, EAPP_MOD_WAIT_FW},
@@ -1489,9 +1490,13 @@ static int check_gfx_device_ready(void)
 static int check_rvc_device_ready(void)
 {
   //rvc
-
+#ifdef __ANDROID_U__
+  if (check_gfx_device_ready() &&
+      check_camera_card2_ready()) {
+#else
   if (check_gfx_device_ready() &&
       check_camera_card2_ready() && check_dma_heap_device_ready()) {
+#endif
      write_marker("K - Early RVC EarlyInit rvc nodes ready");
      return 1;
   }
@@ -2110,13 +2115,24 @@ static int load_kmod_and_nodes(const char* appname)
     int pmax = (_use_min_wait)?((WAIT_PID_MIN_MSECS * 1000) / WAIT_SLEEP_USECS):
                       ((WAIT_PID_MAX_MSECS * 1000) / WAIT_SLEEP_USECS);
     wait_for_pid(pid, WAIT_SLEEP_USECS, pmax);
+
+#ifdef __ANDROID_U__
+    if (!strncmp(app_launcher.appname, ERVC_APP, strlen(ERVC_APP))) {
+        LOG(INFO) << "ES :  RVC launcher waiting for rvc ready ";
+        if ((pid = fork()) <= 0) {
+          while (!check_rvc_device_ready()) {
+            usleep(10000);
+          }
+          _exit(0);
+        }
+    }
+#endif
   }
-  
-    // Wait for Display for all apps, if not set too
+
+  // Wait for Display for all apps, if not set too
   if (_eapp_info[i].wait != EAPP_WAIT_NONE && _eapp_info[i].wait != EAPP_WAIT_DISP) {
     wait_for_display_ready(WAIT_DISP_MSEC, max*2);
   }
-  
   // Wait if ready not set
   if (_eapp_info[i].is_ready == NULL) {
     if (_eapp_info[i].wait & EAPP_WAIT_DISP) {
