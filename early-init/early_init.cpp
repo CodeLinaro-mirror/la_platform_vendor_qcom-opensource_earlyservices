@@ -948,6 +948,19 @@ static inline pid_t parse_line(char* p)
 #ifdef EARLYINIT_DEBUG
           LOG(INFO) << "ES : Launching app " << app_launcher.appname;
 #endif
+#if defined(PLATFORM_MSMNILE) || defined(PLATFORM_SM6150)
+          if ((!strncmp(app_launcher.appname, ERVC_APP, strlen(ERVC_APP))) || (!strncmp(app_launcher.appname, CAM_AIS_APP, strlen(CAM_AIS_APP)))) {
+            int ret = setpriority(PRIO_PROCESS, 0, -20);
+            if(ret < 0)
+              LOG(WARNING) << "ES : setpriority fails for app :" <<app_launcher.appname<<" error:"<<strerror(errno) ;
+            cpu_set_t mask;
+            CPU_ZERO(&mask);
+            CPU_SET(6, &mask);
+            CPU_SET(7, &mask);
+            if (0 != sched_setaffinity(0, sizeof(mask), &mask))
+              LOG(WARNING) << "ES : sched_setaffinity fails for app :" <<app_launcher.appname<<" error:"<<strerror(errno) ;
+          }
+#endif
           ret = execvpe(app_launcher.cmd,app_launcher.argv,app_launcher.env);
           if(ret < 0) {
             LOG(INFO) << "ES : App launch failed " << app_launcher.appname << " errno " << errno;
@@ -2074,11 +2087,20 @@ static int load_kmod_and_nodes(const char* appname)
     if ((pid = fork()) == 0) {
       LOG(INFO) << "ES : Fork for mmmod " << appname;
       setexeccon("u:r:vendor_init:s0");
+#if defined(PLATFORM_MSMNILE) || defined(PLATFORM_SM6150)
       if ((!strncmp(app_launcher.appname, ERVC_APP, strlen(ERVC_APP))) || (!strncmp(app_launcher.appname, CAM_AIS_APP, strlen(CAM_AIS_APP)))) {
         int ret = setpriority(PRIO_PROCESS, 0, -20);
         if(ret < 0)
-          LOG(WARNING) << "ES : setpriority fails for app :" <<app_launcher.appname<<" error:"<<strerror(errno) ;
+          LOG(WARNING) << "ES : setpriority fails for module load, app :" <<app_launcher.appname<<" error:"<<strerror(errno) ;
+        cpu_set_t mask;
+        CPU_ZERO(&mask);
+        CPU_SET(6, &mask);
+        CPU_SET(7, &mask);
+        if (0 != sched_setaffinity(0, sizeof(mask), &mask))
+          LOG(WARNING) << "ES : sched_setaffinity fails for module load, app :" <<app_launcher.appname<<" error:"<<strerror(errno) ;
+
       }
+#endif
       const char *path = "/vendor_early_services/bin/early_services_init";
       snprintf(str, SHORT_STRING_MAX, "%d", i);
 
