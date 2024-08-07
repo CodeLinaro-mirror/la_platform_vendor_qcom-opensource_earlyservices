@@ -222,6 +222,10 @@ using android::base::boot_clock;
 #define ES_CTYPE_DI_MOD     3
 #define ES_CTYPE_LOAD_SE    4
 
+#define ES_DI_MODE_CPU_MASK 62
+#define ES_SE_LOAD_CPU_MASK 128
+#define ES_PROCESS_PRIORITY -20
+
 #define PIPE_RD 0
 #define PIPE_WR 1
 
@@ -2650,20 +2654,22 @@ static pid_t __attribute__((unused)) fork_wait_for_child(int type, int run_if_fo
         break;
       }
       case ES_CTYPE_DEF2_MOD: {
-        struct sched_param sp;
-        memset(&sp, 0, sizeof(sp));
-        sp.sched_priority = sched_get_priority_max(SCHED_FIFO);
-        if (0 != sched_setscheduler( pid, SCHED_FIFO, &sp))
-        {
-            LOG(INFO) << " sched_setparam def2 "<<sp.sched_priority<<strerror(errno);
-        }
+        int ret = setpriority(PRIO_PROCESS, 0, ES_PROCESS_PRIORITY);
+        if (ret < 0)
+          LOG(WARNING) << "ES : setpriority fails for def2 mode, error:" << strerror(errno);
+        setAffinity(ES_DI_MODE_CPU_MASK);
         bool load_parallel = bc_get_lmp();
         load_modules_parallel(ES_DFLMOD_ORDER_2, ES_DFLMOD_PATH,
           load_parallel?std::thread::hardware_concurrency():1,
           EMOD_DEF_TAG_2, LMP_MODPROBE);
+        fork_wait_for_child(ES_CTYPE_DI_MOD, 1);
         break;
       }
       case ES_CTYPE_DI_MOD: {
+        int ret = setpriority(PRIO_PROCESS, 0, ES_PROCESS_PRIORITY);
+        if (ret < 0)
+          LOG(WARNING) << "ES : setpriority fails for DI mode, error:" << strerror(errno);
+        setAffinity(ES_DI_MODE_CPU_MASK);
         bool load_parallel = bc_get_lmp();
         unsigned int count = 0, max = (WAIT_SET_PERM_SECS * 1000) / WAIT_SLEEP_MSEC;
         if (_use_min_wait) {
@@ -2691,7 +2697,11 @@ static pid_t __attribute__((unused)) fork_wait_for_child(int type, int run_if_fo
         break;
       }
       case ES_CTYPE_LOAD_SE: {
-        load_precompiled_sepolicy();
+      int ret = setpriority(PRIO_PROCESS, 0, ES_PROCESS_PRIORITY);
+      if (ret < 0)
+        LOG(WARNING) << "ES : setpriority fails for Seplicy load, error:" << strerror(errno);
+      setAffinity(ES_SE_LOAD_CPU_MASK);
+      load_precompiled_sepolicy();
         break;
       }
       default:
@@ -2752,26 +2762,23 @@ int early_init(int init)
     prepare_dir((char*)"shm");
 
     bool load_parallel = bc_get_lmp();
-    pid_t pid_def2, pid_se;
+    pid_t pid_se;
+    pid_se = fork_wait_for_child(ES_CTYPE_LOAD_SE, 1);
 
     load_modules_parallel(ES_DFLMOD_ORDER_1, ES_DFLMOD_PATH,
          load_parallel?std::thread::hardware_concurrency():1,
          EMOD_DEF_TAG_1, LMP_MODPROBE);
 
+    int max = (_use_min_wait)?((WAIT_PID_MIN_MSECS * 1000) / WAIT_SLEEP_USECS):
+                      ((WAIT_PID_MAX_MSECS * 1000) / WAIT_SLEEP_USECS);
+
+    // wait for sepol loading as its required for next steps.
+    wait_for_pid(pid_se, WAIT_SLEEP_USECS, max);
+
     // Check for driver storage enumerations
     fork_wait_for_child(ES_CTYPE_FW, 1);
     // Load second set of def-modules in parallel
-    pid_def2 = fork_wait_for_child(ES_CTYPE_DEF2_MOD, 1);
-    // Load sepolicies in parallel
-    pid_se = fork_wait_for_child(ES_CTYPE_LOAD_SE, 1);
-
-    // wait for sepol loading and def2 modules as its required for next steps.
-    int max = (_use_min_wait)?((WAIT_PID_MIN_MSECS * 1000) / WAIT_SLEEP_USECS):
-                      ((WAIT_PID_MAX_MSECS * 1000) / WAIT_SLEEP_USECS);
-    wait_for_pid(pid_se, WAIT_SLEEP_USECS, max);
-    wait_for_pid(pid_def2, WAIT_SLEEP_USECS, max);
-    // Load Display modules in parallel
-    fork_wait_for_child(ES_CTYPE_DI_MOD, 1);
+    fork_wait_for_child(ES_CTYPE_DEF2_MOD, 1);
 
     selinux_android_restorecon("/vendor_early_services/early_services_init", 0);
     if (selinux_android_restorecon("/vendor_early_services/",
