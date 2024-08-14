@@ -104,7 +104,7 @@
 #define ANDROID_U_CONF          "/vendor_early_services/etc/early_init_u.conf"
 #define ANDROID_U_POIPU_CONF    "/vendor_early_services/etc/early_init_u_poipu.conf"
 #define END_TAG                 "<end>"
-#define LINE_MAX                2048
+#define ES_LINE_MAX             2048
 #define SHORT_STRING_MAX        128
 #define VS_STRING_MAX           32
 #define WHITESPACE              " \t\n\r"
@@ -2243,7 +2243,7 @@ static int load_modules_parallel(const std::string& fl,
 
     std::vector<std::thread> th_mods;
     std::mutex mods_lock;
-    char mline[LINE_MAX] = {0};
+    char mline[ES_LINE_MAX] = {0};
     char *kmod[MAX_MODULES_PER_LINE] = {0};
     int i = 0, len = 0;
     const char* ptr = line.c_str();
@@ -2252,7 +2252,7 @@ static int load_modules_parallel(const std::string& fl,
 
     kmod[len] = &mline[0];
     // split the words as C strings
-    for (; i < (LINE_MAX-1) && (*ptr != 0 && len < MAX_MODULES_PER_LINE); i++, ptr++) {
+    for (; i < (ES_LINE_MAX-1) && (*ptr != 0 && len < MAX_MODULES_PER_LINE); i++, ptr++) {
       if (*ptr != ' ') {
          mline[i] = *ptr;
       } else {
@@ -2500,7 +2500,7 @@ static void launch_early_apps(void)
   }
 
   std::vector<std::string> lines = android::base::Split(list, "\n");
-  char buf[LINE_MAX];
+  char buf[ES_LINE_MAX];
   pid_t pid;
   int i = 0;
   for (const std::string line : lines) {
