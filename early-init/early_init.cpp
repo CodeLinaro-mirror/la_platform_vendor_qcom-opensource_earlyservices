@@ -103,6 +103,7 @@
 #define DEFAULT_CONF            "/vendor_early_services/etc/early_init.conf"
 #define ANDROID_U_CONF          "/vendor_early_services/etc/early_init_u.conf"
 #define ES_GEN4_CONF            "/vendor_early_services/etc/early_init_gen4.conf"
+#define ES_POIPU_CONF           "/vendor_early_services/etc/early_init_poipu.conf"
 #define END_TAG                 "<end>"
 #define LINE_MAX                2048
 #define SHORT_STRING_MAX        128
@@ -220,6 +221,8 @@ using android::base::boot_clock;
 #define PIPE_RD 0
 #define PIPE_WR 1
 
+#define SOC_ID_POIPU 405
+
 #if defined(__ANDROID_U__) || defined(PLATFORM_GEN4)
 #define SELINUXMNT "/sys/fs/selinux"
 
@@ -267,6 +270,7 @@ enum EnforcingStatus { SELINUX_PERMISSIVE, SELINUX_ENFORCING };
 
 char chipId[32]  = { 0 };
 char platformId[32]  = { 0 };
+char socid[32]  = { 0 };
 // Global variables
 bool _use_min_wait = true;
 bool _audio_reach = false;
@@ -955,7 +959,7 @@ static inline pid_t parse_line(char* p)
           LOG(INFO) << "ES : Launching app " << app_launcher.appname;
           ret = execvpe(app_launcher.cmd,app_launcher.argv,app_launcher.env);
           if(ret < 0) {
-            LOG(INFO) << "ES : App launch failed " << app_launcher.appname << " errno " << errno;
+            LOG(INFO) << "ES : App launch failed " << app_launcher.appname << " errno " << errno << "error" << strerror(errno);
             memset(marker, 0, 50);
             snprintf(marker, 49 ,"M - Launch %s app failed %d", app_launcher.appname, errno);
             write_marker(marker);
@@ -1221,6 +1225,23 @@ int getSysInfo(const char * fileName, char * strName)
 
   return 0;
 }
+
+int getSocId(const char * fileName, char * strName) {
+  int fd,ret;
+  fd = open(fileName, O_RDONLY);
+  if (fd > 0)
+  {
+      ret = read(fd, strName, sizeof(strName) - 1);
+      if (-1 == ret)
+      {
+        perror("read getSocId failed.\r\n");
+        return -1;
+      }
+      close(fd);
+  }
+  return 0;
+}
+
 
 // Wait for availability of file for given msec*count time
 static int wait_for_file(const char* file, int sleep_msec, int count, bool log_fail)
@@ -2242,7 +2263,11 @@ static void launch_early_apps(void)
 #elif PLATFORM_GEN4
   std::string fl = ES_GEN4_CONF;
 #else
-  std::string fl = DEFAULT_CONF;
+  std::string fl;
+  if(strncmp(socid, "SOC_ID_POIPU", 3) == 0)
+    fl = ES_POIPU_CONF;
+  else
+    fl = DEFAULT_CONF;
 #endif // __ANDROID_U__
   std::string list;
 
@@ -2548,10 +2573,13 @@ int early_init(int init)
         }
     }
 
+    getSocId("/sys/devices/soc0/soc_id", socid);
     /* Create ais_server/qcxserver socket dir and camera data dir */
-    mkdir("/dev/socket", 0775);
-    mkdir("/dev/socket/camera", 0775);
-
+    if (strncmp(socid, "SOC_ID_POIPU", 3)!= 0) {
+       //except poipu
+       mkdir("/dev/socket", 0775);
+       mkdir("/dev/socket/camera", 0775);
+    }
 #if defined( __ANDROID_U__)
      load_default_modules();
      prepare_fw_dir(true);
