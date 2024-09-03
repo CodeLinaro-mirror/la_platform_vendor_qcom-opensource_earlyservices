@@ -123,6 +123,8 @@
 
 #define STR_EXPAND(tok) #tok
 #define TO_STRING(tok) STR_EXPAND(tok)
+#define CAM_AIS_APP             "ais_server"
+#define ERVC_APP                "qcarcam_edrm_rvc"
 
 #include "util.h"
 #include <sys/sysmacros.h>
@@ -219,6 +221,10 @@ using android::base::boot_clock;
 #define ES_CTYPE_DEF2_MOD   2
 #define ES_CTYPE_DI_MOD     3
 #define ES_CTYPE_LOAD_SE    4
+
+#define ES_DI_MODE_CPU_MASK 62
+#define ES_SE_LOAD_CPU_MASK 128
+#define ES_PROCESS_PRIORITY -20
 
 #define PIPE_RD 0
 #define PIPE_WR 1
@@ -323,6 +329,27 @@ static void inline safe_free(char** p)
     free(*p);
   *p = NULL;
   return;
+}
+
+static void setAffinity(int cpumask)
+{
+#if defined(PLATFORM_MSMNILE) || defined(PLATFORM_SM6150)
+  if (cpumask < -1 || cpumask > 255)
+    return;
+
+    cpu_set_t mask;
+    CPU_ZERO(&mask);
+    for (int i = 0; i < get_nprocs_conf(); i++) {
+      if (BIT_SET(cpumask, i)) {
+        CPU_SET(i, &mask);
+#ifdef EARLYINIT_DEBUG
+        LOG(INFO) <<"Set cpu"<<i<<"for ES process";
+#endif
+      }
+    }
+    if (0 != sched_setaffinity(PRIO_PROCESS, sizeof(mask), &mask))
+      LOG(INFO) <<"sched_setaffinity failed, mask: "<<cpumask<<"error:"<<strerror(errno);
+#endif
 }
 
 static void inline safe_close(int fd)
@@ -682,7 +709,7 @@ static void inline app_launcher_start_over(void)
   app_launcher.argv_used = 0;
   app_launcher.env_used = 0;
   app_launcher.bindcpumask = -1;
-  app_launcher.priority = -1;
+  app_launcher.priority = 0;
   app_launcher.env[app_launcher.env_used++] = (char*)DEFAULT_PATH; //set DEFAULT_PATH as static env[0] path for all ES app's
 
   return;
@@ -786,9 +813,7 @@ static inline pid_t parse_line(char* p)
     case 'b':/* bindcpumask */
       if (0 == strncmp(p + 1, "indcpumask", strlen("indcpumask")) && 0 == find_rvalue(&p)) {
         app_launcher.bindcpumask = atoi(p);
-        if (app_launcher.bindcpumask < -1 || app_launcher.bindcpumask > 15)
-          app_launcher.bindcpumask = -1;
-	 printf("bindcpumask is %d", app_launcher.bindcpumask);
+        printf("bindcpumask is %d", app_launcher.bindcpumask);
       }
       break;
     case 'u':
@@ -859,22 +884,13 @@ static inline pid_t parse_line(char* p)
         }
 
         if (app_launcher.bindcpumask != -1) {
-          cpu_set_t mask;
-          CPU_ZERO(&mask);
-          for (int i = 0; i < get_nprocs_conf(); i++) {
-            if (BIT_SET(app_launcher.bindcpumask, i))
-              CPU_SET(i, &mask);
-          }
-          if (0 != sched_setaffinity(0, sizeof(mask), &mask))
-            printf("sched_setaffinity failed %d %s\r\n", app_launcher.bindcpumask, strerror(errno));
+          setAffinity(app_launcher.bindcpumask);
         }
 
-        if (app_launcher.priority > 0) {
-          struct sched_param sp;
-          memset( &sp, 0, sizeof(sp) );
-          sp.sched_priority = app_launcher.priority;
-          if (0 != sched_setscheduler( pid, SCHED_FIFO, &sp))
-            printf("sched_setparam failed %d %s\r\n", app_launcher.priority, strerror(errno));
+        if (app_launcher.priority) {
+          int ret = setpriority(PRIO_PROCESS, 0, app_launcher.priority);
+          if(ret < 0)
+            LOG(WARNING) << "ES : setpriority fails for app :" <<app_launcher.appname<<" error:"<<strerror(errno) ;
         }
 
         if (app_launcher.gpio) {
@@ -948,6 +964,7 @@ static inline pid_t parse_line(char* p)
 #ifdef EARLYINIT_DEBUG
           LOG(INFO) << "ES : Launching app " << app_launcher.appname;
 #endif
+
           ret = execvpe(app_launcher.cmd,app_launcher.argv,app_launcher.env);
           if(ret < 0) {
             LOG(INFO) << "ES : App launch failed " << app_launcher.appname << " errno " << errno;
@@ -2071,14 +2088,16 @@ static int load_kmod_and_nodes(const char* appname)
     snprintf(str, SHORT_STRING_MAX ,"M - Load mod-node %s", appname);
     write_marker(str);
 
+    if(!strncmp(appname, EMOD_END, strlen(EMOD_END)))
+    {
+     app_launcher.bindcpumask = -1;
+     app_launcher.priority = 0;
+    }
+
     if ((pid = fork()) == 0) {
       LOG(INFO) << "ES : Fork for mmmod " << appname;
       setexeccon("u:r:vendor_init:s0");
-      if ((!strncmp(app_launcher.appname, ERVC_APP, strlen(ERVC_APP))) || (!strncmp(app_launcher.appname, CAM_AIS_APP, strlen(CAM_AIS_APP)))) {
-        int ret = setpriority(PRIO_PROCESS, 0, -20);
-        if(ret < 0)
-          LOG(WARNING) << "ES : setpriority fails for app :" <<app_launcher.appname<<" error:"<<strerror(errno) ;
-      }
+
       const char *path = "/vendor_early_services/bin/early_services_init";
       snprintf(str, SHORT_STRING_MAX, "%d", i);
 
@@ -2635,20 +2654,22 @@ static pid_t __attribute__((unused)) fork_wait_for_child(int type, int run_if_fo
         break;
       }
       case ES_CTYPE_DEF2_MOD: {
-        struct sched_param sp;
-        memset(&sp, 0, sizeof(sp));
-        sp.sched_priority = sched_get_priority_max(SCHED_FIFO);
-        if (0 != sched_setscheduler( pid, SCHED_FIFO, &sp))
-        {
-            LOG(INFO) << " sched_setparam def2 "<<sp.sched_priority<<strerror(errno);
-        }
+        int ret = setpriority(PRIO_PROCESS, 0, ES_PROCESS_PRIORITY);
+        if (ret < 0)
+          LOG(WARNING) << "ES : setpriority fails for def2 mode, error:" << strerror(errno);
+        setAffinity(ES_DI_MODE_CPU_MASK);
         bool load_parallel = bc_get_lmp();
         load_modules_parallel(ES_DFLMOD_ORDER_2, ES_DFLMOD_PATH,
           load_parallel?std::thread::hardware_concurrency():1,
           EMOD_DEF_TAG_2, LMP_MODPROBE);
+        fork_wait_for_child(ES_CTYPE_DI_MOD, 1);
         break;
       }
       case ES_CTYPE_DI_MOD: {
+        int ret = setpriority(PRIO_PROCESS, 0, ES_PROCESS_PRIORITY);
+        if (ret < 0)
+          LOG(WARNING) << "ES : setpriority fails for DI mode, error:" << strerror(errno);
+        setAffinity(ES_DI_MODE_CPU_MASK);
         bool load_parallel = bc_get_lmp();
         unsigned int count = 0, max = (WAIT_SET_PERM_SECS * 1000) / WAIT_SLEEP_MSEC;
         if (_use_min_wait) {
@@ -2676,7 +2697,11 @@ static pid_t __attribute__((unused)) fork_wait_for_child(int type, int run_if_fo
         break;
       }
       case ES_CTYPE_LOAD_SE: {
-        load_precompiled_sepolicy();
+      int ret = setpriority(PRIO_PROCESS, 0, ES_PROCESS_PRIORITY);
+      if (ret < 0)
+        LOG(WARNING) << "ES : setpriority fails for Seplicy load, error:" << strerror(errno);
+      setAffinity(ES_SE_LOAD_CPU_MASK);
+      load_precompiled_sepolicy();
         break;
       }
       default:
@@ -2737,26 +2762,23 @@ int early_init(int init)
     prepare_dir((char*)"shm");
 
     bool load_parallel = bc_get_lmp();
-    pid_t pid_def2, pid_se;
+    pid_t pid_se;
+    pid_se = fork_wait_for_child(ES_CTYPE_LOAD_SE, 1);
 
     load_modules_parallel(ES_DFLMOD_ORDER_1, ES_DFLMOD_PATH,
          load_parallel?std::thread::hardware_concurrency():1,
          EMOD_DEF_TAG_1, LMP_MODPROBE);
 
+    int max = (_use_min_wait)?((WAIT_PID_MIN_MSECS * 1000) / WAIT_SLEEP_USECS):
+                      ((WAIT_PID_MAX_MSECS * 1000) / WAIT_SLEEP_USECS);
+
+    // wait for sepol loading as its required for next steps.
+    wait_for_pid(pid_se, WAIT_SLEEP_USECS, max);
+
     // Check for driver storage enumerations
     fork_wait_for_child(ES_CTYPE_FW, 1);
     // Load second set of def-modules in parallel
-    pid_def2 = fork_wait_for_child(ES_CTYPE_DEF2_MOD, 1);
-    // Load sepolicies in parallel
-    pid_se = fork_wait_for_child(ES_CTYPE_LOAD_SE, 1);
-
-    // wait for sepol loading and def2 modules as its required for next steps.
-    int max = (_use_min_wait)?((WAIT_PID_MIN_MSECS * 1000) / WAIT_SLEEP_USECS):
-                      ((WAIT_PID_MAX_MSECS * 1000) / WAIT_SLEEP_USECS);
-    wait_for_pid(pid_se, WAIT_SLEEP_USECS, max);
-    wait_for_pid(pid_def2, WAIT_SLEEP_USECS, max);
-    // Load Display modules in parallel
-    fork_wait_for_child(ES_CTYPE_DI_MOD, 1);
+    fork_wait_for_child(ES_CTYPE_DEF2_MOD, 1);
 
     selinux_android_restorecon("/vendor_early_services/early_services_init", 0);
     if (selinux_android_restorecon("/vendor_early_services/",
