@@ -1514,97 +1514,106 @@ static int check_ais_device_ready(void)
   if (!ais_device_created) {
     if ((access("/sys/bus/media/devices/media0/uevent", F_OK) == 0) &&
         (access("/sys/class/video4linux/video0/uevent", F_OK) == 0) &&
-        (access("/sys/class/video4linux/v4l-subdev0/uevent", F_OK) == 0)) {
+        (access("/sys/class/video4linux/v4l-subdev0/uevent", F_OK) == 0) &&
+        (access("/sys/class/video4linux/v4l-subdev11/uevent", F_OK) == 0) &&
+#ifndef PLATFORM_SM6150
+        (access("/sys/class/video4linux/v4l-subdev12/uevent", F_OK) == 0) &&
+        (access("/sys/class/video4linux/v4l-subdev13/uevent", F_OK) == 0) &&
+        (access("/sys/class/video4linux/v4l-subdev14/uevent", F_OK) == 0)
+#else
+        (access("/sys/class/video4linux/v4l-subdev12/uevent", F_OK) == 0)
+#endif
+      ) {
 
       LOG(INFO) << "ES check device node for /dev/media0";
 
-      if(get_device_major_minor("/sys/bus/media/devices/media0/uevent", &major, &minor)) {
-        mknod("/dev/media0", S_IFCHR | 0666,
-          makedev(major, minor));
-      }
-      if(get_device_major_minor("/sys/bus/media/devices/media1/uevent", &major, &minor)) {
-        mknod("/dev/media1", S_IFCHR | 0666,
-          makedev(major, minor));
-      }
-      if(get_device_major_minor("/sys/class/video4linux/video0/uevent", &major, &minor)) {
-        mknod("/dev/video0", S_IFCHR | 0666,
-          makedev(major, minor));
-      }
-      if(get_device_major_minor("/sys/class/video4linux/video1/uevent", &major, &minor)) {
-        mknod("/dev/video1", S_IFCHR | 0666,
-          makedev(major, minor));
-      }
-
-      if(get_device_major_minor("/sys/class/video4linux/v4l-subdev0/uevent", &major, &minor)) {
+      if (get_device_major_minor("/sys/class/video4linux/v4l-subdev0/uevent", &major, &minor)) {
         mknod("/dev/v4l-subdev0", S_IFCHR | 0666,
-          makedev(major, minor));
+        makedev(major, minor));
       }
-      if(get_device_major_minor("/sys/class/video4linux/v4l-subdev1/uevent", &major, &minor)) {
+      if (get_device_major_minor("/sys/class/video4linux/v4l-subdev1/uevent", &major, &minor)) {
         mknod("/dev/v4l-subdev1", S_IFCHR | 0666,
-          makedev(major, minor));
+        makedev(major, minor));
       }
-      if(get_device_major_minor("/sys/class/video4linux/v4l-subdev2/uevent", &major, &minor)) {
+      if (get_device_major_minor("/sys/class/video4linux/v4l-subdev2/uevent", &major, &minor)) {
         mknod("/dev/v4l-subdev2", S_IFCHR | 0666,
-          makedev(major, minor));
+        makedev(major, minor));
       }
-      if(get_device_major_minor("/sys/class/video4linux/v4l-subdev3/uevent", &major, &minor)) {
+      if (get_device_major_minor("/sys/class/video4linux/v4l-subdev3/uevent", &major, &minor)) {
         mknod("/dev/v4l-subdev3", S_IFCHR | 0666,
-          makedev(major, minor));
+        makedev(major, minor));
       }
-      if(get_device_major_minor("/sys/class/video4linux/v4l-subdev4/uevent", &major, &minor)) {
+      if (get_device_major_minor("/sys/class/video4linux/v4l-subdev4/uevent", &major, &minor)) {
         mknod("/dev/v4l-subdev4", S_IFCHR | 0666,
-          makedev(major, minor));
+        makedev(major, minor));
       }
-      if(get_device_major_minor("/sys/class/video4linux/v4l-subdev5/uevent", &major, &minor)) {
+      if (get_device_major_minor("/sys/class/video4linux/v4l-subdev5/uevent", &major, &minor)) {
         mknod("/dev/v4l-subdev5", S_IFCHR | 0666,
-          makedev(major, minor));
+        makedev(major, minor));
       }
-      if(get_device_major_minor("/sys/class/video4linux/v4l-subdev6/uevent", &major, &minor)) {
+      if (get_device_major_minor("/sys/class/video4linux/v4l-subdev6/uevent", &major, &minor)) {
         mknod("/dev/v4l-subdev6", S_IFCHR | 0666,
-          makedev(major, minor));
+        makedev(major, minor));
       }
-      if(get_device_major_minor("/sys/class/video4linux/v4l-subdev7/uevent", &major, &minor)) {
+      if (get_device_major_minor("/sys/class/video4linux/v4l-subdev7/uevent", &major, &minor)) {
         mknod("/dev/v4l-subdev7", S_IFCHR | 0666,
-          makedev(major, minor));
+        makedev(major, minor));
       }
-      if(get_device_major_minor("/sys/class/video4linux/v4l-subdev8/uevent", &major, &minor)) {
+      if (get_device_major_minor("/sys/class/video4linux/v4l-subdev8/uevent", &major, &minor)) {
         mknod("/dev/v4l-subdev8", S_IFCHR | 0666,
-          makedev(major, minor));
+        makedev(major, minor));
       }
-      if(get_device_major_minor("/sys/class/video4linux/v4l-subdev9/uevent", &major, &minor)) {
+      if (get_device_major_minor("/sys/class/video4linux/v4l-subdev9/uevent", &major, &minor)) {
         mknod("/dev/v4l-subdev9", S_IFCHR | 0666,
-          makedev(major, minor));
+        makedev(major, minor));
       }
-      if(get_device_major_minor("/sys/class/video4linux/v4l-subdev10/uevent", &major, &minor)) {
+      if (get_device_major_minor("/sys/class/video4linux/v4l-subdev10/uevent", &major, &minor)) {
         mknod("/dev/v4l-subdev10", S_IFCHR | 0666,
-          makedev(major, minor));
+        makedev(major, minor));
       }
-      if(get_device_major_minor("/sys/class/video4linux/v4l-subdev11/uevent", &major, &minor)) {
+      if (get_device_major_minor("/sys/class/video4linux/v4l-subdev11/uevent", &major, &minor)) {
         mknod("/dev/v4l-subdev11", S_IFCHR | 0666,
-          makedev(major, minor));
+        makedev(major, minor));
       }
-      if(get_device_major_minor("/sys/class/video4linux/v4l-subdev12/uevent", &major, &minor)) {
+      if (get_device_major_minor("/sys/class/video4linux/v4l-subdev12/uevent", &major, &minor)) {
         mknod("/dev/v4l-subdev12", S_IFCHR | 0666,
-          makedev(major, minor));
+        makedev(major, minor));
       }
 #ifndef PLATFORM_SM6150
-      if(get_device_major_minor("/sys/class/video4linux/v4l-subdev13/uevent", &major, &minor)) {
+      if (get_device_major_minor("/sys/class/video4linux/v4l-subdev13/uevent", &major, &minor)) {
         mknod("/dev/v4l-subdev13", S_IFCHR | 0666,
-          makedev(major, minor));
+        makedev(major, minor));
       }
       if(get_device_major_minor("/sys/class/video4linux/v4l-subdev14/uevent", &major, &minor)) {
         mknod("/dev/v4l-subdev14", S_IFCHR | 0666,
           makedev(major, minor));
       }
-      if(get_device_major_minor("/sys/class/video4linux/v4l-subdev15/uevent", &major, &minor)) {
+      if (get_device_major_minor("/sys/class/video4linux/v4l-subdev15/uevent", &major, &minor)) {
         mknod("/dev/v4l-subdev15", S_IFCHR | 0666,
-          makedev(major, minor));
+        makedev(major, minor));
       }
-      if(get_device_major_minor("/sys/class/video4linux/v4l-subdev16/uevent", &major, &minor)) {
+      if (get_device_major_minor("/sys/class/video4linux/v4l-subdev16/uevent", &major, &minor)) {
         mknod("/dev/v4l-subdev16", S_IFCHR | 0666,
-          makedev(major, minor));
+        makedev(major, minor));
       }
 #endif
+      if (get_device_major_minor("/sys/class/video4linux/video0/uevent", &major, &minor)) {
+        mknod("/dev/video0", S_IFCHR | 0666,
+        makedev(major, minor));
+      }
+      if (get_device_major_minor("/sys/class/video4linux/video1/uevent", &major, &minor)) {
+        mknod("/dev/video1", S_IFCHR | 0666,
+        makedev(major, minor));
+      }
+      if (get_device_major_minor("/sys/bus/media/devices/media0/uevent", &major, &minor)) {
+        mknod("/dev/media0", S_IFCHR | 0666,
+        makedev(major, minor));
+      }
+      if (get_device_major_minor("/sys/bus/media/devices/media1/uevent", &major, &minor)) {
+        mknod("/dev/media1", S_IFCHR | 0666,
+        makedev(major, minor));
+      }
+
       set_camera_media_permission();
       set_camera_video_permission();
       set_camera_v4l_permission();
