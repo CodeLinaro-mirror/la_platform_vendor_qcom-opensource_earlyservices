@@ -123,6 +123,8 @@
 
 #define STR_EXPAND(tok) #tok
 #define TO_STRING(tok) STR_EXPAND(tok)
+#define CAM_AIS_APP             "ais_server"
+#define ERVC_APP                "qcarcam_edrm_rvc"
 
 #include "util.h"
 #include <sys/sysmacros.h>
@@ -220,6 +222,10 @@ using android::base::boot_clock;
 #define ES_CTYPE_DI_MOD     3
 #define ES_CTYPE_LOAD_SE    4
 
+#define ES_DI_MODE_CPU_MASK 62
+#define ES_SE_LOAD_CPU_MASK 128
+#define ES_PROCESS_PRIORITY -20
+
 #define PIPE_RD 0
 #define PIPE_WR 1
 
@@ -253,6 +259,7 @@ static int wait_for_file(const char* file, int sleep_msec, int count, bool log_f
 static int check_esplash_device_ready(void);
 static int check_video_device_ready(void);
 static int check_ais_device_ready(void);
+static int check_dma_heap_device_ready(void);
 static int check_rvc_device_ready(void);
 static int check_pdmapper_ready(void);
 static int check_display_driver_ready(void);
@@ -295,14 +302,14 @@ const static struct {
   int (*is_ready)(void);
   int wait;
 } _eapp_info[] = {
-#if defined(PLATFORM_GEN4)
- {"esplash", "modules_di.order", "splash", check_esplash_device_ready, EAPP_WAIT_DISP},
+#ifdef __ANDROID_U__
+ {"qcarcam_edrm_rvc", "modules_rv.order", "rvc", check_dma_heap_device_ready, EAPP_WAIT_NONE},
 #else
+ {"qcarcam_edrm_rvc", "modules_rv.order", "rvc", check_rvc_device_ready, EAPP_WAIT_NONE},
+#endif
  {"esplash", "", "splash", check_esplash_device_ready, EAPP_WAIT_DISP},
-#endif // PLATFORM_GEN4
  {"earlyVideo", "modules_vi.order", "video", check_video_device_ready, EAPP_MOD_WAIT_FW},
  {"ais_server", "modules_ais.order", "ais", check_ais_device_ready, EAPP_WAIT_NONE},
- {"qcarcam_edrm_rvc", "modules_rv.order", "rvc", check_rvc_device_ready, EAPP_WAIT_NONE},
  {"pd-mapper", "modules_r_au.order", "pd-mapper", check_pdmapper_ready, EAPP_MOD_WAIT_FW},
  {"audio-nxp-auto", "", "audio-nxp", check_audio_device_ready, EAPP_MOD_WAIT_FW},
  {"early_chime", "modules_au.order", "audio", check_audio_device_ready, EAPP_MOD_WAIT_FW},
@@ -323,6 +330,27 @@ static void inline safe_free(char** p)
     free(*p);
   *p = NULL;
   return;
+}
+
+static void setAffinity(int cpumask)
+{
+#if defined(PLATFORM_MSMNILE) || defined(PLATFORM_SM6150)
+  if (cpumask < -1 || cpumask > 255)
+    return;
+
+    cpu_set_t mask;
+    CPU_ZERO(&mask);
+    for (int i = 0; i < get_nprocs_conf(); i++) {
+      if (BIT_SET(cpumask, i)) {
+        CPU_SET(i, &mask);
+#ifdef EARLYINIT_DEBUG
+        LOG(INFO) <<"Set cpu"<<i<<"for ES process";
+#endif
+      }
+    }
+    if (0 != sched_setaffinity(PRIO_PROCESS, sizeof(mask), &mask))
+      LOG(INFO) <<"sched_setaffinity failed, mask: "<<cpumask<<"error:"<<strerror(errno);
+#endif
 }
 
 static void inline safe_close(int fd)
@@ -682,7 +710,7 @@ static void inline app_launcher_start_over(void)
   app_launcher.argv_used = 0;
   app_launcher.env_used = 0;
   app_launcher.bindcpumask = -1;
-  app_launcher.priority = -1;
+  app_launcher.priority = 0;
   app_launcher.env[app_launcher.env_used++] = (char*)DEFAULT_PATH; //set DEFAULT_PATH as static env[0] path for all ES app's
 
   return;
@@ -786,9 +814,7 @@ static inline pid_t parse_line(char* p)
     case 'b':/* bindcpumask */
       if (0 == strncmp(p + 1, "indcpumask", strlen("indcpumask")) && 0 == find_rvalue(&p)) {
         app_launcher.bindcpumask = atoi(p);
-        if (app_launcher.bindcpumask < -1 || app_launcher.bindcpumask > 15)
-          app_launcher.bindcpumask = -1;
-	 printf("bindcpumask is %d", app_launcher.bindcpumask);
+        printf("bindcpumask is %d", app_launcher.bindcpumask);
       }
       break;
     case 'u':
@@ -859,22 +885,13 @@ static inline pid_t parse_line(char* p)
         }
 
         if (app_launcher.bindcpumask != -1) {
-          cpu_set_t mask;
-          CPU_ZERO(&mask);
-          for (int i = 0; i < get_nprocs_conf(); i++) {
-            if (BIT_SET(app_launcher.bindcpumask, i))
-              CPU_SET(i, &mask);
-          }
-          if (0 != sched_setaffinity(0, sizeof(mask), &mask))
-            printf("sched_setaffinity failed %d %s\r\n", app_launcher.bindcpumask, strerror(errno));
+          setAffinity(app_launcher.bindcpumask);
         }
 
-        if (app_launcher.priority > 0) {
-          struct sched_param sp;
-          memset( &sp, 0, sizeof(sp) );
-          sp.sched_priority = app_launcher.priority;
-          if (0 != sched_setscheduler( pid, SCHED_FIFO, &sp))
-            printf("sched_setparam failed %d %s\r\n", app_launcher.priority, strerror(errno));
+        if (app_launcher.priority) {
+          int ret = setpriority(PRIO_PROCESS, 0, app_launcher.priority);
+          if(ret < 0)
+            LOG(WARNING) << "ES : setpriority fails for app :" <<app_launcher.appname<<" error:"<<strerror(errno) ;
         }
 
         if (app_launcher.gpio) {
@@ -948,6 +965,7 @@ static inline pid_t parse_line(char* p)
 #ifdef EARLYINIT_DEBUG
           LOG(INFO) << "ES : Launching app " << app_launcher.appname;
 #endif
+
           ret = execvpe(app_launcher.cmd,app_launcher.argv,app_launcher.env);
           if(ret < 0) {
             LOG(INFO) << "ES : App launch failed " << app_launcher.appname << " errno " << errno;
@@ -1472,9 +1490,13 @@ static int check_gfx_device_ready(void)
 static int check_rvc_device_ready(void)
 {
   //rvc
-
+#ifdef __ANDROID_U__
+  if (check_gfx_device_ready() &&
+      check_camera_card2_ready()) {
+#else
   if (check_gfx_device_ready() &&
       check_camera_card2_ready() && check_dma_heap_device_ready()) {
+#endif
      write_marker("K - Early RVC EarlyInit rvc nodes ready");
      return 1;
   }
@@ -1492,97 +1514,106 @@ static int check_ais_device_ready(void)
   if (!ais_device_created) {
     if ((access("/sys/bus/media/devices/media0/uevent", F_OK) == 0) &&
         (access("/sys/class/video4linux/video0/uevent", F_OK) == 0) &&
-        (access("/sys/class/video4linux/v4l-subdev0/uevent", F_OK) == 0)) {
+        (access("/sys/class/video4linux/v4l-subdev0/uevent", F_OK) == 0) &&
+        (access("/sys/class/video4linux/v4l-subdev11/uevent", F_OK) == 0) &&
+#ifndef PLATFORM_SM6150
+        (access("/sys/class/video4linux/v4l-subdev12/uevent", F_OK) == 0) &&
+        (access("/sys/class/video4linux/v4l-subdev13/uevent", F_OK) == 0) &&
+        (access("/sys/class/video4linux/v4l-subdev14/uevent", F_OK) == 0)
+#else
+        (access("/sys/class/video4linux/v4l-subdev12/uevent", F_OK) == 0)
+#endif
+      ) {
 
       LOG(INFO) << "ES check device node for /dev/media0";
 
-      if(get_device_major_minor("/sys/bus/media/devices/media0/uevent", &major, &minor)) {
-        mknod("/dev/media0", S_IFCHR | 0666,
-          makedev(major, minor));
-      }
-      if(get_device_major_minor("/sys/bus/media/devices/media1/uevent", &major, &minor)) {
-        mknod("/dev/media1", S_IFCHR | 0666,
-          makedev(major, minor));
-      }
-      if(get_device_major_minor("/sys/class/video4linux/video0/uevent", &major, &minor)) {
-        mknod("/dev/video0", S_IFCHR | 0666,
-          makedev(major, minor));
-      }
-      if(get_device_major_minor("/sys/class/video4linux/video1/uevent", &major, &minor)) {
-        mknod("/dev/video1", S_IFCHR | 0666,
-          makedev(major, minor));
-      }
-
-      if(get_device_major_minor("/sys/class/video4linux/v4l-subdev0/uevent", &major, &minor)) {
+      if (get_device_major_minor("/sys/class/video4linux/v4l-subdev0/uevent", &major, &minor)) {
         mknod("/dev/v4l-subdev0", S_IFCHR | 0666,
-          makedev(major, minor));
+        makedev(major, minor));
       }
-      if(get_device_major_minor("/sys/class/video4linux/v4l-subdev1/uevent", &major, &minor)) {
+      if (get_device_major_minor("/sys/class/video4linux/v4l-subdev1/uevent", &major, &minor)) {
         mknod("/dev/v4l-subdev1", S_IFCHR | 0666,
-          makedev(major, minor));
+        makedev(major, minor));
       }
-      if(get_device_major_minor("/sys/class/video4linux/v4l-subdev2/uevent", &major, &minor)) {
+      if (get_device_major_minor("/sys/class/video4linux/v4l-subdev2/uevent", &major, &minor)) {
         mknod("/dev/v4l-subdev2", S_IFCHR | 0666,
-          makedev(major, minor));
+        makedev(major, minor));
       }
-      if(get_device_major_minor("/sys/class/video4linux/v4l-subdev3/uevent", &major, &minor)) {
+      if (get_device_major_minor("/sys/class/video4linux/v4l-subdev3/uevent", &major, &minor)) {
         mknod("/dev/v4l-subdev3", S_IFCHR | 0666,
-          makedev(major, minor));
+        makedev(major, minor));
       }
-      if(get_device_major_minor("/sys/class/video4linux/v4l-subdev4/uevent", &major, &minor)) {
+      if (get_device_major_minor("/sys/class/video4linux/v4l-subdev4/uevent", &major, &minor)) {
         mknod("/dev/v4l-subdev4", S_IFCHR | 0666,
-          makedev(major, minor));
+        makedev(major, minor));
       }
-      if(get_device_major_minor("/sys/class/video4linux/v4l-subdev5/uevent", &major, &minor)) {
+      if (get_device_major_minor("/sys/class/video4linux/v4l-subdev5/uevent", &major, &minor)) {
         mknod("/dev/v4l-subdev5", S_IFCHR | 0666,
-          makedev(major, minor));
+        makedev(major, minor));
       }
-      if(get_device_major_minor("/sys/class/video4linux/v4l-subdev6/uevent", &major, &minor)) {
+      if (get_device_major_minor("/sys/class/video4linux/v4l-subdev6/uevent", &major, &minor)) {
         mknod("/dev/v4l-subdev6", S_IFCHR | 0666,
-          makedev(major, minor));
+        makedev(major, minor));
       }
-      if(get_device_major_minor("/sys/class/video4linux/v4l-subdev7/uevent", &major, &minor)) {
+      if (get_device_major_minor("/sys/class/video4linux/v4l-subdev7/uevent", &major, &minor)) {
         mknod("/dev/v4l-subdev7", S_IFCHR | 0666,
-          makedev(major, minor));
+        makedev(major, minor));
       }
-      if(get_device_major_minor("/sys/class/video4linux/v4l-subdev8/uevent", &major, &minor)) {
+      if (get_device_major_minor("/sys/class/video4linux/v4l-subdev8/uevent", &major, &minor)) {
         mknod("/dev/v4l-subdev8", S_IFCHR | 0666,
-          makedev(major, minor));
+        makedev(major, minor));
       }
-      if(get_device_major_minor("/sys/class/video4linux/v4l-subdev9/uevent", &major, &minor)) {
+      if (get_device_major_minor("/sys/class/video4linux/v4l-subdev9/uevent", &major, &minor)) {
         mknod("/dev/v4l-subdev9", S_IFCHR | 0666,
-          makedev(major, minor));
+        makedev(major, minor));
       }
-      if(get_device_major_minor("/sys/class/video4linux/v4l-subdev10/uevent", &major, &minor)) {
+      if (get_device_major_minor("/sys/class/video4linux/v4l-subdev10/uevent", &major, &minor)) {
         mknod("/dev/v4l-subdev10", S_IFCHR | 0666,
-          makedev(major, minor));
+        makedev(major, minor));
       }
-      if(get_device_major_minor("/sys/class/video4linux/v4l-subdev11/uevent", &major, &minor)) {
+      if (get_device_major_minor("/sys/class/video4linux/v4l-subdev11/uevent", &major, &minor)) {
         mknod("/dev/v4l-subdev11", S_IFCHR | 0666,
-          makedev(major, minor));
+        makedev(major, minor));
       }
-      if(get_device_major_minor("/sys/class/video4linux/v4l-subdev12/uevent", &major, &minor)) {
+      if (get_device_major_minor("/sys/class/video4linux/v4l-subdev12/uevent", &major, &minor)) {
         mknod("/dev/v4l-subdev12", S_IFCHR | 0666,
-          makedev(major, minor));
+        makedev(major, minor));
       }
 #ifndef PLATFORM_SM6150
-      if(get_device_major_minor("/sys/class/video4linux/v4l-subdev13/uevent", &major, &minor)) {
+      if (get_device_major_minor("/sys/class/video4linux/v4l-subdev13/uevent", &major, &minor)) {
         mknod("/dev/v4l-subdev13", S_IFCHR | 0666,
-          makedev(major, minor));
+        makedev(major, minor));
       }
       if(get_device_major_minor("/sys/class/video4linux/v4l-subdev14/uevent", &major, &minor)) {
         mknod("/dev/v4l-subdev14", S_IFCHR | 0666,
           makedev(major, minor));
       }
-      if(get_device_major_minor("/sys/class/video4linux/v4l-subdev15/uevent", &major, &minor)) {
+      if (get_device_major_minor("/sys/class/video4linux/v4l-subdev15/uevent", &major, &minor)) {
         mknod("/dev/v4l-subdev15", S_IFCHR | 0666,
-          makedev(major, minor));
+        makedev(major, minor));
       }
-      if(get_device_major_minor("/sys/class/video4linux/v4l-subdev16/uevent", &major, &minor)) {
+      if (get_device_major_minor("/sys/class/video4linux/v4l-subdev16/uevent", &major, &minor)) {
         mknod("/dev/v4l-subdev16", S_IFCHR | 0666,
-          makedev(major, minor));
+        makedev(major, minor));
       }
 #endif
+      if (get_device_major_minor("/sys/class/video4linux/video0/uevent", &major, &minor)) {
+        mknod("/dev/video0", S_IFCHR | 0666,
+        makedev(major, minor));
+      }
+      if (get_device_major_minor("/sys/class/video4linux/video1/uevent", &major, &minor)) {
+        mknod("/dev/video1", S_IFCHR | 0666,
+        makedev(major, minor));
+      }
+      if (get_device_major_minor("/sys/bus/media/devices/media0/uevent", &major, &minor)) {
+        mknod("/dev/media0", S_IFCHR | 0666,
+        makedev(major, minor));
+      }
+      if (get_device_major_minor("/sys/bus/media/devices/media1/uevent", &major, &minor)) {
+        mknod("/dev/media1", S_IFCHR | 0666,
+        makedev(major, minor));
+      }
+
       set_camera_media_permission();
       set_camera_video_permission();
       set_camera_v4l_permission();
@@ -2071,14 +2102,16 @@ static int load_kmod_and_nodes(const char* appname)
     snprintf(str, SHORT_STRING_MAX ,"M - Load mod-node %s", appname);
     write_marker(str);
 
+    if(!strncmp(appname, EMOD_END, strlen(EMOD_END)))
+    {
+     app_launcher.bindcpumask = -1;
+     app_launcher.priority = 0;
+    }
+
     if ((pid = fork()) == 0) {
       LOG(INFO) << "ES : Fork for mmmod " << appname;
       setexeccon("u:r:vendor_init:s0");
-      if ((!strncmp(app_launcher.appname, ERVC_APP, strlen(ERVC_APP))) || (!strncmp(app_launcher.appname, CAM_AIS_APP, strlen(CAM_AIS_APP)))) {
-        int ret = setpriority(PRIO_PROCESS, 0, -20);
-        if(ret < 0)
-          LOG(WARNING) << "ES : setpriority fails for app :" <<app_launcher.appname<<" error:"<<strerror(errno) ;
-      }
+
       const char *path = "/vendor_early_services/bin/early_services_init";
       snprintf(str, SHORT_STRING_MAX, "%d", i);
 
@@ -2091,13 +2124,24 @@ static int load_kmod_and_nodes(const char* appname)
     int pmax = (_use_min_wait)?((WAIT_PID_MIN_MSECS * 1000) / WAIT_SLEEP_USECS):
                       ((WAIT_PID_MAX_MSECS * 1000) / WAIT_SLEEP_USECS);
     wait_for_pid(pid, WAIT_SLEEP_USECS, pmax);
+
+#ifdef __ANDROID_U__
+    if (!strncmp(app_launcher.appname, ERVC_APP, strlen(ERVC_APP))) {
+        LOG(INFO) << "ES :  RVC launcher waiting for rvc ready ";
+        if ((pid = fork()) <= 0) {
+          while (!check_rvc_device_ready()) {
+            usleep(10000);
+          }
+          _exit(0);
+        }
+    }
+#endif
   }
-  
-    // Wait for Display for all apps, if not set too
+
+  // Wait for Display for all apps, if not set too
   if (_eapp_info[i].wait != EAPP_WAIT_NONE && _eapp_info[i].wait != EAPP_WAIT_DISP) {
     wait_for_display_ready(WAIT_DISP_MSEC, max*2);
   }
-  
   // Wait if ready not set
   if (_eapp_info[i].is_ready == NULL) {
     if (_eapp_info[i].wait & EAPP_WAIT_DISP) {
@@ -2635,40 +2679,23 @@ static pid_t __attribute__((unused)) fork_wait_for_child(int type, int run_if_fo
         break;
       }
       case ES_CTYPE_DEF2_MOD: {
-        struct sched_param sp;
-        memset(&sp, 0, sizeof(sp));
-        sp.sched_priority = sched_get_priority_max(SCHED_FIFO);
-        if (0 != sched_setscheduler( pid, SCHED_FIFO, &sp))
-        {
-            LOG(INFO) << " sched_setparam def2 "<<sp.sched_priority<<strerror(errno);
-        }
+        int ret = setpriority(PRIO_PROCESS, 0, ES_PROCESS_PRIORITY);
+        if (ret < 0)
+          LOG(WARNING) << "ES : setpriority fails for def2 mode, error:" << strerror(errno);
+        setAffinity(ES_DI_MODE_CPU_MASK);
         bool load_parallel = bc_get_lmp();
         load_modules_parallel(ES_DFLMOD_ORDER_2, ES_DFLMOD_PATH,
           load_parallel?std::thread::hardware_concurrency():1,
           EMOD_DEF_TAG_2, LMP_MODPROBE);
+        fork_wait_for_child(ES_CTYPE_DI_MOD, 1);
         break;
       }
       case ES_CTYPE_DI_MOD: {
+        int ret = setpriority(PRIO_PROCESS, 0, ES_PROCESS_PRIORITY);
+        if (ret < 0)
+          LOG(WARNING) << "ES : setpriority fails for DI mode, error:" << strerror(errno);
+        setAffinity(ES_DI_MODE_CPU_MASK);
         bool load_parallel = bc_get_lmp();
-        unsigned int count = 0, max = (WAIT_SET_PERM_SECS * 1000) / WAIT_SLEEP_MSEC;
-        if (_use_min_wait) {
-          max = (WAIT_SET_PERM_MSECS) / WAIT_SLEEP_MSEC;
-        }
-
-        while (count++ < max) {
-#ifdef PLATFORM_SM6150
-          if (access("/sys/block/mmcblk0/uevent", F_OK) == 0) break;
-#else
-          if (access("/sys/block/sda/uevent", F_OK) == 0 ||
-            access("/sys/block/sdb/uevent", F_OK) == 0 ||
-            access("/sys/block/sdd/uevent", F_OK) == 0 ||
-            access("/sys/block/sde/uevent", F_OK) == 0 ||
-            access("/sys/block/sdf/uevent", F_OK) == 0) {
-            break;
-          }
-#endif
-          usleep(WAIT_SLEEP_MSEC * 1000);
-        }
 
         load_modules_parallel(ES_DFLMOD_ORDER_DI, ES_DFLMOD_PATH,
           load_parallel?std::thread::hardware_concurrency():1,
@@ -2676,7 +2703,11 @@ static pid_t __attribute__((unused)) fork_wait_for_child(int type, int run_if_fo
         break;
       }
       case ES_CTYPE_LOAD_SE: {
-        load_precompiled_sepolicy();
+      int ret = setpriority(PRIO_PROCESS, 0, ES_PROCESS_PRIORITY);
+      if (ret < 0)
+        LOG(WARNING) << "ES : setpriority fails for Seplicy load, error:" << strerror(errno);
+      setAffinity(ES_SE_LOAD_CPU_MASK);
+      load_precompiled_sepolicy();
         break;
       }
       default:
@@ -2737,26 +2768,23 @@ int early_init(int init)
     prepare_dir((char*)"shm");
 
     bool load_parallel = bc_get_lmp();
-    pid_t pid_def2, pid_se;
+    pid_t pid_se;
+    pid_se = fork_wait_for_child(ES_CTYPE_LOAD_SE, 1);
 
     load_modules_parallel(ES_DFLMOD_ORDER_1, ES_DFLMOD_PATH,
          load_parallel?std::thread::hardware_concurrency():1,
          EMOD_DEF_TAG_1, LMP_MODPROBE);
 
+    int max = (_use_min_wait)?((WAIT_PID_MIN_MSECS * 1000) / WAIT_SLEEP_USECS):
+                      ((WAIT_PID_MAX_MSECS * 1000) / WAIT_SLEEP_USECS);
+
+    // wait for sepol loading as its required for next steps.
+    wait_for_pid(pid_se, WAIT_SLEEP_USECS, max);
+
     // Check for driver storage enumerations
     fork_wait_for_child(ES_CTYPE_FW, 1);
     // Load second set of def-modules in parallel
-    pid_def2 = fork_wait_for_child(ES_CTYPE_DEF2_MOD, 1);
-    // Load sepolicies in parallel
-    pid_se = fork_wait_for_child(ES_CTYPE_LOAD_SE, 1);
-
-    // wait for sepol loading and def2 modules as its required for next steps.
-    int max = (_use_min_wait)?((WAIT_PID_MIN_MSECS * 1000) / WAIT_SLEEP_USECS):
-                      ((WAIT_PID_MAX_MSECS * 1000) / WAIT_SLEEP_USECS);
-    wait_for_pid(pid_se, WAIT_SLEEP_USECS, max);
-    wait_for_pid(pid_def2, WAIT_SLEEP_USECS, max);
-    // Load Display modules in parallel
-    fork_wait_for_child(ES_CTYPE_DI_MOD, 1);
+    fork_wait_for_child(ES_CTYPE_DEF2_MOD, 1);
 
     selinux_android_restorecon("/vendor_early_services/early_services_init", 0);
     if (selinux_android_restorecon("/vendor_early_services/",
