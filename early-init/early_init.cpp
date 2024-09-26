@@ -150,7 +150,6 @@ char audio_modules[NUM_MODULE][64] = {
 "/early_services/vendor/lib/modules/hdmi_dlkm.ko",
 "/early_services/vendor/lib/modules/machine_dlkm.ko"};
 static pid_t lastpid;
-
 static inline bool is_empty_line(const char* p);
 static inline char *strstrip(char *s);
 static inline int parse_line(char* p);
@@ -230,6 +229,30 @@ static void inline write_smack_label(char* label)
   return;
 }
 
+static int get_sku_qultivate_ver()
+{
+   char buffer[8];
+   char buf[32];
+   int qultivate_flag = 0;
+
+   FILE* fp = fopen("/sys/devices/soc0/camera", "r");
+   if (!fp)
+   {
+       LOG(ERROR) << "fopen failed";
+   } else {
+       fgets(buffer,sizeof(buffer),fp);
+       snprintf(buf, 32, "%s", buffer);
+       LOG(INFO) << "camera node value" << buf;
+       fclose(fp);
+       if (!strncmp(buffer,"0x1",3))
+       {
+          qultivate_flag = 1;
+          LOG(INFO) << "Qultivate HW detected" << buf;
+       }
+   }
+   return qultivate_flag;
+}
+
 /*
  * Only support abs path
  */
@@ -301,11 +324,11 @@ static inline void prepare_dir(char* p)
         }
 	ret = mount("devtmpfs", "/early_services/dev", "devtmpfs", 0, NULL);
         if (ret < 0) {
-            freopen("/dev/kmsg", "w", stdout);
+            freopen("/early_services/dev/kmsg", "w", stdout);
             printf(" /early_services/dev mount failed error = %d \n", errno);
           perror(" mount /early_services/dev with devtmpfs failed ");
         } else
-            freopen("/dev/kmsg", "w", stdout);
+            freopen("/early_services/dev/kmsg", "w", stdout);
             printf("/early_services/dev mount success error = %d \n", errno);
       }
       break;
@@ -674,6 +697,15 @@ static inline int parse_line(char* p)
       if (strncmp(p, END_TAG, strlen(END_TAG)))
         goto out;
 
+      if (!strncmp(app_launcher.appname, "ais_server", strlen("ais_server")))
+      {
+        if (get_sku_qultivate_ver())
+        {
+           write_marker("M - Qultivate HW Camera not supported");
+           goto out;
+        }
+      }
+
       pid = fork();
       if (pid < 0) {
         LOG(INFO) << " early_init fork child process failed ";
@@ -932,7 +964,7 @@ int listDir(char *dirName)
        struct stat inode;
        char name[1000];
        dir = opendir(dirName);
-       freopen("/dev/kmsg", "w", stdout);
+       freopen("/early_services/dev/kmsg", "w", stdout);
        if (dir == 0) {
        perror ("Open failed");
        return -1;
@@ -1013,7 +1045,7 @@ int early_init(const char* stage)
       LOG(INFO) << "ES : Logging enabled at early-services!";
       ret1 = mount("/early_services", "/aes_tmpfs", NULL , MS_BIND | MS_REC, NULL);
 
-      mknod("/dev/kmsg", S_IFCHR | 0600, makedev(1, 11));
+      mknod("/early_services/dev/kmsg", S_IFCHR | 0600, makedev(1, 11));
       std::string precompiled_sepolicy_file = "/early_services/vendor/etc/selinux/precompiled_early_sepolicy";
       write_marker("M - EarlyInit SEPolicyLoad Start");
       fd1 = open(precompiled_sepolicy_file.c_str(), O_RDONLY | O_CLOEXEC | O_BINARY, 0777);
@@ -1050,7 +1082,7 @@ int early_init(const char* stage)
 #endif
 #endif
   write_marker("M - Second Stage Start");
-  set_permissions("/dev/kmsg", 0620, AID_ROOT, AID_SYSTEM, "u:object_r:kmsg_device:s0");
+  set_permissions("/early_services/dev/kmsg", 0620, AID_ROOT, AID_SYSTEM, "u:object_r:kmsg_device:s0");
   android::earlyinit::InitKernelLogging(NULL);
   LOG(INFO) << "ES : In Second Stage!";
   pthread_create(&audiofw_tid, NULL, prepare_audio_fw_dir, NULL);
