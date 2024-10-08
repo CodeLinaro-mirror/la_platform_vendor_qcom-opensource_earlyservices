@@ -2696,6 +2696,21 @@ static pid_t __attribute__((unused)) fork_wait_for_child(int type, int run_if_fo
           LOG(WARNING) << "ES : setpriority fails for DI mode, error:" << strerror(errno);
         setAffinity(ES_DI_MODE_CPU_MASK);
         bool load_parallel = bc_get_lmp();
+        unsigned int count = 0, max = (WAIT_SET_PERM_SECS * 1000) / WAIT_SLEEP_MSEC;
+        if (_use_min_wait) {
+          max = (WAIT_SET_PERM_MSECS) / WAIT_SLEEP_MSEC;
+        }
+
+        while (count++ < max) {
+        if ((access("/sys/block/mmcblk0/uevent", F_OK) == 0) || (
+            access("/sys/block/sda/uevent", F_OK) == 0 &&
+            access("/sys/block/sdd/uevent", F_OK) == 0 &&
+            access("/sys/block/sde/uevent", F_OK) == 0 &&
+            access("/sys/block/sdf/uevent", F_OK) == 0)) {
+              break;
+          }
+          usleep(WAIT_SLEEP_MSEC * 1000);
+        }
 
         load_modules_parallel(ES_DFLMOD_ORDER_DI, ES_DFLMOD_PATH,
           load_parallel?std::thread::hardware_concurrency():1,
