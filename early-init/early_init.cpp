@@ -1516,10 +1516,12 @@ static int check_ais_device_ready(void)
         (access("/sys/class/video4linux/video0/uevent", F_OK) == 0) &&
         (access("/sys/class/video4linux/v4l-subdev0/uevent", F_OK) == 0) &&
         (access("/sys/class/video4linux/v4l-subdev11/uevent", F_OK) == 0) &&
-        (access("/sys/class/video4linux/v4l-subdev12/uevent", F_OK) == 0) &&
 #ifndef PLATFORM_SM6150
+        (access("/sys/class/video4linux/v4l-subdev12/uevent", F_OK) == 0) &&
         (access("/sys/class/video4linux/v4l-subdev13/uevent", F_OK) == 0) &&
         (access("/sys/class/video4linux/v4l-subdev14/uevent", F_OK) == 0)
+#else
+	(access("/sys/class/video4linux/v4l-subdev12/uevent", F_OK) == 0)
 #endif
       ) {
 
