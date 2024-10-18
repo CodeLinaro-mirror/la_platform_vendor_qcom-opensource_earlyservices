@@ -1052,7 +1052,18 @@ bool kcmd_bc_console_enabled(void)
   if (found)
     return enabled;
 
-  android::earlyinit::import_kernel_bootconfig(false,
+#ifdef __ANDROID_S_U__
+    android::earlyinit::import_kernel_cmdline(false,
+      [&](const std::string& key, const std::string& value, bool in_qemu) -> bool {
+    (void)in_qemu;
+    if (key == "androidboot.console" && value.size() > 0) {
+        enabled = true;
+        found = true;
+      }
+      return found;
+    });
+#else
+    android::earlyinit::import_kernel_bootconfig(false,
      [&](const std::string& key, const std::string& value, bool in_qemu) -> bool {
     (void)in_qemu;
     if (key == "androidboot.console" && value.size() > 0) {
@@ -1061,6 +1072,7 @@ bool kcmd_bc_console_enabled(void)
     }
     return found;
   });
+#endif
 
   return enabled;
 }
@@ -1070,6 +1082,17 @@ bool bc_get_lmp()
 {
   bool load_parallel = false, found = false;
 
+#ifdef __ANDROID_S_U__
+  android::earlyinit::import_kernel_cmdline(false,
+      [&](const std::string& key, const std::string& value, bool in_qemu) -> bool {
+    (void)in_qemu;
+    if (key == "androidboot.load_modules_parallel" && value == "true") {
+      load_parallel = true;
+      found = true;
+    }
+    return found;
+  });
+#else
   android::earlyinit::import_kernel_bootconfig(false,
      [&](const std::string& key, const std::string& value, bool in_qemu) -> bool {
     (void)in_qemu;
@@ -1079,6 +1102,8 @@ bool bc_get_lmp()
     }
     return found;
   });
+#endif
+
 #ifdef EARLYINIT_DEBUG
   LOG(INFO) << "ES : Config Modules Parallel load: " << load_parallel;
 #endif
@@ -1090,6 +1115,22 @@ bool bc_get_lmp()
 bool bc_boot_slot(std::string& slot_suffix)
 {
   bool found = false;
+
+#ifdef __ANDROID_S_U__
+   android::earlyinit::import_kernel_cmdline(false,
+      [&](const std::string& key, const std::string& value, bool in_qemu) -> bool {
+    (void)in_qemu;
+    if (key == "androidboot.slot_suffix") {
+      if (value == "_a") {
+        slot_suffix ="_a";
+      } else if (value == "_b") {
+        slot_suffix ="_b";
+      }
+      found = true;
+    }
+    return found;
+  });
+#else
   android::earlyinit::import_kernel_bootconfig(false,
      [&](const std::string& key, const std::string& value, bool in_qemu) -> bool {
     (void)in_qemu;
@@ -1103,6 +1144,9 @@ bool bc_boot_slot(std::string& slot_suffix)
     }
     return found;
   });
+#endif
+
+
 #ifdef EARLYINIT_DEBUG
   LOG(INFO) << "ES : Slot suffix: " << slot_suffix;
 #endif
@@ -1114,6 +1158,17 @@ bool bc_get_ar() {
   bool audio_reach = false;
   bool found = false;
 
+#ifdef __ANDROID_S_U__
+   android::earlyinit::import_kernel_cmdline(false,
+      [&](const std::string& key, const std::string& value, bool in_qemu) -> bool {
+    (void)in_qemu;
+    if (key == "androidboot.audio" && value == "audioreach") {
+      audio_reach = true;
+      found = true;
+    }
+    return found;
+  });
+#else
   android::earlyinit::import_kernel_bootconfig(false,
      [&](const std::string& key, const std::string& value, bool in_qemu) -> bool {
     (void)in_qemu;
@@ -1123,6 +1178,9 @@ bool bc_get_ar() {
     }
     return found;
   });
+#endif
+
+
 #ifdef EARLYINIT_DEBUG
   LOG(INFO) << "ES : Config Audio Reach: " << audio_reach;
 #endif
@@ -1134,6 +1192,18 @@ EnforcingStatus bc_get_se()
 {
   EnforcingStatus status = SELINUX_ENFORCING;
   bool found = false;
+
+#ifdef __ANDROID_S_U__
+ android::earlyinit::import_kernel_cmdline(false,
+      [&](const std::string& key, const std::string& value, bool in_qemu) -> bool {
+    (void)in_qemu;
+    if (key == "androidboot.selinux" && value == "permissive") {
+      status = SELINUX_PERMISSIVE;
+      found = true;
+    }
+    return found;
+  });
+#else
   android::earlyinit::import_kernel_bootconfig(false,
     [&](const std::string& key, const std::string& value, bool in_qemu) -> bool {
     (void)in_qemu;
@@ -1143,6 +1213,8 @@ EnforcingStatus bc_get_se()
     }
     return found;
   });
+#endif
+
   LOG(INFO) << "ES : Selinux mode: " << status;
 
   return status;
