@@ -26,6 +26,11 @@ ifneq (,$(filter U 14 UpsideDownCake V 15 VanillaIceCream, $(PLATFORM_VERSION)))
 LOCAL_CFLAGS += -D__ANDROID_U__
 endif
 
+# Check if not Android U version
+ifeq (,$(filter U 14 UpsideDownCake, $(PLATFORM_VERSION)))
+LOCAL_CFLAGS += -DUSE_BOOT_MARKER
+endif
+
 LOCAL_CFLAGS += -Wall -Werror
 
 LOCAL_MODULE := early_services_init
