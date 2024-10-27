@@ -32,7 +32,7 @@
 **/
 
 /*
-* Changes from Qualcomm Innovation Center are provided under the following license:
+* Changes from Qualcomm Innovation Center, Inc. are provided under the following license:
 * Copyright (c) 2023-2024 Qualcomm Innovation Center, Inc. All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without
@@ -82,7 +82,6 @@
 //#include <log/log.h>
 #include <cutils/list.h>
 #include "early_audiod.h"
-#include <linux/version.h>
 
 #define ID_RIFF 0x46464952
 #define ID_WAVE 0x45564157
@@ -222,7 +221,6 @@ try_again:
 
 void place_marker(char const *name)
 {
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0))
    int fd=open("/sys/kernel/boot_kpi/kpi_values", O_WRONLY);
    if (fd > 0)
    {
@@ -231,11 +229,6 @@ void place_marker(char const *name)
        write(fd, earlyapp, strlen(earlyapp));
        close(fd);
    }
-#else
-   if (freopen("/dev/kmsg", "w", stdout)) {
-       printf("boot_kpi: %s", name);
-   }
-#endif
 }
 
 void play_sample(FILE *file, unsigned int card, unsigned int device, unsigned int channels,
