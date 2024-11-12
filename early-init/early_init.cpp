@@ -223,10 +223,14 @@ using android::base::boot_clock;
 #define EAPP_NO_MOD_LOAD    0x08
 #define EAPP_WAIT_AIS       0x10
 #define EAPP_MOD_WAIT_DISP  0x20
+#define EAPP_WAIT_FW        0x40
 
-#define EAPP_DISP_FLAG      (EAPP_NO_MOD_LOAD+EAPP_WAIT_DISP)
-#define EAPP_RVC_FLAG       (EAPP_WAIT_AIS)
+#define EAPP_DISP_FLAG      (EAPP_NO_MOD_LOAD)
+#define EAPP_RVC_FLAG       (EAPP_WAIT_AIS+EAPP_WAIT_FW)
 #define EAPP_AUDIO_FLAG     (EAPP_MOD_WAIT_FW+EAPP_MOD_WAIT_DISP)
+#define EAPP_VIDEO_FLAG     (EAPP_MOD_WAIT_FW+EAPP_WAIT_DISP+EAPP_MOD_WAIT_DISP)
+#define EAPP_AIS_FLAG       (EAPP_NO_MOD_LOAD+EAPP_WAIT_FW)
+
 
 #define LMP_MODPROBE       0
 #define LMP_DIRECT         1
@@ -330,8 +334,8 @@ const static struct {
  {"qcarcam_edrm_rvc", "modules_rv.order", "rvc", check_rvc_device_ready, EAPP_RVC_FLAG},
 #endif
  {DISPLAY_APP, "modules_di.order", "splash", check_esplash_device_ready, EAPP_DISP_FLAG},
- {"earlyVideo", "modules_vi.order", "video", check_video_device_ready, EAPP_MOD_WAIT_FW},
- {CAM_AIS_APP, "modules_ais.order", "ais", check_ais_device_ready, EAPP_NO_MOD_LOAD},
+ {"earlyVideo", "modules_vi.order", "video", check_video_device_ready, EAPP_VIDEO_FLAG},
+ {CAM_AIS_APP, "modules_ais.order", "ais", check_ais_device_ready, EAPP_AIS_FLAG},
  {"pd-mapper", "modules_r_au.order", "pd-mapper", check_pdmapper_ready, EAPP_MOD_WAIT_FW},
  {"audio-nxp-auto", "", "audio-nxp", check_audio_device_ready, EAPP_MOD_WAIT_FW},
  {"early_chime", "modules_au.order", "audio", check_audio_device_ready, EAPP_AUDIO_FLAG},
@@ -1802,19 +1806,21 @@ static int check_display_driver_ready(void)
   return display_ready;
 }
 
-static int check_storage_device_ready(void)
+static int check_storage_device_ready(bool wait_for_all)
 {
   static int sto_device_created = 0;
 
   if (!sto_device_created) {
     // NOTE: 64 nodes are created only for ES/modem use case
-    if ((access("/sys/block/mmcblk0/uevent", F_OK) == 0) || (
+    if ((access("/sys/block/mmcblk0/uevent", F_OK) == 0) || ((
+
+        wait_for_all == false && (
         access("/sys/block/sdf/sdf48/uevent", F_OK) ||
         access("/sys/block/sde/sde48/uevent", F_OK) ||
         access("/sys/block/sdd/sdd48/uevent", F_OK) ||
         access("/sys/block/sdc/sdc48/uevent", F_OK) ||
         access("/sys/block/sdb/sdb48/uevent", F_OK) ||
-        access("/sys/block/sda/sda48/uevent", F_OK) || (
+        access("/sys/block/sda/sda48/uevent", F_OK))) || (
 
         access("/sys/block/sda/uevent", F_OK) == 0 &&
         access("/sys/block/sdd/uevent", F_OK) == 0 &&
@@ -1958,8 +1964,17 @@ static int prepare_fw_dir(bool set_km)
     max = (WAIT_SET_PERM_MSECS) / WAIT_SLEEP_MSEC;
   }
 
+  if (!set_km) {
+    // load ais
+    load_modules_with_se(CAM_AIS_APP, -1, ES_PROCESS_PRIORITY_MID);
+
+    // Load def second set of modules
+    load_modules_with_se(EMOD_DEF2, -1, ES_PROCESS_PRIORITY_LOW);
+  }
+
   while (count++ < max) {
-    if (check_storage_device_ready())
+    // No wait for all nodes if set_km
+    if (check_storage_device_ready(!set_km))
       break;
     usleep(WAIT_SLEEP_MSEC * 1000);
   }
@@ -1972,9 +1987,6 @@ static int prepare_fw_dir(bool set_km)
 
   // Load display modules after sto sys nodes availability
   load_modules_with_se(DISPLAY_APP, -1, ES_PROCESS_PRIORITY);
-  load_modules_with_se(CAM_AIS_APP, -1, ES_PROCESS_PRIORITY_MID);
-  // Load def second set of modules
-  load_modules_with_se(EMOD_DEF2, -1, ES_PROCESS_PRIORITY_LOW);
 
   if (access(AUDIO_FW_PATH, F_OK) == -1) {
     LOG(WARNING) << "ES : AUDIO_FW_PATH doesn't exist";
@@ -2244,6 +2256,11 @@ static int load_kmod_and_nodes(const char* appname)
     write_marker(str);
     LOG(INFO) << "ES : FAILED - wait for ready took " << (count * WAIT_SLEEP_MSEC)/1000
             << "s ready " << ready <<" app " << _eapp_info[i].tag;
+  }
+
+  // Wait for Sto/FW availability for app launch
+  if (_eapp_info[i].flag & EAPP_WAIT_FW) {
+    wait_for_file((char*)ES_FW_CHK_PATH, WAIT_SLEEP_MSEC, max*2);
   }
 
   // Wait for Display
@@ -3036,7 +3053,8 @@ int early_init(int init)
   // wait for app exec
   wait_for_early_apps();
 
-  load_modules_with_se(EMOD_END, -1, ES_PRIORITY_NONE);
+  // add priority so data modules are loaded early.
+  load_modules_with_se(EMOD_END, -1, ES_PROCESS_PRIORITY_MID);
 
 #ifdef  EARLYINIT_KO_INSTRUMENTATION
   set_permissions("/vendor_early_services", 0755, AID_ROOT, AID_SHELL, "u:object_r:vendor_file:s0");
