@@ -155,6 +155,11 @@ using android::base::boot_clock;
 
 #define init_module(module_image, len, param_values) syscall(__NR_init_module, module_image, len, param_values)
 #define finit_module(fd, param_values, flags) syscall(__NR_finit_module, fd, param_values, flags)
+#ifdef USE_BOOT_MARKER
+#define BOOTMARKER_MOD_COUNT    2
+#define BOOT_MARKER_KO          "boot_marker"
+#define BOOTMARKER_PROXY_KO     "bootmarker_proxy"
+#endif
 #define ADSP_LOADER_KO          "adsp_loader_dlkm_legacy"
 #define DISP_DRM_READY_PATH     "/sys/devices/platform/soc/ae00000.qcom,mdss_mdp/init_complete"
 #define DRM_CARD3_PATH          "/dev/dri/card3"
@@ -201,6 +206,7 @@ using android::base::boot_clock;
 #define EMOD_DEF_TAG_1   "def_1"
 #define EMOD_DEF_TAG_2   "def_2"
 #define EMOD_DI_TAG      "display"
+#define ES_MARKER_TAG    "bootmarker"
 
 #define ES_DFLMOD_ORDER_1     ES_VMOD_PATH"modules.order"
 #define ES_DFLMOD_ORDER_2     ES_VMOD_PATH"modules_2.order"
@@ -362,9 +368,7 @@ static void inline safe_close(int fd)
 
 static void inline write_marker(const char* name)
 {
-#ifdef __ANDROID_U__
-  ALOGE("boot_kpi: %s ", name);
-#else
+#ifdef USE_BOOT_MARKER
   int fd = -1;
 
   fd = open(KPI_VALUE_PATH, O_WRONLY);
@@ -375,6 +379,8 @@ static void inline write_marker(const char* name)
     printf("open bootkpi for name %s failed %s\r\n", name, strerror(errno));
   }
   safe_close(fd);
+#else
+  ALOGE("boot_kpi: %s ", name);
 #endif
   return;
 }
@@ -2309,6 +2315,60 @@ static void ko_load_time_end(int ko_fd, const char* tag, int curr_time, int tot_
 
 #endif //EARLYINIT_KO_INSTRUMENTATION
 
+#ifdef USE_BOOT_MARKER
+static void load_boot_marker()
+{
+  // boot_marker.ko is dependent on bootmarker_proxy.ko. So first load bootmarker_proxy.ko
+  // and then boot_marker.ko
+  const char* mod[BOOTMARKER_MOD_COUNT] = {BOOTMARKER_PROXY_KO, BOOT_MARKER_KO};
+  char fl[SHORT_STRING_MAX];
+  int fail_count = 0;
+#ifdef EARLYINIT_KO_INSTRUMENTATION
+  boot_clock::time_point module_start_time = boot_clock::now();
+  int ko_fd = ko_load_time_start(ES_MARKER_TAG,
+                  (int)std::chrono::duration_cast<std::chrono::milliseconds>(
+                  module_start_time.time_since_epoch()).count());
+#endif
+  for (int i = 0; i < BOOTMARKER_MOD_COUNT; i++) {
+#ifdef EARLYINIT_KO_INSTRUMENTATION
+        boot_clock::time_point ko_st = boot_clock::now();
+        std::chrono::milliseconds ko_el;
+#endif
+    snprintf(fl, SHORT_STRING_MAX, "%s%s.ko", ES_DFLMOD_PATH, mod[i]);
+    int fd = open(fl, O_RDONLY);
+    if (fd > 0) {
+      std::string param;
+      android::earlyinit::get_kernel_module_param(mod[i], param, _module_params);
+      int ret = finit_module(fd, param.c_str(), 0);
+      if (ret < 0 && errno != EEXIST) {
+         LOG(WARNING) << "fd = " << fd << "ES : init_module failed " << fl << " errno: " << errno;
+         fail_count++;
+      } else {
+#ifdef EARLYINIT_DEBUG
+        LOG(INFO) << "ES : init_module success for: " << fl;
+#endif
+      }
+      close(fd);
+    }
+#ifdef EARLYINIT_KO_INSTRUMENTATION
+  ko_el = std::chrono::duration_cast<std::chrono::milliseconds>(
+             boot_clock::now() - ko_st);
+  // write to file
+  ko_load_time_add(ko_fd, mod[i], (int)ko_el.count(), fail_count);
+#endif
+  } // for loop
+#ifdef EARLYINIT_KO_INSTRUMENTATION
+  auto module_elapse_time = std::chrono::duration_cast<std::chrono::milliseconds>(
+                boot_clock::now() - module_start_time);
+  ko_load_time_end(ko_fd, ES_MARKER_TAG,
+      (int)std::chrono::duration_cast<std::chrono::milliseconds>(
+      boot_clock::now().time_since_epoch()).count(),
+      (int)module_elapse_time.count());
+  ko_fd = -1;
+#endif
+}
+#endif // USE_BOOT_MARKER
+
 #define MAX_MODULES_PER_LINE 64
 static int load_modules_parallel(const std::string& fl,
                    const std::string& mod_path, const int th_count,
@@ -2853,6 +2913,10 @@ int early_init(int init)
 
     mount("sysfs", "/sys", "sysfs", 0, NULL);
     prepare_dir((char*)"shm");
+
+#ifdef USE_BOOT_MARKER
+    load_boot_marker();
+#endif
 
     bool load_parallel = bc_get_lmp();
     pid_t pid_se;
