@@ -2409,7 +2409,7 @@ static int load_modules_parallel(const std::string& fl,
 
     kmod[len] = &mline[0];
     // split the words as C strings
-    for (; i < (LINE_MAX-1) && (*ptr != 0 && len < MAX_MODULES_PER_LINE); i++, ptr++) {
+    for (; i < (LINE_MAX-1) && ((*ptr != 0) && ((len+1) < MAX_MODULES_PER_LINE)); i++, ptr++) {
       if (*ptr != ' ') {
          mline[i] = *ptr;
       } else {
