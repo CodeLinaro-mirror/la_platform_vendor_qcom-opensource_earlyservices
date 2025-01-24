@@ -24,7 +24,12 @@ endif
 
 ifneq (,$(filter U 14 UpsideDownCake V 15 VanillaIceCream, $(PLATFORM_VERSION)))
 LOCAL_CFLAGS += -D__ANDROID_U__
+ifeq ($(PRODUCT_SHIPPING_API_LEVEL), 32)
+LOCAL_CFLAGS += -D__ANDROID_S_U__
 endif
+endif
+
+LOCAL_CFLAGS += -DUSE_BOOT_MARKER
 
 LOCAL_CFLAGS += -Wall -Werror
 
