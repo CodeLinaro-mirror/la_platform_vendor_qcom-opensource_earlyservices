@@ -3027,6 +3027,9 @@ int early_init(int init)
   log_fsinit = true;
 #endif
 
+  int max = (_use_min_wait)?((WAIT_PID_MIN_MSECS * 1000) / WAIT_SLEEP_USECS):
+                    ((WAIT_PID_MAX_MSECS * 1000) / WAIT_SLEEP_USECS);
+
   // set kernel logging in perf build at stage II
   if (log_fsinit || (!_use_min_wait || init )) {
     android::earlyinit::InitKernelLogging(NULL);
@@ -3061,9 +3064,6 @@ int early_init(int init)
     fork_wait_for_child(ES_CTYPE_MARKER, 1);
     fork_wait_for_child(ES_CTYPE_IM, 1);
     pid_def1 = fork_wait_for_child(ES_CTYPE_DEF1_MOD, 1);
-
-    int max = (_use_min_wait)?((WAIT_PID_MIN_MSECS * 1000) / WAIT_SLEEP_USECS):
-                      ((WAIT_PID_MAX_MSECS * 1000) / WAIT_SLEEP_USECS);
 
     // wait for sepol loading as its required for next steps.
     wait_for_pid(pid_se, WAIT_SLEEP_USECS, max);
@@ -3126,7 +3126,10 @@ int early_init(int init)
   wait_for_early_apps();
 
   // add priority so data modules are loaded early.
-  load_modules_with_se(EMOD_END, -1, ES_PROCESS_PRIORITY_MID);
+  pid_t pid_e = load_modules_with_se(EMOD_END, -1, ES_PROCESS_PRIORITY_MID);
+
+  // wait for completion to ensure modules availability.
+  wait_for_pid(pid_e, WAIT_SLEEP_USECS, max);
 
 #ifdef  EARLYINIT_KO_INSTRUMENTATION
   set_permissions("/vendor_early_services", 0755, AID_ROOT, AID_SHELL, "u:object_r:vendor_file:s0");
@@ -3143,6 +3146,7 @@ int early_init(int init)
   set_permissions("/vendor_early_services/ko_time_rvc.log", 0777, AID_ROOT, AID_SHELL, "u:object_r:vendor_file:s0");
   set_permissions("/vendor_early_services/ko_time_def_end.log", 0777, AID_ROOT, AID_SHELL, "u:object_r:vendor_file:s0");
 #endif
+
   mknod("/dev/sedone", S_IFREG | 0400, makedev(0,0));
 
   char str[SHORT_STRING_MAX] = {0};
