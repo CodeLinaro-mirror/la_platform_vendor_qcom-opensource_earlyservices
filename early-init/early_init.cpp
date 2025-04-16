@@ -91,7 +91,6 @@
 #include <sys/wait.h>
 #include <sys/mman.h>
 #include <utils/Log.h>
-#include <fstream>
 
 // for file copy
 #include <filesystem>
@@ -103,7 +102,6 @@
 #define DEFAULT_CONF            "/vendor_early_services/etc/early_init.conf"
 #define ANDROID_U_CONF          "/vendor_early_services/etc/early_init_u.conf"
 #define ES_GEN4_CONF            "/vendor_early_services/etc/early_init_gen4.conf"
-#define ES_POIPU_CONF           "/vendor_early_services/etc/early_init_poipu.conf"
 #define END_TAG                 "<end>"
 #define LINE_MAX                2048
 #define SHORT_STRING_MAX        128
@@ -218,13 +216,8 @@ using android::base::boot_clock;
 #define ES_CTYPE_DI_MOD     3
 #define ES_CTYPE_LOAD_SE    4
 
-#define ES_SE_LOAD_CPU_MASK 128
-#define ES_PROCESS_PRIORITY -20
-
 #define PIPE_RD 0
 #define PIPE_WR 1
-
-#define SOC_ID_POIPU 405
 
 #if defined(__ANDROID_U__) || defined(PLATFORM_GEN4)
 #define SELINUXMNT "/sys/fs/selinux"
@@ -235,16 +228,6 @@ using android::base::boot_clock;
 #define TEST_APP_PID "/vendor_early_services/run/early/init_early_test.pid"
 #define TEST_APP_LOG "/vendor_early_services/run/init_early_test.txt"
 #endif //__ANDROID_U__ || PLATFORM_GEN4
-
-const std::string& mEarlyAppStatus = "/dev/early_app_done_status";
-const std::string& mEarlyAppAudioStatus = "/dev/early_app_done_status/audio";
-const std::string mEarlyAppCameraStatus = "/dev/early_app_done_status/camera";
-const std::string& mEarlyAppDisplayStatus = "/dev/early_app_done_status/disp";
-const std::string& mEarlyAppVideoStatus = "/dev/early_app_done_status/video";
-// Once implementation done from respective module, this need to be enabled.
-//std::vector<std::string> mEarlyAppFile = { mEarlyAppAudioStatus.c_str(), mEarlyAppVideoStatus.c_str(), mEarlyAppDisplayStatus.c_str(), mEarlyAppCameraStatus.c_str() };
-std::vector<std::string> mEarlyAppFile = { mEarlyAppCameraStatus };
-
 
 #ifdef EARLYINIT_DEBUG
 static inline bool is_empty_line(const char* p);
@@ -273,7 +256,6 @@ enum EnforcingStatus { SELINUX_PERMISSIVE, SELINUX_ENFORCING };
 
 char chipId[32]  = { 0 };
 char platformId[32]  = { 0 };
-char socid[32]  = { 0 };
 // Global variables
 bool _use_min_wait = true;
 bool _audio_reach = false;
@@ -307,8 +289,8 @@ const static struct {
   int wait;
 } _eapp_info[] = {
 #ifdef PLATFORM_GEN4
- {"qcxserver", "modules_qcx.order", "qcx", check_ais_device_ready, EAPP_WAIT_NONE},
- {"qcarcam_edrm_rvc", "modules_rv_gen4.order", "rvc", check_rvc_device_ready, EAPP_WAIT_NONE},
+ {"qcxserver", "modules_qcx.order", "qcx", check_ais_device_ready, EAPP_MOD_WAIT_FW},
+ {"qcarcam_edrm_rvc", "modules_rv_gen4.order", "rvc", check_rvc_device_ready, EAPP_MOD_WAIT_FW},
  {EMOD_END, "modules_end_gen4.order", "def_end", NULL, EAPP_WAIT_NONE},
 #else
  {"ais_server", "modules_ais.order", "ais", check_ais_device_ready, EAPP_MOD_WAIT_FW},
@@ -373,26 +355,6 @@ static void inline safe_free(char** p)
     free(*p);
   *p = NULL;
   return;
-}
-
-static void setAffinity(int cpumask)
-{
-  if (cpumask < -1 || cpumask > 255)
-    return;
-
-    cpu_set_t mask;
-    CPU_ZERO(&mask);
-    for (int i = 0; i < get_nprocs_conf(); i++) {
-      if (BIT_SET(cpumask, i)) {
-        CPU_SET(i, &mask);
-#ifdef EARLYINIT_DEBUG
-        LOG(INFO) <<"Set cpu"<<i<<"for ES process";
-#endif
-      }
-    }
-    if (0 != sched_setaffinity(PRIO_PROCESS, sizeof(mask), &mask))
-      LOG(INFO) <<"sched_setaffinity failed, mask: "<<cpumask<<"error:"<<strerror(errno);
-
 }
 
 static void inline safe_close(int fd)
@@ -889,13 +851,22 @@ static inline pid_t parse_line(char* p)
         }
 
         if (app_launcher.bindcpumask != -1) {
-          setAffinity(app_launcher.bindcpumask);
+          cpu_set_t mask;
+          CPU_ZERO(&mask);
+          for (int i = 0; i < get_nprocs_conf(); i++) {
+            if (BIT_SET(app_launcher.bindcpumask, i))
+              CPU_SET(i, &mask);
+          }
+          if (0 != sched_setaffinity(0, sizeof(mask), &mask))
+            printf("sched_setaffinity failed %d %s\r\n", app_launcher.bindcpumask, strerror(errno));
         }
 
-        if (app_launcher.priority) {
-          int ret = setpriority(PRIO_PROCESS, 0, app_launcher.priority);
-          if(ret < 0)
-            LOG(WARNING) << "ES : setpriority fails for app :" <<app_launcher.appname<<" error:"<<strerror(errno) ;
+        if (app_launcher.priority > 0) {
+          struct sched_param sp;
+          memset( &sp, 0, sizeof(sp) );
+          sp.sched_priority = app_launcher.priority;
+          if (0 != sched_setscheduler( pid, SCHED_FIFO, &sp))
+            printf("sched_setparam failed %d %s\r\n", app_launcher.priority, strerror(errno));
         }
 
         if (app_launcher.gpio) {
@@ -973,7 +944,7 @@ static inline pid_t parse_line(char* p)
           LOG(INFO) << "ES : Launching app " << app_launcher.appname;
           ret = execvpe(app_launcher.cmd,app_launcher.argv,app_launcher.env);
           if(ret < 0) {
-            LOG(INFO) << "ES : App launch failed " << app_launcher.appname << " errno " << errno << "error" << strerror(errno);
+            LOG(INFO) << "ES : App launch failed " << app_launcher.appname << " errno " << errno;
             memset(marker, 0, 50);
             snprintf(marker, 49 ,"M - Launch %s app failed %d", app_launcher.appname, errno);
             write_marker(marker);
@@ -1240,23 +1211,6 @@ int getSysInfo(const char * fileName, char * strName)
   return 0;
 }
 
-int getSocId(const char * fileName, char * strName) {
-  int fd,ret;
-  fd = open(fileName, O_RDONLY);
-  if (fd > 0)
-  {
-      ret = read(fd, strName, sizeof(strName) - 1);
-      if (-1 == ret)
-      {
-        perror("read getSocId failed.\r\n");
-        return -1;
-      }
-      close(fd);
-  }
-  return 0;
-}
-
-
 // Wait for availability of file for given msec*count time
 static int wait_for_file(const char* file, int sleep_msec, int count, bool log_fail)
 {
@@ -1385,13 +1339,6 @@ static int check_dma_heap_device_ready(void)
         dma_heap_device_created = 1;
         LOG(INFO) << "ES camera dma_heap device nodes ready";
         write_marker("M - EarlyInit dma heap nodes ready");
-#ifdef PLATFORM_GEN4
-        //Create drm cards for rvc once display dpu is ready
-        int max = (_use_min_wait)?(WAIT_SET_PERM_MSECS / WAIT_SLEEP_MSEC):
-                ((WAIT_SET_PERM_SECS * 1000) / WAIT_SLEEP_MSEC);
-        wait_for_display_ready(WAIT_SLEEP_MSEC, max*2);
-#endif
-
       }
     }
   }
@@ -1577,7 +1524,7 @@ static void create_drm_udev_cards(void)
   int major = 0, minor = 0;
   char buf[128];
 
-  while (i < (sizeof(_drm_cards)/sizeof(drm_cards_info))) {
+  while (i < cards_max) {
     if (!_drm_cards[i].is_created) {
       // check if sysfs entry is created
       if (access(_drm_cards[i].sysfs_path, F_OK) == 0) {
@@ -1637,8 +1584,6 @@ static int check_display_driver_ready(void)
     close(fd);
   }
   rc = dpu0_ready & dpu1_ready;
-  if (rc)
-    create_drm_udev_cards();
 #endif
 
   return rc;
@@ -1794,10 +1739,8 @@ static int prepare_fw_dir(bool set_km)
   // FW mount partition
   std::string modemStr("/dev/block/by-name/modem");
   unsigned int count = 0, max = (WAIT_SET_PERM_SECS * 1000) / WAIT_SLEEP_MSEC;
-#ifndef PLATFORM_GEN4
   boot_clock::time_point module_start_time = boot_clock::now();
   bool mounted = false;
-#endif
   if (_use_min_wait) {
     max = (WAIT_SET_PERM_MSECS) / WAIT_SLEEP_MSEC;
   }
@@ -1814,7 +1757,6 @@ static int prepare_fw_dir(bool set_km)
     return 0;
   }
 
-#ifndef PLATFORM_GEN4
   if (access(AUDIO_FW_PATH, F_OK) == -1) {
     LOG(WARNING) << "ES : AUDIO_FW_PATH doesn't exist";
     mkdirs(AUDIO_FW_PATH, 0755);
@@ -1847,7 +1789,6 @@ static int prepare_fw_dir(bool set_km)
            (int)module_elapse_time.count(), "ms");
   }
   write_marker(str);
-#endif
 
   return 0;
 }
@@ -1973,21 +1914,11 @@ static int load_kmod_and_nodes(const char* appname)
     snprintf(str, SHORT_STRING_MAX ,"M - Load mod-node %s", appname);
     write_marker(str);
 
-    if (!strncmp(appname, EMOD_END, strlen(EMOD_END))) {
-      app_launcher.bindcpumask = -1;
-      app_launcher.priority = 0;
-    }
-
     if ((pid = fork()) == 0) {
       LOG(INFO) << "ES : Fork for mmmod " << appname;
       setexeccon("u:r:vendor_init:s0");
       const char *path = "/vendor_early_services/bin/early_services_init";
       snprintf(str, SHORT_STRING_MAX, "%d", i);
-      if (app_launcher.priority) {
-        int ret = setpriority(PRIO_PROCESS, 0, app_launcher.priority);
-        if (ret < 0)
-            LOG(WARNING) << "ES : setpriority fails for app :" <<app_launcher.appname<<" error:"<<strerror(errno) ;
-      }
 
       const char *args[] = { path, "mmmod", str, NULL };
       execv(path, const_cast<char**>(args));
@@ -2058,7 +1989,7 @@ static int load_modules_parallel(const std::string& fl,
   int load_count = 0;
   int fail_count = 0;
   static const char ADSP_KO[] = ADSP_LOADER_KO;
-
+  LOG(INFO) << "start Loading modules ";
   if (!android::base::ReadFileToString(fl, &mlist, false))
     return -1;
 
@@ -2287,11 +2218,7 @@ static void launch_early_apps(void)
 #elif PLATFORM_GEN4
   std::string fl = ES_GEN4_CONF;
 #else
-  std::string fl;
-  if(strncmp(socid, "SOC_ID_POIPU", 3) == 0)
-    fl = ES_POIPU_CONF;
-  else
-    fl = DEFAULT_CONF;
+  std::string fl = DEFAULT_CONF;
 #endif // __ANDROID_U__
   std::string list;
 
@@ -2462,9 +2389,6 @@ static pid_t __attribute__((unused)) fork_wait_for_child(int type, int run_if_fo
         break;
       }
       case ES_CTYPE_DI_MOD: {
-        int ret = setpriority(PRIO_PROCESS, 0, ES_PROCESS_PRIORITY);
-        if (ret < 0)
-          LOG(WARNING) << "ES : setpriority fails for DI mode, error:" << strerror(errno);
         bool load_parallel = bc_get_lmp();
         load_modules_parallel(ES_DFLMOD_ORDER_DI, ES_DFLMOD_PATH,
           load_parallel?std::thread::hardware_concurrency():1,
@@ -2472,11 +2396,6 @@ static pid_t __attribute__((unused)) fork_wait_for_child(int type, int run_if_fo
         break;
       }
       case ES_CTYPE_LOAD_SE: {
-        //Increase process priority for loading sepolicy
-        int ret = setpriority(PRIO_PROCESS, 0, ES_PROCESS_PRIORITY);
-        if (ret < 0)
-          LOG(WARNING) << "ES : setpriority fails for Seplicy load, error:" << strerror(errno);
-        setAffinity(ES_SE_LOAD_CPU_MASK);
         load_precompiled_sepolicy();
         break;
       }
@@ -2496,37 +2415,6 @@ static pid_t __attribute__((unused)) fork_wait_for_child(int type, int run_if_fo
   }
 
   return pid;
-}
-
-bool checkEarlyAppsIntialization() {
-    std::unordered_map<std::string, char> earlyAppsStatus;
-    earlyAppsStatus[mEarlyAppCameraStatus.c_str()] = '0';
-//  Below To be enabled once support is added
-//  earlyAppsStatus[mEarlyAppAudioStatus.c_str()] = '0';
-//  earlyAppsStatus[mEarlyAppDisplayStatus.c_str()] = '0';
-//  earlyAppsStatus[mEarlyAppVideoStatus.c_str()] = '0';
-    for (const std::string& filename : mEarlyAppFile) {
-        std::ifstream inputFile(filename);
-        char character;
-        while (inputFile.get(character)) {
-            if (earlyAppsStatus.find(filename) != earlyAppsStatus.end()) {
-                earlyAppsStatus[filename] = character;
-            }
-        }
-        inputFile.close();
-        character = '0';
-    }
-    for (const auto& pair : earlyAppsStatus ) {
-#ifdef EARLYINIT_DEBUG
-        char str[SHORT_STRING_MAX] = {0};
-        snprintf(str, SHORT_STRING_MAX, "ES : first : %s and second : %c", pair.first.c_str(), pair.second);
-        print_log(str);
-#endif
-        if (pair.second == '0') {
-            return false;
-        }
-    }
-    return true;
 }
 
 int early_init(int init)
@@ -2568,52 +2456,20 @@ int early_init(int init)
     mount("sysfs", "/sys", "sysfs", 0, NULL);
     prepare_dir((char*)"shm");
 
-    // Create a file system node to update the status of ES clients
-    mkdir(mEarlyAppStatus.c_str(), S_IFREG | 0666);
-
-    //write 0 to early app status nodes
-    char value = '0';
-    for (const std::string& filename : mEarlyAppFile) {
-        if (mknod(filename.c_str(), S_IFREG | 0666, makedev(0,0)) == 0) {
-            int fd = open(filename.c_str(), O_WRONLY);
-            if (fd != -1) {
-                if (write(fd, &value, sizeof(value)) == sizeof(value)) {
-                   LOG(ERROR) << "ES : " << value << " is written successfully to a file " << filename;
-                }
-                close(fd);
-            } else {
-                LOG(ERROR) << "ES : Error opening the file!" << filename;
-            }
-        } else {
-            LOG(ERROR) << "ES : Error creating file system node!";
-        }
-    }
-
-    getSocId("/sys/devices/soc0/soc_id", socid);
     /* Create ais_server/qcxserver socket dir and camera data dir */
-    if (strncmp(socid, "SOC_ID_POIPU", 3)!= 0) {
-       //except poipu
-       mkdir("/dev/socket", 0775);
-       mkdir("/dev/socket/camera", 0775);
-    }
+
 #if defined( __ANDROID_U__)
      load_default_modules();
      prepare_fw_dir(true);
      load_precompiled_sepolicy();
 #else
     bool load_parallel = bc_get_lmp();
+    pid_t pid_se;
 
-    pid_t pid_se = fork_wait_for_child(ES_CTYPE_LOAD_SE, 1);
 
     load_modules_parallel(ES_DFLMOD_ORDER_1, ES_DFLMOD_PATH,
          load_parallel?std::thread::hardware_concurrency():1,
          EMOD_DEF_TAG_1, LMP_MODPROBE);
-
-    int max = (_use_min_wait)?((WAIT_PID_MIN_MSECS * 1000) / WAIT_SLEEP_USECS):
-                      ((WAIT_PID_MAX_MSECS * 1000) / WAIT_SLEEP_USECS);
-
-    // wait for sepol loading as its required for next steps.
-    wait_for_pid(pid_se, WAIT_SLEEP_USECS, max);
 
     // Check for driver storage enumerations
     fork_wait_for_child(ES_CTYPE_FW, 1);
@@ -2623,11 +2479,19 @@ int early_init(int init)
 #endif
     // Load Display modules in parallel
     fork_wait_for_child(ES_CTYPE_DI_MOD, 1);
+    // Load sepolicies in parallel
+    pid_se = fork_wait_for_child(ES_CTYPE_LOAD_SE, 1);
 
+    // wait for sepol loading and def2 modules as its required for next steps.
+    int max = (_use_min_wait)?((WAIT_PID_MIN_MSECS * 1000) / WAIT_SLEEP_USECS):
+                      ((WAIT_PID_MAX_MSECS * 1000) / WAIT_SLEEP_USECS);
+    wait_for_pid(pid_se, WAIT_SLEEP_USECS, max);
 #ifndef PLATFORM_GEN4
     wait_for_pid(pid_def2, WAIT_SLEEP_USECS, max);
 #endif
+
 #endif // ! __ANDROID_U__
+
     selinux_android_restorecon("/vendor_early_services/early_services_init", 0);
     if (selinux_android_restorecon("/vendor_early_services/",
       SELINUX_ANDROID_RESTORECON_RECURSE) == -1) {
@@ -2679,21 +2543,6 @@ int early_init(int init)
   // wait for app exec
   wait_for_early_apps();
   load_kmod_and_nodes(EMOD_END);
-
-  print_log("ES : checking early app status");
-  auto start_time = std::chrono::high_resolution_clock::now();
-  while (true) {
-    if (checkEarlyAppsIntialization()) {
-        break;
-    }
-    auto current_time = std::chrono::high_resolution_clock::now();
-    auto elapsed_seconds = std::chrono::duration_cast<std::chrono::seconds>(current_time - start_time).count();
-
-    if (elapsed_seconds >= 3) {
-        break;
-    }
-  }
-  print_log("ES :early apps are ready");
 
   mknod("/dev/sedone", S_IFREG | 0400, makedev(0,0));
 

@@ -21,8 +21,10 @@ ifneq (,$(filter U 14 UpsideDownCake, $(PLATFORM_VERSION)))
 LOCAL_CFLAGS += -D__ANDROID_U__
 endif
 
-LOCAL_CFLAGS += -Wall -Werror
+LOCAL_CFLAGS := -DPLATFORM_MSMNILE
 
+LOCAL_CFLAGS += -Wall -Werror
+LOCAL_NOSANITIZE := cfi
 LOCAL_MODULE := early_services_init
 #LOCAL_STATIC_LIBRARIES := libc++_static
 LOCAL_FORCE_STATIC_EXECUTABLE := true
@@ -141,14 +143,6 @@ include $(BUILD_PREBUILT)
 include $(CLEAR_VARS)
 LOCAL_MODULE_TAGS := optional
 LOCAL_MODULE := early_init_eth.conf
-LOCAL_SRC_FILES := $(LOCAL_MODULE)
-LOCAL_MODULE_CLASS = ETC
-LOCAL_MODULE_PATH := $(TARGET_VENDOR_RAMDISK_OUT)/vendor_early_services/etc
-include $(BUILD_PREBUILT)
-
-include $(CLEAR_VARS)
-LOCAL_MODULE_TAGS := optional
-LOCAL_MODULE := early_init_poipu.conf
 LOCAL_SRC_FILES := $(LOCAL_MODULE)
 LOCAL_MODULE_CLASS = ETC
 LOCAL_MODULE_PATH := $(TARGET_VENDOR_RAMDISK_OUT)/vendor_early_services/etc

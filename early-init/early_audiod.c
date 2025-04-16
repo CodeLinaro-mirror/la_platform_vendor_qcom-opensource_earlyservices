@@ -153,14 +153,17 @@ int32_t auto_audio_ext_enable_hostless()
             continue;
         }
 
-    if(i==0) {
-        pcm_id[0]=PCM_ID_1_TX;
-        pcm_id[1]=PCM_ID_1_RX;
+//Bugfix
+#if 0
+        if(i==0) {
+            pcm_id[0]=PCM_ID_1_TX;
+            pcm_id[1]=PCM_ID_1_RX;
 
-    } else{
-          pcm_id[2]=PCM_ID_2_TX;
-          pcm_id[3]=PCM_ID_2_RX;
-    }
+        } else{
+            pcm_id[2]=PCM_ID_2_TX;
+            pcm_id[3]=PCM_ID_2_RX;
+        }
+#endif
         ret = auto_audio_ext_set_mixer_ctl(info->mixer,
                                         audio_route[i], 1);
         if (ret) {
