@@ -28,8 +28,8 @@
  */
 
 /*
-* Changes from Qualcomm Innovation Center are provided under the following license:
-* Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+* Changes from Qualcomm Technologies, Inc. are provided under the following license:
+* Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
 *
 * Redistribution and use in source and binary forms, with or without
 * modification, are permitted (subject to the limitations in the
@@ -112,6 +112,7 @@
 #define VIDEO_CARD_PATH         "/dev/video32"
 #define AUDIO_FW_PATH           "/vendor_early_services/vendor/firmware_mnt"
 #define AUDIO_ADSP_FW_PATH      "vendor_early_services/vendor/firmware_mnt/image/adsp.mdt"
+#define LXC_ROOTFS_PATH         "/vendor_early_services/vendor/vm-system"
 #define SMACK_LABEL_PATH        "/proc/self/attr/current"
 #define SMACK_LABEL             "System"
 #define DEFAULT_PATH            "/sbin:/usr/sbin:/bin:/usr/bin:/system/sbin:/system/bin:/system/xbin:/odm/bin:/vendor/bin:/vendor/xbin:vendor_early_services/sbin:vendor_early_services/system/sbin:vendor_early_services/system/bin:vendor_early_services/system/xbin:vendor_early_services/odm/bin:vendor_early_services/vendor/bin:vendor_early_services/vendor/xbin"
@@ -170,6 +171,7 @@ using android::base::boot_clock;
 
 #define ECHIME_APP              "early_chime"
 #define PDMAPPER_APP            "pd-mapper"
+#define ELXC_APP                "init_early_lxc"
 #define EMOD_END                "mod_end"
 
 #define WAIT_SET_PERM_SECS  15
@@ -251,6 +253,7 @@ static int check_ais_device_ready(void);
 static int check_rvc_device_ready(void);
 static int check_pdmapper_ready(void);
 static int check_display_driver_ready(void);
+static int check_lxc_rootfs_device_ready(void);
 
 enum EnforcingStatus { SELINUX_PERMISSIVE, SELINUX_ENFORCING };
 
@@ -300,6 +303,7 @@ const static struct {
  {"esplash", "", "splash", NULL, EAPP_WAIT_DISP},
  {"earlyVideo", "modules_vi.order", "video", check_video_device_ready, EAPP_MOD_WAIT_FW},
  {"pd-mapper", "modules_r_au.order", "pd-mapper", check_pdmapper_ready, EAPP_MOD_WAIT_FW},
+ {"init_early_lxc", "", "init_early_lxc", check_lxc_rootfs_device_ready, EAPP_WAIT_NONE},
 #ifdef ES_AUDIOE_DISABLED
  {"", "modules_au.order", "audio", check_audio_device_ready, EAPP_MOD_WAIT_FW},
 #endif
@@ -561,6 +565,23 @@ static inline void prepare_dir(char* p)
         if (ret < 0) {
           perror("mount procfs failed");
         }
+      }
+      break;
+	case 'c':
+      if (0 == strncmp(p + 1, "group2", strlen("group2"))) {
+        if (stat("/sys/fs/cgroup", &st) == -1) {
+          perror("/sys/fs/cgroup folder doesn't exist");
+          mkdir("/sys/fs/cgroup", 0755);
+        }
+          ret = mount("none", "/sys/fs/cgroup", "cgroup2", 0, NULL);
+          if (ret < 0) {
+            freopen("/dev/kmsg", "w", stdout);
+            printf(" /sys/fs/cgroup mount failed error = %d \n", errno);
+            perror(" mount /sys/fs/cgroup with cgroup2 failed ");
+          } else {
+            freopen("/dev/kmsg", "w", stdout);
+            printf("/sys/fs/cgroup mount success error = %d \n", errno);
+          }
       }
       break;
     default:
@@ -1621,6 +1642,27 @@ static int check_pdmapper_ready(void)
   return adsp_path_ready;
 }
 
+static int check_lxc_rootfs_device_ready(void)
+{
+  int major = 0, minor = 0;
+
+  if ((access("/sys/class/block/sde22/uevent", F_OK) == 0)) {
+    freopen("/dev/kmsg", "w", stdout);
+    printf(" ES : /sys/class/block/sde22/uevent is ok!");
+    if (get_device_major_minor("/sys/class/block/sde22/uevent", &major, &minor)) {
+      freopen("/dev/kmsg", "w", stdout);
+      printf("ES: major is %d, minor is %d !\r\n", major, minor);
+      mkdir("/dev/block", 0755);
+      mknod("/dev/block/sde22", S_IFBLK | 0666, makedev(major, minor));
+    }
+  } else {
+    freopen("/dev/kmsg", "w", stdout);
+    printf(" ES : /sys/class/block/sde22/uevent is not exist!");
+  }
+
+  return 1;
+}
+
 #ifdef ES_AUDIOE_DISABLED
 #define SND_CARD_DIR "/dev/snd"
 static int check_audio_device_ready(void)
@@ -2454,7 +2496,12 @@ int early_init(int init)
     }
 
     mount("sysfs", "/sys", "sysfs", 0, NULL);
+
+    // Reminder, Android host will crash if mount devtmpfs to /dev once early-init exit.
+    //prepare_dir((char*)"dev");
+    prepare_dir((char*)"procfs");
     prepare_dir((char*)"shm");
+    prepare_dir((char*)"cgroup2");
 
     /* Create ais_server/qcxserver socket dir and camera data dir */
 
@@ -2533,7 +2580,7 @@ int early_init(int init)
   getSysInfo("/sys/devices/soc0/platform_subtype_id", platformId);
   set_permissions("/dev/null", 0666, AID_ROOT, AID_ROOT, "u:object_r:null_device:s0");
   set_permissions("/dev/urandom", 0666, AID_ROOT, AID_ROOT, "u:object_r:random_device:s0");
-
+  load_kmod_and_nodes(EMOD_END);
 #ifdef __ANDROID_U__
   launch_test_app();
   launch_early_apps();
@@ -2542,7 +2589,6 @@ int early_init(int init)
 #endif
   // wait for app exec
   wait_for_early_apps();
-  load_kmod_and_nodes(EMOD_END);
 
   mknod("/dev/sedone", S_IFREG | 0400, makedev(0,0));
 

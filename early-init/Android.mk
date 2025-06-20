@@ -46,7 +46,6 @@ LOCAL_STATIC_LIBRARIES := libc++_static \
 LOCAL_CPPFLAGS := -std=c++17
 include $(BUILD_EXECUTABLE)
 
-
 include $(CLEAR_VARS)
 #To be removed later
 LOCAL_MODULE_TAGS := optional
@@ -76,6 +75,7 @@ include $(CLEAR_VARS)
 #LOCAL_STATIC_LIBRARIES := libc++_static
 #LOCAL_FORCE_STATIC_EXECUTABLE := true
 #LOCAL_MODULE_PATH := $(TARGET_VENDOR_RAMDISK_OUT)/vendor_early_services/system/bin
+
 #LOCAL_CPPFLAGS := -std=c++17
 # static linking end
 
@@ -91,6 +91,14 @@ LOCAL_SHARED_LIBRARIES:=  libselinux
 LOCAL_MODULE_PATH := $(TARGET_VENDOR_RAMDISK_OUT)/vendor_early_services/bin
 include $(BUILD_EXECUTABLE)
 
+include $(CLEAR_VARS)
+LOCAL_MODULE_TAGS := optional
+LOCAL_LDFLAGS := -Wl,-rpath,'/vendor_early_services/system/lib64' -Wl,--dynamic-linker,/vendor_early_services/system/bin/bootstrap/linker64
+LOCAL_MODULE := init_early_lxc
+LOCAL_SRC_FILES := early_lxc.c
+LOCAL_HEADER_LIBRARIES += libcutils_headers
+LOCAL_MODULE_PATH := $(TARGET_VENDOR_RAMDISK_OUT)/vendor_early_services/bin
+include $(BUILD_EXECUTABLE)
 
 ifneq ($(filter gen4, $(TARGET_BOARD_PLATFORM)),)
 include $(CLEAR_VARS)
@@ -116,12 +124,14 @@ LOCAL_POST_INSTALL_CMD := $(hide) mkdir -p $(LOCAL_MODULE_PATH)/../sbin; \
                                   mkdir -p $(LOCAL_MODULE_PATH)/../vendor/lib64; \
                                   mkdir -p $(LOCAL_MODULE_PATH)/../system/etc/selinux; \
                                   mkdir -p $(LOCAL_MODULE_PATH)/../run/early; \
+                                  mkdir -p $(LOCAL_MODULE_PATH)/../run/lxc/run; \
                                   mkdir -p $(LOCAL_MODULE_PATH)/../proc; \
                                   mkdir -p $(LOCAL_MODULE_PATH)/../sys; \
                                   mkdir -p $(LOCAL_MODULE_PATH)/../dev; \
                                   mkdir -p $(LOCAL_MODULE_PATH)/../etc; \
                                   mkdir -p $(LOCAL_MODULE_PATH)/../usr/sbin; \
                                   mkdir -p $(LOCAL_MODULE_PATH)/../vendor/firmware_mnt; \
+                                  mkdir -p $(LOCAL_MODULE_PATH)/../vendor/vm-system; \
                                   mkdir -p $(LOCAL_MODULE_PATH)/../vendor/etc; \
                                   mkdir -p $(LOCAL_MODULE_PATH)/../vendor/etc/selinux; \
                                   mkdir -p $(LOCAL_MODULE_PATH)/../vendor/lib; \
