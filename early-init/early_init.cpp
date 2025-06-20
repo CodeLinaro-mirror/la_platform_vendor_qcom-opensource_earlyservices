@@ -151,7 +151,9 @@ using android::base::boot_clock;
 #define init_module(module_image, len, param_values) syscall(__NR_init_module, module_image, len, param_values)
 #define finit_module(fd, param_values, flags) syscall(__NR_finit_module, fd, param_values, flags)
 #define ADSP_LOADER_KO          "adsp_loader_dlkm_legacy"
-#define DISP_DRM_DPU0_READY_PATH     "/sys/devices/platform/soc/ae00000.qcom,mdss_mdp/init_complete"
+//#define DISP_DRM_DPU0_READY_PATH     "/sys/devices/platform/soc/ae00000.qcom,mdss_mdp/init_complete"
+#define DISP_DRM_DRIVER_CARD3_READY_PATH  "/sys/class/drm/card3/uevent"
+
 #ifdef PLATFORM_GEN4
 #define DISP_DRM_DPU1_READY_PATH     "/sys/devices/platform/soc/22000000.qcom,mdss_mdp/init_complete"
 #endif
@@ -322,8 +324,7 @@ enum drm_udev_cards {
   card4,
   card5,
 #else
-  card1 = 0,
-  card2,
+  card2 = 0,
   card3,
   card4,
 #endif
@@ -1549,6 +1550,7 @@ static void create_drm_udev_cards(void)
 }
 
 
+#if 0
 static int check_display_driver_ready(void)
 {
   int fd;
@@ -1588,6 +1590,24 @@ static int check_display_driver_ready(void)
 
   return rc;
 }
+#else
+static int check_display_driver_ready(void)
+{
+	int ret = 0;
+
+	if(access(DISP_DRM_DRIVER_CARD3_READY_PATH, F_OK) == 0)
+	{
+		LOG(INFO) << "Function: " << __func__ << ", Line: " << __LINE__ << " check driver sucess------\n";
+		ret = 1;
+	}else
+	{
+		//LOG(INFO) << "Function: " << __func__ << ", Line: " << __LINE__ << " wunatest check driver fail------\n";
+		ret = 0;
+	}
+
+	return ret;
+}
+#endif
 
 static int check_storage_device_ready(void)
 {
