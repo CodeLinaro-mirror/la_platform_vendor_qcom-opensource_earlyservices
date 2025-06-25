@@ -154,6 +154,7 @@ using android::base::boot_clock;
 #define ADSP_LOADER_KO          "adsp_loader_dlkm_legacy"
 //#define DISP_DRM_DPU0_READY_PATH     "/sys/devices/platform/soc/ae00000.qcom,mdss_mdp/init_complete"
 #define DISP_DRM_DRIVER_CARD3_READY_PATH  "/sys/class/drm/card3/uevent"
+#define DISP_DRM_DRIVER_RENDER_READY_PATH  "/sys/class/drm/renderD128/uevent"
 
 #ifdef PLATFORM_GEN4
 #define DISP_DRM_DPU1_READY_PATH     "/sys/devices/platform/soc/22000000.qcom,mdss_mdp/init_complete"
@@ -255,7 +256,7 @@ static int check_ais_device_ready(void);
 static int check_rvc_device_ready(void);
 static int check_pdmapper_ready(void);
 static int check_display_driver_ready(void);
-static int check_lxc_rootfs_device_ready(void);
+static int check_lxc_device_ready(void);
 
 enum EnforcingStatus { SELINUX_PERMISSIVE, SELINUX_ENFORCING };
 
@@ -305,7 +306,7 @@ const static struct {
  {"esplash", "", "splash", NULL, EAPP_WAIT_DISP},
  {"earlyVideo", "modules_vi.order", "video", check_video_device_ready, EAPP_MOD_WAIT_FW},
  {"pd-mapper", "modules_r_au.order", "pd-mapper", check_pdmapper_ready, EAPP_MOD_WAIT_FW},
- {"init_early_lxc", "", "init_early_lxc", check_lxc_rootfs_device_ready, EAPP_WAIT_NONE},
+ {"init_early_lxc", "", "init_early_lxc", check_lxc_device_ready, EAPP_WAIT_DISP},
 #ifdef ES_AUDIOE_DISABLED
  {"", "modules_au.order", "audio", check_audio_device_ready, EAPP_MOD_WAIT_FW},
 #endif
@@ -329,6 +330,7 @@ enum drm_udev_cards {
   card5,
 #else
   card2 = 0,
+  renderD128,
   card3,
   card4,
 #endif
@@ -349,6 +351,7 @@ struct drm_cards_info {
   {"/sys/class/drm/card5/uevent", "card5", "/dev/dri", "/dev/dri/card5", false},
 #else
   {"/sys/class/drm/card2/uevent", "card2", "/dev/dri", "/dev/dri/card2", false},
+  {"/sys/class/drm/renderD128/uevent", "renderD128", "/dev/dri", "/dev/dri/renderD128", false},
   {"/sys/class/drm/card3/uevent", "card3", "/dev/dri", "/dev/dri/card3", false},
   {"/sys/class/drm/card4/uevent", "card4", "/dev/dri", "/dev/dri/card4", false},
 #endif
@@ -1616,7 +1619,7 @@ static int check_display_driver_ready(void)
 {
 	int ret = 0;
 
-	if(access(DISP_DRM_DRIVER_CARD3_READY_PATH, F_OK) == 0)
+	if(access(DISP_DRM_DRIVER_CARD3_READY_PATH, F_OK) == 0 && access(DISP_DRM_DRIVER_RENDER_READY_PATH, F_OK) == 0)
 	{
 		LOG(INFO) << "Function: " << __func__ << ", Line: " << __LINE__ << " check driver sucess------\n";
 		ret = 1;
@@ -1681,6 +1684,11 @@ static int check_lxc_rootfs_device_ready(void)
   }
 
   return 1;
+}
+
+static int check_lxc_device_ready(void)
+{
+  return (int)(check_lxc_rootfs_device_ready() && check_display_driver_ready() && check_gfx_device_ready() && check_dma_heap_device_ready());
 }
 
 #ifdef ES_AUDIOE_DISABLED
