@@ -1837,7 +1837,7 @@ static int prepare_fw_dir(bool set_km)
   if (wait_for_file(modemStr.c_str(), WAIT_SLEEP_MSEC, max*2) == 0) {
     // mount partition
     if (mount(modemStr.c_str(), AUDIO_FW_PATH, "vfat",
-      MS_RDONLY, "context=u:object_r:firmware_file:s0") < 0) {
+      MS_RDONLY, "uid=1000,gid=1000,dmask=227,fmask=337,context=u:object_r:firmware_file:s0") < 0) {
       LOG(WARNING) << "ES : modemstr mount failed, err " << errno;
     } else {
       LOG(INFO) << "ES : modemstr mount success.";
