@@ -2530,6 +2530,7 @@ int early_init(int init)
     prepare_dir((char*)"procfs");
     prepare_dir((char*)"shm");
     prepare_dir((char*)"cgroup2");
+    mkdirs("/dev/socket/agm", 0775);
 
     /* Create ais_server/qcxserver socket dir and camera data dir */
 
