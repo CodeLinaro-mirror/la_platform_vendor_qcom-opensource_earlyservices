@@ -109,14 +109,28 @@
 #define WHITESPACE              " \t\n\r"
 #define KPI_VALUE_PATH          "/sys/kernel/boot_kpi/kpi_values"
 #define GPIO_EXPORT             "/sys/class/gpio/export"
+#define AUDIO_PKT               "/dev/aud_pasthru_adsp"
+#define MSM_ION                 "/dev/msm_audio_ion"
+#define MSM_ION_CMA             "/dev/msm_audio_ion_cma"
+#define MSM_SYSTEM              "/dev/dma_heap/system"
+#define MSM_AUDIO_ML            "/dev/dma_heap/qcom,audio-ml"
 #define VIDEO_CARD_PATH         "/dev/video32"
 #define AUDIO_FW_PATH           "/vendor_early_services/vendor/firmware_mnt"
 #define AUDIO_ADSP_FW_PATH      "vendor_early_services/vendor/firmware_mnt/image/adsp.mdt"
 #define LXC_ROOTFS_PATH         "/vendor_early_services/vendor/vm-system"
+#define PCM_ID_PATH             "/proc/asound/card0/id"
+#define MSM_AUDIO_ION_PATH      "/sys/class/msm_audio_ion/msm_audio_ion/uevent"
+#define MSM_AUDIO_ION_CMA_PATH  "/sys/class/msm_audio_ion_cma/msm_audio_ion_cma/uevent"
+#define AUDIO_PKT_PATH   "/sys/class/aud_pasthru_adsp/aud_pasthru_adsp/uevent"
+#define MSM_SYSTEM_PATH         "/sys/class/dma_heap/system/uevent"
+#define MSM_AUDIO_ML_PATH       "/sys/class/dma_heap/qcom,audio-ml/uevent"
+#define PCM_PATH                "/proc/asound/pcm"
+#define MSM_SOUND_CTRL_PATH     "/sys/class/sound/controlC0/uevent"
 #define SMACK_LABEL_PATH        "/proc/self/attr/current"
 #define SMACK_LABEL             "System"
 #define DEFAULT_PATH            "/sbin:/usr/sbin:/bin:/usr/bin:/system/sbin:/system/bin:/system/xbin:/odm/bin:/vendor/bin:/vendor/xbin:vendor_early_services/sbin:vendor_early_services/system/sbin:vendor_early_services/system/bin:vendor_early_services/system/xbin:vendor_early_services/odm/bin:vendor_early_services/vendor/bin:vendor_early_services/vendor/xbin"
 
+#define SND_CARD_DIR "/dev/snd"
 #define EARLY_SERVICES_SEPOL   "/vendor_early_services/vendor/etc/selinux/precompiled_sepolicy"
 
 #define STR_EXPAND(tok) #tok
@@ -151,7 +165,7 @@ using android::base::boot_clock;
 
 #define init_module(module_image, len, param_values) syscall(__NR_init_module, module_image, len, param_values)
 #define finit_module(fd, param_values, flags) syscall(__NR_finit_module, fd, param_values, flags)
-#define ADSP_LOADER_KO          "adsp_loader_dlkm_legacy"
+#define ADSP_LOADER_KO          "adsp_loader_dlkm"
 //#define DISP_DRM_DPU0_READY_PATH     "/sys/devices/platform/soc/ae00000.qcom,mdss_mdp/init_complete"
 #define DISP_DRM_DRIVER_CARD3_READY_PATH  "/sys/class/drm/card3/uevent"
 #define DISP_DRM_DRIVER_RENDER_READY_PATH  "/sys/class/drm/renderD128/uevent"
@@ -173,6 +187,7 @@ using android::base::boot_clock;
 #define ES_KMOD_DONE            "/dev/kmdone"
 
 #define ECHIME_APP              "early_chime"
+#define EAUDIO_APP              "early_audio"
 #define PDMAPPER_APP            "pd-mapper"
 #define ELXC_APP                "init_early_lxc"
 #define EMOD_END                "mod_end"
@@ -245,6 +260,7 @@ static void set_video_permission(void);
 static void set_camera_media_permission(void);
 static void set_camera_video_permission(void);
 static void set_camera_v4l_permission(void);
+static int check_audio_ar_ready(void);
 #ifdef ES_AUDIOE_DISABLED
 static void set_audio_permission(void);
 static int check_audio_device_ready(void);
@@ -305,7 +321,8 @@ const static struct {
 #endif //PLATFORM_GEN4
  {"esplash", "", "splash", NULL, EAPP_WAIT_DISP},
  {"earlyVideo", "modules_vi.order", "video", check_video_device_ready, EAPP_MOD_WAIT_FW},
- {"pd-mapper", "modules_r_au.order", "pd-mapper", check_pdmapper_ready, EAPP_MOD_WAIT_FW},
+ {"pd-mapper", "", "pd-mapper", check_pdmapper_ready, EAPP_MOD_WAIT_FW},
+ {EAUDIO_APP, "modules_r_au.order", EAUDIO_APP, check_audio_ar_ready, EAPP_MOD_WAIT_FW},
  {"init_early_lxc", "", "init_early_lxc", check_lxc_device_ready, EAPP_WAIT_DISP},
 #ifdef ES_AUDIOE_DISABLED
  {"", "modules_au.order", "audio", check_audio_device_ready, EAPP_MOD_WAIT_FW},
@@ -1543,6 +1560,392 @@ static int check_video_device_ready(void)
   return video_device_created;
 }
 
+static int check_audio_ar_pkt_ready(void)
+{
+  static int audio_pkt_device_created = 0;
+  int major = 0, minor = 0;
+
+  if (!audio_pkt_device_created) {
+    if (access(AUDIO_PKT_PATH, F_OK) == 0) {
+      if (get_device_major_minor(AUDIO_PKT_PATH, &major, &minor)) {
+        mknod(AUDIO_PKT, S_IFCHR | 0666, makedev(major, minor));
+        set_permissions(AUDIO_PKT, 0666, AID_SYSTEM, AID_AUDIO, "u:object_r:vendor_agm_device:s0");
+        audio_pkt_device_created = 1;
+        LOG(INFO) << "ES AR - ADSP node ready";
+        write_marker("AR - ADSP node ready");
+      }
+    } else {
+      LOG(INFO) << "ES AR - ADSP node access denied";
+      write_marker("AR - ADSP node access denied");
+    }
+  }
+
+  return audio_pkt_device_created;
+}
+
+static int check_audio_ar_ion_cma_ready(void)
+{
+  static int msm_ion_cma_device_created = 0;
+  int major = 0, minor = 0;
+
+  if (!msm_ion_cma_device_created) {
+    if (access(MSM_AUDIO_ION_CMA_PATH, F_OK) == 0) {
+      if (get_device_major_minor(MSM_AUDIO_ION_CMA_PATH, &major, &minor)) {
+        mknod(MSM_ION_CMA, S_IFCHR | 0666, makedev(major, minor));
+        set_permissions(MSM_ION_CMA, 0666, AID_SYSTEM, AID_AUDIO, "u:object_r:audio_device:s0");
+        msm_ion_cma_device_created = 1;
+        LOG(INFO) << "ES AR - msm ion cma device node ready";
+        write_marker("AR - msm ion cma node ready");
+      }
+    } else {
+      LOG(INFO) << "ES AR - msm ion cma device node access denied";
+      write_marker("AR - msm ion cma node access denied");
+    }
+  }
+  return msm_ion_cma_device_created;
+}
+
+static int check_audio_ar_ml_device_ready(void)
+{
+  static int audio_ml_device_created = 0;
+  int major = 0, minor = 0;
+
+  if (!audio_ml_device_created) {
+    if (access(MSM_AUDIO_ML_PATH, F_OK) == 0) {
+      if (get_device_major_minor(MSM_AUDIO_ML_PATH, &major, &minor)) {
+        mkdir(DMA_HEAP_DIR, 0666);
+        set_permissions(DMA_HEAP_DIR, 0755, AID_ROOT,
+            AID_ROOT, "u:object_r:dmabuf_heap_device:s0");
+        mknod(MSM_AUDIO_ML, S_IFCHR | 0666, makedev(major, minor));
+        set_permissions(MSM_AUDIO_ML, 0666, AID_SYSTEM, AID_AUDIO, "u:object_r:vendor_dmabuf_audio_ml_heap_device:s0");
+        audio_ml_device_created = 1;
+        LOG(INFO) << "ES AR - ml device node ready";
+        write_marker("AR - ml node ready");
+      }
+    } else {
+      LOG(INFO) << "ES AR - ml device node access denied";
+      write_marker("AR - ml node access denied");
+    }
+  }
+  return audio_ml_device_created;
+}
+
+static int check_audio_ar_ion_ready(void)
+{
+  static int msm_ion_device_created = 0;
+  int major = 0, minor = 0;
+
+  if (!msm_ion_device_created) {
+    if (access(MSM_AUDIO_ION_PATH, F_OK) == 0) {
+      if (get_device_major_minor(MSM_AUDIO_ION_PATH, &major, &minor)) {
+        mknod(MSM_ION, S_IFCHR | 0666, makedev(major, minor));
+        set_permissions(MSM_ION, 0666, AID_SYSTEM, AID_AUDIO, "u:object_r:vendor_agm_device:s0");
+        msm_ion_device_created = 1;
+        LOG(INFO) << "ES AR - msm ion node ready";
+        write_marker("AR - msm ion node ready");
+      }
+    } else {
+      LOG(INFO) << "ES AR - msm ion node access denied";
+      write_marker("AR - msm ion node access denied");
+    }
+  }
+
+  return msm_ion_device_created;
+}
+
+static int check_audio_ar_system_device_ready(void)
+{
+  static int system_device_created = 0;
+  int major = 0, minor = 0;
+
+  if (!system_device_created) {
+    if (access(MSM_SYSTEM_PATH, F_OK) == 0) {
+      if (get_device_major_minor(MSM_SYSTEM_PATH, &major, &minor)) {
+        mkdir(DMA_HEAP_DIR, 0666);
+        mknod(MSM_SYSTEM, S_IFCHR | 0666, makedev(major, minor));
+        set_permissions(DMA_HEAP_DIR, 0755, AID_ROOT,
+            AID_ROOT, "u:object_r:dmabuf_heap_device:s0");
+        set_permissions(MSM_SYSTEM, 0666, AID_SYSTEM, AID_AUDIO, "u:object_r:dmabuf_system_heap_device:s0");
+        system_device_created = 1;
+        LOG(INFO) << "ES AR - system node ready";
+        write_marker("AR - system node ready");
+      }
+    } else {
+      LOG(INFO) << "ES AR - system node access denied";
+      write_marker("AR - system node access denied");
+    }
+  }
+
+  return system_device_created;
+}
+
+static int check_audio_ar_snd_device_ready(void)
+{
+  static int audio_snd_device_created = 0;
+
+  if (!audio_snd_device_created) {
+    if (access("/sys/kernel/snd_card/card_state", F_OK) == 0) {
+      LOG(INFO) << "ES Audio snd node ready";
+      write_marker("AR - Audio snd node ready");
+      audio_snd_device_created = 1;
+    } else {
+      LOG(INFO) << "ES AR - snd node access denied";
+      write_marker("AR - snd node access denied");
+    }
+  }
+
+  return audio_snd_device_created;
+}
+
+static int check_audio_ar_pcm_device_ready(void)
+{
+  static int audio_pcm_device_created = 0;
+
+  if (!audio_pcm_device_created) {
+    if (access(PCM_PATH, F_OK) == 0) {
+      set_permissions(PCM_PATH, 0666, AID_SYSTEM, AID_AUDIO, "u:object_r:audio_device:s0");
+      LOG(INFO) << "ES AR - pcm node ready";
+      write_marker("AR - pcm node ready");
+      audio_pcm_device_created = 1;
+    } else {
+      LOG(INFO) << "ES AR - pcm node access denied";
+      write_marker("AR - pcm access denied");
+    }
+  }
+
+  return audio_pcm_device_created;
+}
+
+static int check_audio_ar_id_device_ready(void)
+{
+  static int audio_id_device_created = 0;
+
+  if (!audio_id_device_created) {
+    if (access(PCM_ID_PATH, F_OK) == 0) {
+      set_permissions(PCM_ID_PATH, 0666, AID_SYSTEM, AID_AUDIO, "u:object_r:audio_device:s0");
+      LOG(INFO) << "ES AR - card0 id node ready";
+      write_marker("AR - card0 id node ready");
+      audio_id_device_created = 1;
+    } else {
+      LOG(INFO) << "ES AR - card0 id node access denied";
+      write_marker("AR - card0 id node access denied");
+    }
+  }
+
+  return audio_id_device_created;
+}
+
+static void set_audio_ar_permission(void)
+{
+  LOG(INFO) << "ES : Set Audio Permissions";
+  set_permissions("/dev/snd", 00777, AID_ROOT, AID_ROOT, "u:object_r:audio_device:s0");
+  set_permissions("/dev/snd/controlC0", 00666, AID_SYSTEM, AID_AUDIO, "u:object_r:audio_device:s0");
+  set_permissions("/dev/snd/pcmC0D0p", 0666, AID_SYSTEM, AID_AUDIO, "u:object_r:audio_device:s0");
+  set_permissions("/dev/snd/pcmC0D1p", 0666, AID_SYSTEM, AID_AUDIO, "u:object_r:audio_device:s0");
+  set_permissions("/dev/snd/pcmC0D2p", 0666, AID_SYSTEM, AID_AUDIO, "u:object_r:audio_device:s0");
+  set_permissions("/dev/snd/pcmC0D3p", 0666, AID_SYSTEM, AID_AUDIO, "u:object_r:audio_device:s0");
+  set_permissions("/dev/snd/pcmC0D4p", 0666, AID_SYSTEM, AID_AUDIO, "u:object_r:audio_device:s0");
+  set_permissions("/dev/snd/pcmC0D5c", 0666, AID_SYSTEM, AID_AUDIO, "u:object_r:audio_device:s0");
+  set_permissions("/dev/snd/pcmC0D6c", 0666, AID_SYSTEM, AID_AUDIO, "u:object_r:audio_device:s0");
+  set_permissions("/dev/snd/pcmC0D7p", 0666, AID_SYSTEM, AID_AUDIO, "u:object_r:audio_device:s0");
+  set_permissions("/dev/snd/pcmC0D8p", 0666, AID_SYSTEM, AID_AUDIO, "u:object_r:audio_device:s0");
+  set_permissions("/dev/snd/pcmC0D9c", 0666, AID_SYSTEM, AID_AUDIO, "u:object_r:audio_device:s0");
+  set_permissions("/dev/snd/pcmC0D10c", 0666, AID_SYSTEM, AID_AUDIO, "u:object_r:audio_device:s0");
+  set_permissions("/dev/snd/pcmC0D11c", 0666, AID_SYSTEM, AID_AUDIO, "u:object_r:audio_device:s0");
+  set_permissions("/dev/snd/pcmC0D12p", 0666, AID_SYSTEM, AID_AUDIO, "u:object_r:audio_device:s0");
+  set_permissions("/dev/snd/pcmC0D13c", 0666, AID_SYSTEM, AID_AUDIO, "u:object_r:audio_device:s0");
+  set_permissions("/dev/snd/pcmC0D14c", 0666, AID_SYSTEM, AID_AUDIO, "u:object_r:audio_device:s0");
+  set_permissions("/dev/snd/pcmC0D15c", 0666, AID_SYSTEM, AID_AUDIO, "u:object_r:audio_device:s0");
+  set_permissions("/dev/snd/pcmC0D16c", 0666, AID_SYSTEM, AID_AUDIO, "u:object_r:audio_device:s0");
+  set_permissions("/dev/snd/pcmC0D17p", 0666, AID_SYSTEM, AID_AUDIO, "u:object_r:audio_device:s0");
+  set_permissions("/dev/snd/pcmC0D18p", 0666, AID_SYSTEM, AID_AUDIO, "u:object_r:audio_device:s0");
+  set_permissions("/dev/snd/pcmC0D19c", 0666, AID_SYSTEM, AID_AUDIO, "u:object_r:audio_device:s0");
+  set_permissions("/dev/snd/pcmC0D20c", 0666, AID_SYSTEM, AID_AUDIO, "u:object_r:audio_device:s0");
+  set_permissions("/dev/snd/pcmC0D21p", 0666, AID_SYSTEM, AID_AUDIO, "u:object_r:audio_device:s0");
+  set_permissions("/dev/snd/pcmC0D22c", 0666, AID_SYSTEM, AID_AUDIO, "u:object_r:audio_device:s0");
+  set_permissions("/dev/snd/pcmC0D23p", 0666, AID_SYSTEM, AID_AUDIO, "u:object_r:audio_device:s0");
+  set_permissions("/dev/snd/pcmC0D24c", 0666, AID_SYSTEM, AID_AUDIO, "u:object_r:audio_device:s0");
+  set_permissions("/dev/snd/pcmC0D25p", 0666, AID_SYSTEM, AID_AUDIO, "u:object_r:audio_device:s0");
+  set_permissions("/dev/snd/pcmC0D26c", 0666, AID_SYSTEM, AID_AUDIO, "u:object_r:audio_device:s0");
+  set_permissions("/dev/snd/pcmC0D27p", 0666, AID_SYSTEM, AID_AUDIO, "u:object_r:audio_device:s0");
+  set_permissions("/dev/snd/pcmC0D28c", 0666, AID_SYSTEM, AID_AUDIO, "u:object_r:audio_device:s0");
+  set_permissions("/dev/snd/pcmC0D29p", 0666, AID_SYSTEM, AID_AUDIO, "u:object_r:audio_device:s0");
+  set_permissions("/dev/snd/pcmC0D30c", 0666, AID_SYSTEM, AID_AUDIO, "u:object_r:audio_device:s0");
+  set_permissions("/dev/snd/pcmC0D31p", 0666, AID_SYSTEM, AID_AUDIO, "u:object_r:audio_device:s0");
+  set_permissions("/dev/snd/pcmC0D32c", 0666, AID_SYSTEM, AID_AUDIO, "u:object_r:audio_device:s0");
+  set_permissions("/dev/snd/pcmC0D33p", 0666, AID_SYSTEM, AID_AUDIO, "u:object_r:audio_device:s0");
+  set_permissions("/dev/snd/pcmC0D34c", 0666, AID_SYSTEM, AID_AUDIO, "u:object_r:audio_device:s0");
+  set_permissions("/dev/snd/pcmC0D35p", 0666, AID_SYSTEM, AID_AUDIO, "u:object_r:audio_device:s0");
+  set_permissions("/dev/snd/pcmC0D36p", 0666, AID_SYSTEM, AID_AUDIO, "u:object_r:audio_device:s0");
+  set_permissions("/dev/snd/pcmC0D37c", 0666, AID_SYSTEM, AID_AUDIO, "u:object_r:audio_device:s0");
+
+  return;
+}
+
+static int check_audio_ar_device_ready(void)
+{
+  static int audio_device_created = 0;
+  int major = 0, minor = 0;
+
+  //audio
+  if (!audio_device_created) {
+    write_marker("AR - EarlyInit Audio AR nodes start");
+    if (access(MSM_SOUND_CTRL_PATH, F_OK) == 0) {
+      get_device_major_minor(MSM_SOUND_CTRL_PATH, &major, &minor);
+      if (major == 0)
+        return 0;
+
+      mkdir(SND_CARD_DIR, 0755);
+      mknod("/dev/snd/controlC0", S_IFCHR | 0660, makedev(major, minor));
+      get_device_major_minor("/sys/class/sound/pcmC0D0p/uevent", &major, &minor);
+      mknod("/dev/snd/pcmC0D0p", S_IFCHR | 0660,  makedev(major, minor));
+      get_device_major_minor("/sys/class/sound/pcmC0D1p/uevent", &major, &minor);
+      mknod("/dev/snd/pcmC0D1p", S_IFCHR | 0660, makedev(major, minor));
+      get_device_major_minor("/sys/class/sound/pcmC0D2p/uevent", &major, &minor);
+      mknod("/dev/snd/pcmC0D2p", S_IFCHR | 0660, makedev(major, minor));
+      get_device_major_minor("/sys/class/sound/pcmC0D3p/uevent", &major, &minor);
+      mknod("/dev/snd/pcmC0D3p", S_IFCHR | 0660, makedev(major, minor));
+      get_device_major_minor("/sys/class/sound/pcmC0D4p/uevent", &major, &minor);
+      mknod("/dev/snd/pcmC0D4p", S_IFCHR | 0660, makedev(major, minor));
+      get_device_major_minor("/sys/class/sound/pcmC0D5c/uevent", &major, &minor);
+      mknod("/dev/snd/pcmC0D5c", S_IFCHR | 0660, makedev(major, minor));
+      get_device_major_minor("/sys/class/sound/pcmC0D6c/uevent", &major, &minor);
+      mknod("/dev/snd/pcmC0D6c", S_IFCHR | 0660, makedev(major, minor));
+      get_device_major_minor("/sys/class/sound/pcmC0D7p/uevent", &major, &minor);
+      mknod("/dev/snd/pcmC0D7p", S_IFCHR | 0660, makedev(major, minor));
+      get_device_major_minor("/sys/class/sound/pcmC0D8p/uevent", &major, &minor);
+      mknod("/dev/snd/pcmC0D8p", S_IFCHR | 0660, makedev(major, minor));
+      get_device_major_minor("/sys/class/sound/pcmC0D9c/uevent", &major, &minor);
+      mknod("/dev/snd/pcmC0D9c", S_IFCHR | 0660, makedev(major, minor));
+      get_device_major_minor("/sys/class/sound/pcmC0D10c/uevent", &major, &minor);
+      mknod("/dev/snd/pcmC0D10c", S_IFCHR | 0660, makedev(major, minor));
+      get_device_major_minor("/sys/class/sound/pcmC0D11c/uevent", &major, &minor);
+      mknod("/dev/snd/pcmC0D11c", S_IFCHR | 0660, makedev(major, minor));
+      get_device_major_minor("/sys/class/sound/pcmC0D12p/uevent", &major, &minor);
+      mknod("/dev/snd/pcmC0D12p", S_IFCHR | 0660, makedev(major, minor));
+      get_device_major_minor("/sys/class/sound/pcmC0D13c/uevent", &major, &minor);
+      mknod("/dev/snd/pcmC0D13c", S_IFCHR | 0660, makedev(major, minor));
+      get_device_major_minor("/sys/class/sound/pcmC0D14c/uevent", &major, &minor);
+      mknod("/dev/snd/pcmC0D14c", S_IFCHR | 0660, makedev(major, minor));
+      get_device_major_minor("/sys/class/sound/pcmC0D15c/uevent", &major, &minor);
+      mknod("/dev/snd/pcmC0D15c", S_IFCHR | 0660, makedev(major, minor));
+      get_device_major_minor("/sys/class/sound/pcmC0D16c/uevent", &major, &minor);
+      mknod("/dev/snd/pcmC0D16c", S_IFCHR | 0660, makedev(major, minor));
+      get_device_major_minor("/sys/class/sound/pcmC0D17p/uevent", &major, &minor);
+      mknod("/dev/snd/pcmC0D17p", S_IFCHR | 0660, makedev(major, minor));
+      get_device_major_minor("/sys/class/sound/pcmC0D18p/uevent", &major, &minor);
+      mknod("/dev/snd/pcmC0D18p", S_IFCHR | 0660, makedev(major, minor));
+      get_device_major_minor("/sys/class/sound/pcmC0D19c/uevent", &major, &minor);
+      mknod("/dev/snd/pcmC0D19c", S_IFCHR | 0660, makedev(major, minor));
+      get_device_major_minor("/sys/class/sound/pcmC0D20c/uevent", &major, &minor);
+      mknod("/dev/snd/pcmC0D20c", S_IFCHR | 0660, makedev(major, minor));
+      get_device_major_minor("/sys/class/sound/pcmC0D21p/uevent", &major, &minor);
+      mknod("/dev/snd/pcmC0D21p", S_IFCHR | 0660, makedev(major, minor));
+      get_device_major_minor("/sys/class/sound/pcmC0D22c/uevent", &major, &minor);
+      mknod("/dev/snd/pcmC0D22c", S_IFCHR | 0660, makedev(major, minor));
+      get_device_major_minor("/sys/class/sound/pcmC0D23p/uevent", &major, &minor);
+      mknod("/dev/snd/pcmC0D23p", S_IFCHR | 0660, makedev(major, minor));
+      get_device_major_minor("/sys/class/sound/pcmC0D24c/uevent", &major, &minor);
+      mknod("/dev/snd/pcmC0D24c", S_IFCHR | 0660, makedev(major, minor));
+      get_device_major_minor("/sys/class/sound/pcmC0D25p/uevent", &major, &minor);
+      mknod("/dev/snd/pcmC0D25p", S_IFCHR | 0660, makedev(major, minor));
+      get_device_major_minor("/sys/class/sound/pcmC0D26c/uevent", &major, &minor);
+      mknod("/dev/snd/pcmC0D26c", S_IFCHR | 0660, makedev(major, minor));
+      get_device_major_minor("/sys/class/sound/pcmC0D27p/uevent", &major, &minor);
+      mknod("/dev/snd/pcmC0D27p", S_IFCHR | 0660, makedev(major, minor));
+      get_device_major_minor("/sys/class/sound/pcmC0D28c/uevent", &major, &minor);
+      mknod("/dev/snd/pcmC0D28c", S_IFCHR | 0660, makedev(major, minor));
+      get_device_major_minor("/sys/class/sound/pcmC0D29p/uevent", &major, &minor);
+      mknod("/dev/snd/pcmC0D29p", S_IFCHR | 0660, makedev(major, minor));
+      get_device_major_minor("/sys/class/sound/pcmC0D30c/uevent", &major, &minor);
+      mknod("/dev/snd/pcmC0D30c", S_IFCHR | 0660, makedev(major, minor));
+      get_device_major_minor("/sys/class/sound/pcmC0D31p/uevent", &major, &minor);
+      mknod("/dev/snd/pcmC0D31p", S_IFCHR | 0660, makedev(major, minor));
+      get_device_major_minor("/sys/class/sound/pcmC0D32c/uevent", &major, &minor);
+      mknod("/dev/snd/pcmC0D32c", S_IFCHR | 0660, makedev(major, minor));
+      get_device_major_minor("/sys/class/sound/pcmC0D33p/uevent", &major, &minor);
+      mknod("/dev/snd/pcmC0D33p", S_IFCHR | 0660, makedev(major, minor));
+      get_device_major_minor("/sys/class/sound/pcmC0D34c/uevent", &major, &minor);
+      mknod("/dev/snd/pcmC0D34c", S_IFCHR | 0660, makedev(major, minor));
+      get_device_major_minor("/sys/class/sound/pcmC0D35p/uevent", &major, &minor);
+      mknod("/dev/snd/pcmC0D35p", S_IFCHR | 0660, makedev(major, minor));
+      get_device_major_minor("/sys/class/sound/pcmC0D36p/uevent", &major, &minor);
+      mknod("/dev/snd/pcmC0D36p", S_IFCHR | 0660, makedev(major, minor));
+      get_device_major_minor("/sys/class/sound/pcmC0D37c/uevent", &major, &minor);
+      mknod("/dev/snd/pcmC0D37c", S_IFCHR | 0660, makedev(major, minor));
+      write_marker("AR - EarlyInit Audio AR nodes ready");
+      set_audio_ar_permission();
+      LOG(INFO) << "ES AR - Audio AR device nodes ready";
+      audio_device_created = 1;
+    } else {
+        LOG(INFO) << "ES AR - Audio AR device node access denied";
+        write_marker("ES AR - Audio AR device nodes access denied");
+    }
+  }
+
+  return audio_device_created;
+}
+
+static int check_and_create_linker64 (void) {
+    static int linker_ready = 0;
+    if (linker_ready == 0) {
+        if (access("/vendor_early_services/system/bin/bootstrap/linker64", F_OK) == 0) {
+            mkdirs("/system/bin", 0755);
+            if (symlink("/vendor_early_services/system/bin/bootstrap/linker64", "/system/bin/linker64") == 0) {
+                linker_ready = 1;
+                LOG(INFO) << "symlink /system/bin/linker64 is created";
+            } else  {
+                LOG(INFO) << "symlink /system/bin/linker64 create failed error " << errno << " " << strerror(errno);
+            }
+        }
+    }
+    return linker_ready;
+}
+
+static int check_and_create_vendor_etc (void) {
+    static int vendor_etc_ready = 0;
+    if (vendor_etc_ready == 0) {
+        if (access("/vendor_early_services/vendor/etc", F_OK) == 0) {
+            mkdirs("/vendor", 0666);
+            if (symlink("/vendor_early_services/vendor/etc", "/vendor/etc") == 0) {
+                vendor_etc_ready = 1;
+                LOG(INFO) << "symlink /vendor/etc is created";
+            } else  {
+                LOG(INFO) << "symlink /vendor/etc create failed error " << errno << " " << strerror(errno);
+            }
+        }
+    }
+    return vendor_etc_ready;
+}
+
+static int check_and_create_vendor_firmware (void) {
+    static int vendor_etc_ready = 0;
+    if (vendor_etc_ready == 0) {
+        if (access(AUDIO_FW_PATH, F_OK) == 0) {
+            if (symlink(AUDIO_FW_PATH, "/vendor/firmware_mnt") == 0) {
+                vendor_etc_ready = 1;
+                LOG(INFO) << "symlink /vendor/firmware_mnt is created";
+            } else  {
+                LOG(INFO) << "symlink /vendor/firmware_mnt create failed error " << errno << " " << strerror(errno);
+            }
+        }
+    }
+    return vendor_etc_ready;
+}
+
+static int check_audio_ar_ready(void)
+{
+    return (int)(check_audio_ar_pkt_ready() &&
+                 check_audio_ar_ion_ready() &&
+                 check_audio_ar_ion_cma_ready() &&
+                 check_audio_ar_system_device_ready() &&
+                 check_audio_ar_ml_device_ready() &&
+                 check_audio_ar_snd_device_ready() &&
+                 check_audio_ar_pcm_device_ready() &&
+                 check_audio_ar_id_device_ready() &&
+                 check_audio_ar_device_ready());
+}
+
 static void create_drm_udev_cards(void)
 {
   int i = 0;
@@ -1648,6 +2051,20 @@ static int check_storage_device_ready(void)
   }
 
   return sto_device_created;
+}
+
+static void trigger_adsp(char * flag) {
+    int fd = open("/sys/kernel/boot_adsp/boot", O_WRONLY);
+    if (fd < 0) {
+        LOG(WARNING) << "ES : trigger ADSP open sys entry failed";
+    } else if(-1 == write(fd, flag, 1)) {
+        LOG(WARNING) << "ES : trigger ADSP Write to sys entry failed";
+    } else {
+        write_marker("M - ES Start ADSP");
+        LOG(INFO) << "ES : trigger ADSP firmware loading triggered";
+    }
+    if (fd > 0)
+        close(fd);
 }
 
 static int check_pdmapper_ready(void)
@@ -2137,17 +2554,7 @@ static int load_modules_parallel(const std::string& fl,
           // Check for audio
           if (flag == LMP_DIRECT_CHK_AUD
              && !strncmp(kmod[j], ADSP_KO, sizeof(ADSP_KO)-1)) {
-            fd = open("/sys/kernel/boot_adsp/boot", O_WRONLY);
-            if (fd < 0) {
-              LOG(WARNING) << "ES : load_modules ADSP open sys entry failed";
-            } else if(-1 == write(fd, "1", 1)) {
-              LOG(WARNING) << "ES : load_modules ADSP Write to sys entry failed";
-            } else {
-              write_marker("M - ES Start ADSP");
-              LOG(INFO) << "ES : load_modules ADSP firmware loading triggered";
-            }
-            if (fd > 0)
-              close(fd);
+              trigger_adsp("1");
           }
         } else {
           fail_count++;
@@ -2396,7 +2803,8 @@ int early_init_kmod(const char *idx)
     char str[SHORT_STRING_MAX];
     if (!strncmp(_eapp_info[i].name, EMOD_END, sizeof(_eapp_info[i].name)-1))
       flag = LMP_MODPROBE;
-    else if (strncmp(_eapp_info[i].name, ECHIME_APP, sizeof(_eapp_info[i].name)-1))
+    else if (strncmp(_eapp_info[i].name, ECHIME_APP, sizeof(_eapp_info[i].name)-1)
+            && strncmp(_eapp_info[i].name, EAUDIO_APP, sizeof(_eapp_info[i].name)-1))
       flag = LMP_DIRECT;
     else
       flag = LMP_DIRECT_CHK_AUD;
@@ -2610,6 +3018,9 @@ int early_init(int init)
   set_permissions("/dev/null", 0666, AID_ROOT, AID_ROOT, "u:object_r:null_device:s0");
   set_permissions("/dev/urandom", 0666, AID_ROOT, AID_ROOT, "u:object_r:random_device:s0");
   load_kmod_and_nodes(EMOD_END);
+  check_and_create_linker64();
+  check_and_create_vendor_etc();
+  check_and_create_vendor_firmware();
 #ifdef __ANDROID_U__
   launch_test_app();
   launch_early_apps();
