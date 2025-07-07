@@ -22,7 +22,6 @@
 #include <sys/sysmacros.h>
 
 #define LXC_ROOTFS_PATH         "/vendor_early_services/vendor/vm-system"
-#define LXC_ROOTFS_BLOCK_DEVICE "/dev/block/sde22"
 #define KPI_VALUE_PATH          "/sys/kernel/boot_kpi/kpi_values"
 
 static void inline write_marker(const char* name)
@@ -65,33 +64,6 @@ static inline int create_bridge(const char *br_name) {
     return 0;
 }
 
-static inline int mount_lxc_rootfs() {
-    const char *mount_label = "/dev/block/sde22";
-    int i = 0;
-
-    if (access(LXC_ROOTFS_PATH, F_OK) == -1) {
-        print_log(" LXC_ROOTFS_PATH doesn't exist");
-        mkdir(LXC_ROOTFS_PATH, 0777);
-    }
-
-    if (access(LXC_ROOTFS_BLOCK_DEVICE, F_OK) == -1) {
-        print_log(" /dev/block/sde22 doesn't exist");
-    }
-
-    if (access(LXC_ROOTFS_PATH, F_OK) == 0) {
-        if (mount(LXC_ROOTFS_BLOCK_DEVICE, LXC_ROOTFS_PATH, "ext4", MS_RDONLY, "context=u:object_r:same_process_hal_file:s0") < 0) {
-            fprintf(stderr, "lxc_rootfs mount failed: %s\n", strerror(errno));
-            return -1;
-        } else {
-            print_log(" lxc_rootfs mount successfully");
-            return 0;
-        }
-    } else {
-        print_log(" lxc_rootfs directory is not created!");
-        return -1;
-    }
-}
-
 static inline int start_lxc_container() {
     const char *dir = "/vendor_early_services/vendor/vm-system/lxc/bin";
     const char *lxc_path = "/vendor_early_services/vendor/vm-system/lxc/bin/lxc-start";
@@ -100,13 +72,6 @@ static inline int start_lxc_container() {
     while (access(dir, X_OK) != 0 && retries-- > 0) {
         print_log("wait the lxc contatiner partion");
         usleep(100000); // 100ms
-    }
-
-    if (access(lxc_path, X_OK) != 0) {
-        print_log("No lxc-start binary file!");
-        return -1;
-    } else {
-        print_log("the /vendor_early_services/vendor/vm-system/lxc/bin/lxc-start is ok");
     }
 
     pid_t pid = fork();
@@ -153,16 +118,12 @@ int main(int argc, char *argv[]){
         print_log("lxcbr0 created failed!");
     }
 
-    if (mount_lxc_rootfs() == 0) {
-        status = start_lxc_container();
-        if (status != 0) {
-            print_log("Failed to start LXC container!");
-        } else {
-            print_log("Success to start LXC container!");
-            write_marker("M - ES lxc start -- done");
-        }
+    status = start_lxc_container();
+    if (status != 0) {
+        print_log("Failed to start LXC container!");
     } else {
-        print_log("lxc rootfs not mount, can't start lxc!");
+        print_log("Success to start LXC container!");
+        write_marker("M - ES lxc start -- done");
     }
 
     return 0;

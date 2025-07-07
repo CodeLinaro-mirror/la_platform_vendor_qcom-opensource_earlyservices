@@ -1667,23 +1667,17 @@ static int check_pdmapper_ready(void)
 
 static int check_lxc_rootfs_device_ready(void)
 {
-  int major = 0, minor = 0;
+  const char *lxc_path = "/vendor_early_services/vendor/vm-system/lxc/bin/lxc-start";
 
-  if ((access("/sys/class/block/sde22/uevent", F_OK) == 0)) {
+  if (access(lxc_path, X_OK) != 0) {
     freopen("/dev/kmsg", "w", stdout);
-    printf(" ES : /sys/class/block/sde22/uevent is ok!");
-    if (get_device_major_minor("/sys/class/block/sde22/uevent", &major, &minor)) {
-      freopen("/dev/kmsg", "w", stdout);
-      printf("ES: major is %d, minor is %d !\r\n", major, minor);
-      mkdir("/dev/block", 0755);
-      mknod("/dev/block/sde22", S_IFBLK | 0666, makedev(major, minor));
-    }
+    printf(" ES : No lxc-start, it means vm-bootsys is not mounted yet");
+    return 0;
   } else {
     freopen("/dev/kmsg", "w", stdout);
-    printf(" ES : /sys/class/block/sde22/uevent is not exist!");
+    printf(" ES : lxc-start exist, vm-bootsys has been mounted!");
+    return 1;
   }
-
-  return 1;
 }
 
 static int check_lxc_device_ready(void)
@@ -1808,9 +1802,11 @@ static int prepare_fw_dir(bool set_km)
 {
   // FW mount partition
   std::string modemStr("/dev/block/by-name/modem");
+  std::string lxcrootfsStr("/dev/block/by-name/vm-bootsys");
   unsigned int count = 0, max = (WAIT_SET_PERM_SECS * 1000) / WAIT_SLEEP_MSEC;
   boot_clock::time_point module_start_time = boot_clock::now();
   bool mounted = false;
+  bool lxcmounted = false;
   if (_use_min_wait) {
     max = (WAIT_SET_PERM_MSECS) / WAIT_SLEEP_MSEC;
   }
@@ -1848,10 +1844,26 @@ static int prepare_fw_dir(bool set_km)
     LOG(WARNING) << "ES : modemstr Not Found!";
   }
 
+  lxcrootfsStr += _boot_slot;
+  // wait for node creation
+  if (wait_for_file(lxcrootfsStr.c_str(), WAIT_SLEEP_MSEC, max*2) == 0) {
+    // mount partition
+    if (mount(lxcrootfsStr.c_str(), LXC_ROOTFS_PATH, "ext4",
+      MS_RDONLY, "context=u:object_r:same_process_hal_file:s0") < 0) {
+      LOG(WARNING) << "ES : lxc rootfs mount failed, err " << errno;
+    } else {
+      LOG(INFO) << "ES : lxc rootfs mount success.";
+      lxcmounted = true;
+      print_log("lxc rootfs mount success");
+    }
+  } else {
+    LOG(WARNING) << "ES : lxc rootfs Not Found!";
+  }
+
   char str[SHORT_STRING_MAX] = {0};
   auto module_elapse_time = std::chrono::duration_cast<std::chrono::milliseconds>(
                 boot_clock::now() - module_start_time);
-  if (mounted) {
+  if (mounted && lxcmounted) {
     snprintf(str, SHORT_STRING_MAX, "%s%d%s", "M - ES fw-load took ",
            (int)module_elapse_time.count(), "ms");
   } else {
