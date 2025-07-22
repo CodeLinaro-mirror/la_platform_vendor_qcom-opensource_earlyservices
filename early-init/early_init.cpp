@@ -868,7 +868,9 @@ static inline pid_t parse_line(char* p)
       if ((!strncmp(app_launcher.appname, ECHIME_APP, strlen(ECHIME_APP))
              && _audio_reach) ||
           (!strncmp(app_launcher.appname, PDMAPPER_APP, strlen(PDMAPPER_APP))
-             && !_audio_reach)) {
+             && !_audio_reach) ||
+          (!strncmp(app_launcher.appname, AUTO_NXP_APP, strlen(PDMAPPER_APP))
+             && _audio_reach)) {
         LOG(INFO) << "ES : Not Launching app " << app_launcher.appname;
         goto out;
       }
