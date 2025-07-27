@@ -1828,8 +1828,12 @@ static int check_snd_device_ready(void)
 
 static int check_audio_device_ready(void)
 {
-  return (int)(check_snd_device_ready() &&
-           check_spi_driver_ready());
+  if (!_audio_reach) {
+    return (int)(check_snd_device_ready() &&
+            check_spi_driver_ready());
+  } else {
+    return check_spi_driver_ready();
+  }
 }
 
 #define DRM_CARD3_DIR        "/dev/dri"
