@@ -168,6 +168,7 @@ using android::base::boot_clock;
 #define ADSP_LOADER_KO          "adsp_loader_dlkm"
 //#define DISP_DRM_DPU0_READY_PATH     "/sys/devices/platform/soc/ae00000.qcom,mdss_mdp/init_complete"
 #define DISP_DRM_DRIVER_CARD3_READY_PATH  "/sys/class/drm/card3/uevent"
+#define DISP_DRM_DRIVER_CARD4_READY_PATH  "/sys/class/drm/card4/uevent"
 #define DISP_DRM_DRIVER_RENDER_READY_PATH  "/sys/class/drm/renderD128/uevent"
 
 #ifdef PLATFORM_GEN4
@@ -316,7 +317,7 @@ const static struct {
  {EMOD_END, "modules_end_gen4.order", "def_end", NULL, EAPP_WAIT_NONE},
 #else
  {"ais_server", "modules_ais.order", "ais", check_ais_device_ready, EAPP_MOD_WAIT_FW},
- {"qcarcam_edrm_rvc", "modules_rv.order", "rvc", check_rvc_device_ready, EAPP_MOD_WAIT_FW},
+ {"qcarcam_edrm_rvc", "modules_rv.order", "rvc", check_rvc_device_ready, EAPP_WAIT_DISP},
  {EMOD_END, "modules_end.order", "def_end", NULL, EAPP_WAIT_NONE},
 #endif //PLATFORM_GEN4
  {"esplash", "", "splash", NULL, EAPP_WAIT_DISP},
@@ -353,6 +354,8 @@ enum drm_udev_cards {
 #endif
   cards_max
 };
+
+#define FAST_RVC_CARD           card4
 
 struct drm_cards_info {
   const char *sysfs_path;
@@ -1515,6 +1518,26 @@ static int check_ais_device_ready(void)
         mknod("/dev/v4l-subdev16", S_IFCHR | 0666,
           makedev(major, minor));
       }
+      if(get_device_major_minor("/sys/class/video4linux/v4l-subdev17/uevent", &major, &minor)) {
+        mknod("/dev/v4l-subdev17", S_IFCHR | 0666,
+          makedev(major, minor));
+      }
+      if(get_device_major_minor("/sys/class/video4linux/v4l-subdev18/uevent", &major, &minor)) {
+        mknod("/dev/v4l-subdev18", S_IFCHR | 0666,
+          makedev(major, minor));
+      }
+      if(get_device_major_minor("/sys/class/video4linux/v4l-subdev19/uevent", &major, &minor)) {
+        mknod("/dev/v4l-subdev19", S_IFCHR | 0666,
+          makedev(major, minor));
+      }
+      if(get_device_major_minor("/sys/class/video4linux/v4l-subdev20/uevent", &major, &minor)) {
+        mknod("/dev/v4l-subdev20", S_IFCHR | 0666,
+          makedev(major, minor));
+      }
+      if(get_device_major_minor("/sys/class/video4linux/v4l-subdev21/uevent", &major, &minor)) {
+        mknod("/dev/v4l-subdev21", S_IFCHR | 0666,
+          makedev(major, minor));
+      }
       set_camera_media_permission();
       set_camera_video_permission();
       set_camera_v4l_permission();
@@ -1961,10 +1984,17 @@ static void create_drm_udev_cards(void)
           mknod(_drm_cards[i].udev_node_path, S_IFCHR | 0666,
                 makedev(major, minor));
 
-          set_permissions(_drm_cards[i].udev_dir, 0755,
-                          AID_ROOT, AID_ROOT, "u:object_r:device:s0");
-          set_permissions(_drm_cards[i].udev_node_path, 0666,
-                          AID_ROOT, AID_GRAPHICS, "u:object_r:graphics_device:s0");
+		  if (i == FAST_RVC_CARD) {
+			  set_permissions(_drm_cards[i].udev_dir, 0755,
+							  AID_ROOT, AID_ROOT, "u:object_r:device:s0");
+			  set_permissions(_drm_cards[i].udev_node_path, 0666,
+							  AID_ROOT, AID_CAMERA, "u:object_r:graphics_device:s0");
+		  } else {
+			  set_permissions(_drm_cards[i].udev_dir, 0755,
+							  AID_ROOT, AID_ROOT, "u:object_r:device:s0");
+			  set_permissions(_drm_cards[i].udev_node_path, 0666,
+							  AID_ROOT, AID_GRAPHICS, "u:object_r:graphics_device:s0");
+		  }
 
 	  snprintf(buf, sizeof(buf), "M - EarlyInit /dev/dri/%s ready", _drm_cards[i].num);
 	  write_marker(buf);
@@ -2022,7 +2052,7 @@ static int check_display_driver_ready(void)
 {
 	int ret = 0;
 
-	if(access(DISP_DRM_DRIVER_CARD3_READY_PATH, F_OK) == 0 && access(DISP_DRM_DRIVER_RENDER_READY_PATH, F_OK) == 0)
+	if(access(DISP_DRM_DRIVER_CARD4_READY_PATH, F_OK) == 0 && access(DISP_DRM_DRIVER_RENDER_READY_PATH, F_OK) == 0)
 	{
 		LOG(INFO) << "Function: " << __func__ << ", Line: " << __LINE__ << " check driver sucess------\n";
 		ret = 1;
@@ -2206,6 +2236,11 @@ static void set_camera_v4l_permission(void)
   set_permissions("/dev/v4l-subdev14", 0666, AID_CAMERA, AID_CAMERA, "u:object_r:video_device:s0");
   set_permissions("/dev/v4l-subdev15", 0666, AID_CAMERA, AID_CAMERA, "u:object_r:video_device:s0");
   set_permissions("/dev/v4l-subdev16", 0666, AID_CAMERA, AID_CAMERA, "u:object_r:video_device:s0");
+  set_permissions("/dev/v4l-subdev17", 0666, AID_CAMERA, AID_CAMERA, "u:object_r:video_device:s0");
+  set_permissions("/dev/v4l-subdev18", 0666, AID_CAMERA, AID_CAMERA, "u:object_r:video_device:s0");
+  set_permissions("/dev/v4l-subdev19", 0666, AID_CAMERA, AID_CAMERA, "u:object_r:video_device:s0");
+  set_permissions("/dev/v4l-subdev20", 0666, AID_CAMERA, AID_CAMERA, "u:object_r:video_device:s0");
+  set_permissions("/dev/v4l-subdev21", 0666, AID_CAMERA, AID_CAMERA, "u:object_r:video_device:s0");
   set_permissions("/dev/v4l-subdev0", 0666, AID_CAMERA, AID_CAMERA, "u:object_r:video_device:s0");
   LOG(INFO) << "ES : Set Camera Permissions Completed for v4l-subdev";
 
@@ -2951,6 +2986,7 @@ int early_init(int init)
     prepare_dir((char*)"shm");
     prepare_dir((char*)"cgroup2");
     mkdirs("/dev/socket/agm", 0775);
+    mkdirs("/dev/socket/camera", 0775);
 
     /* Create ais_server/qcxserver socket dir and camera data dir */
 
