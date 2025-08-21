@@ -25,6 +25,7 @@
 #ifndef _EARLYINIT_UTIL_H_
 #define _EARLYINIT_UTIL_H_
 
+#include <functional>
 #include <string>
 #include <unordered_map>
 

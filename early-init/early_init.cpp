@@ -104,7 +104,7 @@
 #define ANDROID_U_CONF          "/vendor_early_services/etc/early_init_u.conf"
 #define ANDROID_U_POIPU_CONF    "/vendor_early_services/etc/early_init_u_poipu.conf"
 #define END_TAG                 "<end>"
-#define LINE_MAX                2048
+#define ES_LINE_MAX             2048
 #define SHORT_STRING_MAX        128
 #define VS_STRING_MAX           32
 #define WHITESPACE              " \t\n\r"
@@ -868,7 +868,9 @@ static inline pid_t parse_line(char* p)
       if ((!strncmp(app_launcher.appname, ECHIME_APP, strlen(ECHIME_APP))
              && _audio_reach) ||
           (!strncmp(app_launcher.appname, PDMAPPER_APP, strlen(PDMAPPER_APP))
-             && !_audio_reach)) {
+             && !_audio_reach) ||
+          (!strncmp(app_launcher.appname, AUTO_NXP_APP, strlen(PDMAPPER_APP))
+             && _audio_reach)) {
         LOG(INFO) << "ES : Not Launching app " << app_launcher.appname;
         goto out;
       }
@@ -1071,7 +1073,7 @@ bool kcmd_bc_console_enabled(void)
   android::earlyinit::import_kernel_cmdline(false,
       [&](const std::string& key, const std::string& value, bool in_qemu) -> bool {
     (void)in_qemu;
-    if (key == "console" && value.size() > 0) {
+    if ((key == "androidboot.console" || key == "console") && value.size() > 0) {
       enabled = true;
       found = true;
     }
@@ -1081,17 +1083,6 @@ bool kcmd_bc_console_enabled(void)
   if (found)
     return enabled;
 
-#ifdef __ANDROID_S_U__
-    android::earlyinit::import_kernel_cmdline(false,
-      [&](const std::string& key, const std::string& value, bool in_qemu) -> bool {
-    (void)in_qemu;
-    if (key == "androidboot.console" && value.size() > 0) {
-        enabled = true;
-        found = true;
-      }
-      return found;
-    });
-#else
     android::earlyinit::import_kernel_bootconfig(false,
      [&](const std::string& key, const std::string& value, bool in_qemu) -> bool {
     (void)in_qemu;
@@ -1101,7 +1092,6 @@ bool kcmd_bc_console_enabled(void)
     }
     return found;
   });
-#endif
 
   return enabled;
 }
@@ -1111,7 +1101,6 @@ bool bc_get_lmp()
 {
   bool load_parallel = false, found = false;
 
-#ifdef __ANDROID_S_U__
   android::earlyinit::import_kernel_cmdline(false,
       [&](const std::string& key, const std::string& value, bool in_qemu) -> bool {
     (void)in_qemu;
@@ -1121,7 +1110,10 @@ bool bc_get_lmp()
     }
     return found;
   });
-#else
+
+  if (found)
+    return load_parallel;
+
   android::earlyinit::import_kernel_bootconfig(false,
      [&](const std::string& key, const std::string& value, bool in_qemu) -> bool {
     (void)in_qemu;
@@ -1131,7 +1123,6 @@ bool bc_get_lmp()
     }
     return found;
   });
-#endif
 
 #ifdef EARLYINIT_DEBUG
   LOG(INFO) << "ES : Config Modules Parallel load: " << load_parallel;
@@ -1145,7 +1136,6 @@ bool bc_boot_slot(std::string& slot_suffix)
 {
   bool found = false;
 
-#ifdef __ANDROID_S_U__
    android::earlyinit::import_kernel_cmdline(false,
       [&](const std::string& key, const std::string& value, bool in_qemu) -> bool {
     (void)in_qemu;
@@ -1159,7 +1149,10 @@ bool bc_boot_slot(std::string& slot_suffix)
     }
     return found;
   });
-#else
+
+  if (found)
+    return found;
+
   android::earlyinit::import_kernel_bootconfig(false,
      [&](const std::string& key, const std::string& value, bool in_qemu) -> bool {
     (void)in_qemu;
@@ -1173,8 +1166,6 @@ bool bc_boot_slot(std::string& slot_suffix)
     }
     return found;
   });
-#endif
-
 
 #ifdef EARLYINIT_DEBUG
   LOG(INFO) << "ES : Slot suffix: " << slot_suffix;
@@ -1187,7 +1178,6 @@ bool bc_get_ar() {
   bool audio_reach = false;
   bool found = false;
 
-#ifdef __ANDROID_S_U__
    android::earlyinit::import_kernel_cmdline(false,
       [&](const std::string& key, const std::string& value, bool in_qemu) -> bool {
     (void)in_qemu;
@@ -1197,7 +1187,10 @@ bool bc_get_ar() {
     }
     return found;
   });
-#else
+
+  if (found)
+    return audio_reach;
+
   android::earlyinit::import_kernel_bootconfig(false,
      [&](const std::string& key, const std::string& value, bool in_qemu) -> bool {
     (void)in_qemu;
@@ -1207,8 +1200,6 @@ bool bc_get_ar() {
     }
     return found;
   });
-#endif
-
 
 #ifdef EARLYINIT_DEBUG
   LOG(INFO) << "ES : Config Audio Reach: " << audio_reach;
@@ -1222,7 +1213,6 @@ EnforcingStatus bc_get_se()
   EnforcingStatus status = SELINUX_ENFORCING;
   bool found = false;
 
-#ifdef __ANDROID_S_U__
  android::earlyinit::import_kernel_cmdline(false,
       [&](const std::string& key, const std::string& value, bool in_qemu) -> bool {
     (void)in_qemu;
@@ -1232,7 +1222,10 @@ EnforcingStatus bc_get_se()
     }
     return found;
   });
-#else
+
+  if (found)
+    return status;
+
   android::earlyinit::import_kernel_bootconfig(false,
     [&](const std::string& key, const std::string& value, bool in_qemu) -> bool {
     (void)in_qemu;
@@ -1242,7 +1235,6 @@ EnforcingStatus bc_get_se()
     }
     return found;
   });
-#endif
 
   LOG(INFO) << "ES : Selinux mode: " << status;
 
@@ -2078,7 +2070,7 @@ static int prepare_fw_dir(bool set_km)
       print_log("modemstr mount success");
     }
   } else {
-    LOG(WARNING) << "ES : modemstr Not Found!";
+    LOG(WARNING) << "ES : modemstr Not Found!" << " Slot " << _boot_slot;
   }
 
   char str[SHORT_STRING_MAX] = {0};
@@ -2493,7 +2485,7 @@ static int load_modules_parallel(const std::string& fl,
 
     std::vector<std::thread> th_mods;
     std::mutex mods_lock;
-    char mline[LINE_MAX] = {0};
+    char mline[ES_LINE_MAX] = {0};
     char *kmod[MAX_MODULES_PER_LINE] = {0};
     int i = 0, len = 0;
     const char* ptr = line.c_str();
@@ -2502,7 +2494,7 @@ static int load_modules_parallel(const std::string& fl,
 
     kmod[len] = &mline[0];
     // split the words as C strings
-    for (; i < (LINE_MAX-1) && ((*ptr != 0) && ((len+1) < MAX_MODULES_PER_LINE)); i++, ptr++) {
+    for (; i < (ES_LINE_MAX-1) && ((*ptr != 0) && ((len+1) < MAX_MODULES_PER_LINE)); i++, ptr++) {
       if (*ptr != ' ') {
          mline[i] = *ptr;
       } else {
@@ -2750,7 +2742,7 @@ static void launch_early_apps(void)
   }
 
   std::vector<std::string> lines = android::base::Split(list, "\n");
-  char buf[LINE_MAX];
+  char buf[ES_LINE_MAX];
   pid_t pid;
   int i = 0;
   for (const std::string line : lines) {
@@ -3027,6 +3019,9 @@ int early_init(int init)
   log_fsinit = true;
 #endif
 
+  int max = (_use_min_wait)?((WAIT_PID_MIN_MSECS * 1000) / WAIT_SLEEP_USECS):
+                    ((WAIT_PID_MAX_MSECS * 1000) / WAIT_SLEEP_USECS);
+
   // set kernel logging in perf build at stage II
   if (log_fsinit || (!_use_min_wait || init )) {
     android::earlyinit::InitKernelLogging(NULL);
@@ -3061,9 +3056,6 @@ int early_init(int init)
     fork_wait_for_child(ES_CTYPE_MARKER, 1);
     fork_wait_for_child(ES_CTYPE_IM, 1);
     pid_def1 = fork_wait_for_child(ES_CTYPE_DEF1_MOD, 1);
-
-    int max = (_use_min_wait)?((WAIT_PID_MIN_MSECS * 1000) / WAIT_SLEEP_USECS):
-                      ((WAIT_PID_MAX_MSECS * 1000) / WAIT_SLEEP_USECS);
 
     // wait for sepol loading as its required for next steps.
     wait_for_pid(pid_se, WAIT_SLEEP_USECS, max);
@@ -3126,7 +3118,10 @@ int early_init(int init)
   wait_for_early_apps();
 
   // add priority so data modules are loaded early.
-  load_modules_with_se(EMOD_END, -1, ES_PROCESS_PRIORITY_MID);
+  pid_t pid_e = load_modules_with_se(EMOD_END, -1, ES_PROCESS_PRIORITY_MID);
+
+  // wait for completion to ensure modules availability.
+  wait_for_pid(pid_e, WAIT_SLEEP_USECS, max);
 
 #ifdef  EARLYINIT_KO_INSTRUMENTATION
   set_permissions("/vendor_early_services", 0755, AID_ROOT, AID_SHELL, "u:object_r:vendor_file:s0");
@@ -3143,6 +3138,7 @@ int early_init(int init)
   set_permissions("/vendor_early_services/ko_time_rvc.log", 0777, AID_ROOT, AID_SHELL, "u:object_r:vendor_file:s0");
   set_permissions("/vendor_early_services/ko_time_def_end.log", 0777, AID_ROOT, AID_SHELL, "u:object_r:vendor_file:s0");
 #endif
+
   mknod("/dev/sedone", S_IFREG | 0400, makedev(0,0));
 
   char str[SHORT_STRING_MAX] = {0};
