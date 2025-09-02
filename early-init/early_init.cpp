@@ -868,7 +868,9 @@ static inline pid_t parse_line(char* p)
       if ((!strncmp(app_launcher.appname, ECHIME_APP, strlen(ECHIME_APP))
              && _audio_reach) ||
           (!strncmp(app_launcher.appname, PDMAPPER_APP, strlen(PDMAPPER_APP))
-             && !_audio_reach)) {
+             && !_audio_reach) ||
+          (!strncmp(app_launcher.appname, AUTO_NXP_APP, strlen(PDMAPPER_APP))
+             && _audio_reach)) {
         LOG(INFO) << "ES : Not Launching app " << app_launcher.appname;
         goto out;
       }
@@ -1818,8 +1820,12 @@ static int check_snd_device_ready(void)
 
 static int check_audio_device_ready(void)
 {
-  return (int)(check_snd_device_ready() &&
-           check_spi_driver_ready());
+  if (!_audio_reach) {
+    return (int)(check_snd_device_ready() &&
+            check_spi_driver_ready());
+  } else {
+    return check_spi_driver_ready();
+  }
 }
 
 #define DRM_CARD3_DIR        "/dev/dri"
