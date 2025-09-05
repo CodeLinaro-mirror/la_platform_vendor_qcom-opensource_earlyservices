@@ -2301,7 +2301,7 @@ static int prepare_fw_dir(bool set_km)
   if (wait_for_file(lxcrootfsStr.c_str(), WAIT_SLEEP_MSEC, max*2) == 0) {
     // mount partition
     if (mount(lxcrootfsStr.c_str(), LXC_ROOTFS_PATH, "ext4",
-      MS_RDONLY, "context=u:object_r:same_process_hal_file:s0") < 0) {
+      MS_RDONLY, NULL) < 0) {
       LOG(WARNING) << "ES : lxc rootfs mount failed, err " << errno;
     } else {
       LOG(INFO) << "ES : lxc rootfs mount success.";
