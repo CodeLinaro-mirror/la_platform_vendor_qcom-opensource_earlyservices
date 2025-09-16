@@ -114,7 +114,8 @@
 #define MSM_ION_CMA             "/dev/msm_audio_ion_cma"
 #define MSM_SYSTEM              "/dev/dma_heap/system"
 #define MSM_AUDIO_ML            "/dev/dma_heap/qcom,audio-ml"
-#define VIDEO_CARD_PATH         "/dev/video32"
+#define VIDEO32_DEVICE_PATH     "/dev/video32"
+#define VIDEO33_DEVICE_PATH     "/dev/video33"
 #define AUDIO_FW_PATH           "/vendor_early_services/vendor/firmware_mnt"
 #define AUDIO_ADSP_FW_PATH      "vendor_early_services/vendor/firmware_mnt/image/adsp.mdt"
 #define LXC_ROOTFS_PATH         "/vendor_early_services/vendor/vm-system"
@@ -1558,7 +1559,8 @@ static int check_video_device_ready(void)
 
   if (!video_device_created) {
     if ((access("/sys/class/dma_heap/qcom,system/uevent", F_OK) == 0) &&
-        (access("/sys/class/video4linux/video32/uevent", F_OK) == 0)) {
+        (access("/sys/class/video4linux/video32/uevent", F_OK) == 0) &&
+        (access("/sys/class/video4linux/video33/uevent", F_OK) == 0)) {
       if (get_device_major_minor("/sys/class/dma_heap/qcom,system/uevent", &major, &minor)) {
         mkdir(DMA_HEAP_DIR, 0666);
         mknod(VIDEO_SYS_DMA_HEAP_PATH, S_IFCHR | 0666,
@@ -1570,6 +1572,11 @@ static int check_video_device_ready(void)
       }
       if (get_device_major_minor("/sys/class/video4linux/video32/uevent", &major, &minor)) {
         mknod("/dev/video32", S_IFCHR | 0666,
+              makedev(major, minor));
+      }
+
+      if (get_device_major_minor("/sys/class/video4linux/video33/uevent", &major, &minor)) {
+        mknod("/dev/video33", S_IFCHR | 0666,
               makedev(major, minor));
       }
 
@@ -2129,7 +2136,7 @@ static int check_lxc_rootfs_device_ready(void)
 
 static int check_lxc_device_ready(void)
 {
-  return (int)(check_lxc_rootfs_device_ready() && check_display_driver_ready() && check_gfx_device_ready() && check_dma_heap_device_ready());
+  return (int)(check_lxc_rootfs_device_ready() && check_display_driver_ready() && check_gfx_device_ready() && check_dma_heap_device_ready() && check_video_device_ready());
 }
 
 #ifdef ES_AUDIOE_DISABLED
@@ -2191,7 +2198,8 @@ static void set_audio_permission(void)
 
 static void set_video_permission(void)
 {
-  set_permissions(VIDEO_CARD_PATH, 0666, AID_ROOT, AID_GRAPHICS, "u:object_r:video_device:s0");
+  set_permissions(VIDEO32_DEVICE_PATH, 0666, AID_ROOT, AID_GRAPHICS, "u:object_r:video_device:s0");
+  set_permissions(VIDEO33_DEVICE_PATH, 0666, AID_ROOT, AID_GRAPHICS, "u:object_r:video_device:s0");
   LOG(INFO) << "EarlyVideo Setting permission to video device completed";
   return;
 }
