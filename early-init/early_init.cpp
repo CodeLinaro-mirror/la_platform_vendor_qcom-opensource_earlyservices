@@ -150,7 +150,6 @@ char audio_modules[NUM_MODULE][64] = {
 "/early_services/vendor/lib/modules/hdmi_dlkm.ko",
 "/early_services/vendor/lib/modules/machine_dlkm.ko"};
 static pid_t lastpid;
-
 static inline bool is_empty_line(const char* p);
 static inline char *strstrip(char *s);
 static inline int parse_line(char* p);
@@ -228,6 +227,30 @@ static void inline write_smack_label(char* label)
   safe_close(fd);
 
   return;
+}
+
+static int get_sku_qultivate_ver()
+{
+   char buffer[8];
+   char buf[32];
+   int qultivate_flag = 0;
+
+   FILE* fp = fopen("/sys/devices/soc0/camera", "r");
+   if (!fp)
+   {
+       LOG(ERROR) << "fopen failed";
+   } else {
+       fgets(buffer,sizeof(buffer),fp);
+       snprintf(buf, 32, "%s", buffer);
+       LOG(INFO) << "camera node value" << buf;
+       fclose(fp);
+       if (!strncmp(buffer,"0x1",3))
+       {
+          qultivate_flag = 1;
+          LOG(INFO) << "Qultivate HW detected" << buf;
+       }
+   }
+   return qultivate_flag;
 }
 
 /*
@@ -673,6 +696,15 @@ static inline int parse_line(char* p)
        */
       if (strncmp(p, END_TAG, strlen(END_TAG)))
         goto out;
+
+      if (!strncmp(app_launcher.appname, "ais_server", strlen("ais_server")))
+      {
+        if (get_sku_qultivate_ver())
+        {
+           write_marker("M - Qultivate HW Camera not supported");
+           goto out;
+        }
+      }
 
       pid = fork();
       if (pid < 0) {
