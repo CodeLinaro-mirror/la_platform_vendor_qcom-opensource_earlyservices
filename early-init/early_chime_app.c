@@ -169,6 +169,7 @@ void play_sample(FILE *file, unsigned int card, unsigned int device, unsigned in
     char *buffer;
     int size;
     int num_read;
+    int count = 0;
     static char const *marker = "M - Audio_Chime writing audio samples";
     place_marker(marker);
 
@@ -188,15 +189,31 @@ void play_sample(FILE *file, unsigned int card, unsigned int device, unsigned in
     config.silence_threshold = 0;
 
     if (!sample_is_playable(card, device, channels, rate, bits, period_size, period_count)) {
+        freopen("/dev/kmsg", "w", stdout);
+        printf("sample_is_playable NOK\n");
         return;
     }
 
-    pcm = pcm_open(card, device, PCM_OUT, &config);
-    if (!pcm || !pcm_is_ready(pcm)) {
+    do {
         freopen("/dev/kmsg", "w", stdout);
-    printf("Unable to open PCM device");
+        printf("Try to open PCM device %u %u\n", card, device);
+        pcm = pcm_open(card, device, PCM_OUT, &config);
+        if (!pcm || !pcm_is_ready(pcm)) {
+            freopen("/dev/kmsg", "w", stdout);
+            printf("Unable to open PCM device\n");
+            usleep(2000); /* sleep for 2ms and try again */
+            count++;
+        }
+        else
+            break;
+    } while (count < MAX_SLEEP_RETRY);
+    if (!pcm && count >= MAX_SLEEP_RETRY) {
+        freopen("/dev/kmsg", "w", stdout);
+        printf("open PCM device %u %u timeout\n", card, device);
         return;
     }
+    freopen("/dev/kmsg", "w", stdout);
+    printf("Opened PCM device %u %u\n", card, device);
 
     size = pcm_frames_to_bytes(pcm, pcm_get_buffer_size(pcm));
     buffer = malloc(size);
@@ -217,13 +234,28 @@ void play_sample(FILE *file, unsigned int card, unsigned int device, unsigned in
     do {
         num_read = fread(buffer, 1, size, file);
         if (num_read > 0) {
-            if (pcm_write(pcm, buffer, num_read)) {
+            int wr_retry_count = 0;
+            do {
+                if (pcm_write(pcm, buffer, num_read)) {
+                    freopen("/dev/kmsg", "w", stdout);
+                    printf("Error playing sample\n");
+                    wr_retry_count ++;
+                }
+                else
+                {
+                    break;
+                }
+            } while (wr_retry_count < 3);
+            if (wr_retry_count >= 3)
+            {
                 freopen("/dev/kmsg", "w", stdout);
-                printf("Error playing sample\n");
+                printf("Error playing sample timeout\n");
                 break;
             }
         }
     } while (!play_close && num_read > 0);
+    freopen("/dev/kmsg", "w", stdout);
+    printf("play_close: %d\n", play_close);
 
     free(buffer);
     pcm_close(pcm);
