@@ -103,7 +103,9 @@
 #define ANDROID_U_CONF          "/vendor_early_services/etc/early_init_u.conf"
 #define ES_GEN4_CONF            "/vendor_early_services/etc/early_init_gen4.conf"
 #define END_TAG                 "<end>"
+#ifndef PLATFORM_CANOE
 #define LINE_MAX                2048
+#endif
 #define SHORT_STRING_MAX        128
 #define VS_STRING_MAX           32
 #define WHITESPACE              " \t\n\r"
@@ -241,15 +243,19 @@ using android::base::boot_clock;
 #define PIPE_RD 0
 #define PIPE_WR 1
 
-#if defined(__ANDROID_U__) || defined(PLATFORM_GEN4)
+#if defined(__ANDROID_U__) || defined(PLATFORM_GEN4) || defined(PLATFORM_CANOE)
 #define SELINUXMNT "/sys/fs/selinux"
 
 #define TEST_APP "init_early_test"
 #define TEST_APP_CMD  "/vendor_early_services/system/bin/init_early_test"
+#ifdef PLATFORM_CANOE
+#define TEST_APP_ENV "/vendor_early_services:/vendor_early_services/system:/vendor_early_services/system/lib64"
+#else
 #define TEST_APP_ENV "/vendor_early_services:/vendor_early_services/system:/vendor_early_services/system/lib64:/vendor_early_services/system/bin/bootstrap"
+#endif //PLATFORM_CANOE
 #define TEST_APP_PID "/vendor_early_services/run/early/init_early_test.pid"
 #define TEST_APP_LOG "/vendor_early_services/run/init_early_test.txt"
-#endif //__ANDROID_U__ || PLATFORM_GEN4
+#endif //__ANDROID_U__ || PLATFORM_GEN4 || PLATFORM_CANOE
 
 #ifdef EARLYINIT_DEBUG
 static inline bool is_empty_line(const char* p);
@@ -395,7 +401,7 @@ static void inline safe_close(int fd)
 
 static void inline write_marker(const char* name)
 {
-#ifdef __ANDROID_U__
+#if defined(__ANDROID_U__)
   ALOGE("boot_kpi: %s ", name);
 #else
   int fd = -1;
@@ -2058,7 +2064,9 @@ static int check_display_driver_ready(void)
 static int check_display_driver_ready(void)
 {
 	int ret = 0;
-
+#if defined(PLATFORM_CANOE)
+	ret = 1;
+#else
 	if(access(DISP_DRM_DRIVER_CARD4_READY_PATH, F_OK) == 0 && access(DISP_DRM_DRIVER_RENDER_READY_PATH, F_OK) == 0)
 	{
 		LOG(INFO) << "Function: " << __func__ << ", Line: " << __LINE__ << " check driver sucess------\n";
@@ -2068,7 +2076,7 @@ static int check_display_driver_ready(void)
 		//LOG(INFO) << "Function: " << __func__ << ", Line: " << __LINE__ << " wunatest check driver fail------\n";
 		ret = 0;
 	}
-
+#endif
 	return ret;
 }
 #endif
@@ -2310,10 +2318,15 @@ static int prepare_fw_dir(bool set_km)
   // wait for node creation
   if (wait_for_file(lxcrootfsStr.c_str(), WAIT_SLEEP_MSEC, max*2) == 0) {
     // mount partition
-    //if (mount(lxcrootfsStr.c_str(), LXC_ROOTFS_PATH, "ext4",
-    //  MS_RDONLY, NULL) < 0) {
-      if (wait_for_file(lxc_start_file, WAIT_SLEEP_MSEC, max*2)) {
+#ifdef PLATFORM_CANOE
+    if (mount(lxcrootfsStr.c_str(), LXC_ROOTFS_PATH, "ext4",
+      MS_RDONLY, NULL) < 0) {
+#endif
+    if (wait_for_file(lxc_start_file, WAIT_SLEEP_MSEC, max*2)) {
       LOG(WARNING) << "ES : lxc rootfs mount failed, err " << errno;
+#ifdef PLATFORM_CANOE
+        }
+#endif
     } else {
       LOG(INFO) << "ES : lxc rootfs mount success.";
       lxcmounted = true;
@@ -2338,7 +2351,7 @@ static int prepare_fw_dir(bool set_km)
   return 0;
 }
 
-#ifdef __ANDROID_U__
+#if defined(__ANDROID_U__) || defined(PLATFORM_CANOE)
 static int es_selinux_android_load_policy_from_fd(int fd, const char *description)
 {
   int rc;
@@ -2374,7 +2387,7 @@ static int es_selinux_android_load_policy_from_fd(int fd, const char *descriptio
   LOG(INFO) << "ES SELinux: es_selinux_android_load_policy_from_fd rc : " << rc;
   return 0;
 }
-#endif //__ANDROID_U__
+#endif //__ANDROID_U__  || PLATFORM_CANOE
 
 static int load_precompiled_sepolicy()
 {
@@ -2387,7 +2400,7 @@ static int load_precompiled_sepolicy()
                  O_RDONLY | O_CLOEXEC | O_BINARY);
   if (fd1 > 0) {
     if (
-#ifdef __ANDROID_U__
+#if defined(__ANDROID_U__) || defined(PLATFORM_CANOE)
       es_selinux_android_load_policy_from_fd(fd1,
 #else
       selinux_android_load_policy_from_fd(fd1,
@@ -2650,7 +2663,7 @@ static int load_modules_parallel(const std::string& fl,
   return 0;
 }
 
-#if defined(__ANDROID_U__)
+#if defined(__ANDROID_U__) || defined(PLATFORM_CANOE)
 static void launch_test_app(void)
 {
   int fd;
@@ -2748,13 +2761,13 @@ static void launch_test_app(void)
 
 static void launch_early_apps(void)
 {
-#ifdef __ANDROID_U__
+#if defined(__ANDROID_U__) || defined(PLATFORM_CANOE)
   std::string fl = ANDROID_U_CONF;
 #elif PLATFORM_GEN4
   std::string fl = ES_GEN4_CONF;
 #else
   std::string fl = DEFAULT_CONF;
-#endif // __ANDROID_U__
+#endif // __ANDROID_U__ || PLATFORM_CANOE
   std::string list;
 
   if (!android::base::ReadFileToString(fl, &list, false)) {
@@ -2786,7 +2799,7 @@ static void launch_early_apps(void)
     LOG(WARNING) << "ES : Max Apps limit reached!";
 }
 
-#if defined(__ANDROID_U__)
+#if defined(__ANDROID_U__) || defined(PLATFORM_CANOE)
 static int load_default_modules()
 {
   int count = 0;
@@ -2801,7 +2814,7 @@ static int load_default_modules()
   write_marker(str);
   return 0;
 }
-#endif // __ANDROID_U__
+#endif // __ANDROID_U__ || PLATFORM_CANOE
 
 static int wait_for_early_apps(void)
 {
@@ -2963,7 +2976,7 @@ int early_init(int init)
 
   _use_min_wait = !kcmd_bc_console_enabled();
   // Enable ES logging if console enabled or ES second stage
-#ifdef __ANDROID_U__
+#if defined(__ANDROID_U__) || defined(PLATFORM_CANOE)
   log_fsinit = true;
 #endif
 
@@ -3001,7 +3014,7 @@ int early_init(int init)
 
     /* Create ais_server/qcxserver socket dir and camera data dir */
 
-#if defined( __ANDROID_U__)
+#if defined(__ANDROID_U__) || defined(PLATFORM_CANOE)
      load_default_modules();
      prepare_fw_dir(true);
      load_precompiled_sepolicy();
@@ -3084,10 +3097,14 @@ int early_init(int init)
   getSysInfo("/sys/devices/soc0/platform_subtype_id", platformId);
   set_permissions("/dev/null", 0666, AID_ROOT, AID_ROOT, "u:object_r:null_device:s0");
   set_permissions("/dev/urandom", 0666, AID_ROOT, AID_ROOT, "u:object_r:random_device:s0");
+  #if defined(PLATFORM_CANOE)
+  LOG(WARNING) << "ES : Canoe project no end kmod ";
+  #else
   load_kmod_and_nodes(EMOD_END);
+  #endif
   check_and_create_vendor_etc();
   check_and_create_vendor_firmware();
-#ifdef __ANDROID_U__
+#if defined(__ANDROID_U__) || defined(PLATFORM_CANOE)
   launch_test_app();
   launch_early_apps();
 #else

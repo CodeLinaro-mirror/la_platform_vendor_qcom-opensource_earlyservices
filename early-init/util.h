@@ -27,7 +27,9 @@
 
 #include <string>
 #include <unordered_map>
-
+#ifdef PLATFORM_CANOE
+#include <functional>
+#endif
 namespace android {
 namespace earlyinit {
 
