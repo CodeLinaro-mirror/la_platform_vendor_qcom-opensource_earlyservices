@@ -2523,7 +2523,7 @@ static int load_modules_parallel(const std::string& fl,
   int load_count = 0;
   int fail_count = 0;
   static const char ADSP_KO[] = ADSP_LOADER_KO;
-  LOG(INFO) << "start Loading modules path: " << mod_path << " file: " << fl;
+  LOG(INFO) << "start Loading modules ";
   if (!android::base::ReadFileToString(fl, &mlist, false))
     return -1;
 
@@ -2814,7 +2814,7 @@ static int wait_for_early_apps(void)
       if (fd > 0) {
         ret = read(fd, comm, sizeof(comm) - 1);
         if (ret > 0) {
-          if (strncmp(comm, EARLY_DFL_APP, sizeof(EARLY_DFL_APP)-1) && strncmp(comm, EAUDIO_APP, sizeof(EAUDIO_APP)-1)) {
+          if (strncmp(comm, EARLY_DFL_APP, sizeof(EARLY_DFL_APP)-1)) {
             _eapp_pid[i] = 0;
           }
         }
@@ -2824,7 +2824,7 @@ static int wait_for_early_apps(void)
         _eapp_pid[i] = 0;
       }
 #ifdef EARLYINIT_DEBUG
-      LOG(INFO) << "ES: eapp Path " << comm_path << " id " << i << " eapp_pid " << _eapp_pid[i] << " comm " << comm;
+      LOG(INFO) << "ES: eapp Path " << comm_path << " eappid id " << i;
 #endif
     }
   }
@@ -3004,13 +3004,13 @@ int early_init(int init)
          EMOD_DEF_TAG_1, LMP_MODPROBE);
 
     // Check for driver storage enumerations
-    pid_t pid_fw = fork_wait_for_child(ES_CTYPE_FW, 1);
+    fork_wait_for_child(ES_CTYPE_FW, 1);
 #ifndef PLATFORM_GEN4
     // Load second set of def-modules in parallel
     pid_t pid_def2 = fork_wait_for_child(ES_CTYPE_DEF2_MOD, 1);
 #endif
     // Load Display modules in parallel
-    pid_t pid_di = fork_wait_for_child(ES_CTYPE_DI_MOD, 1);
+    fork_wait_for_child(ES_CTYPE_DI_MOD, 1);
     // Load sepolicies in parallel
     pid_se = fork_wait_for_child(ES_CTYPE_LOAD_SE, 1);
 
@@ -3021,14 +3021,6 @@ int early_init(int init)
 #ifndef PLATFORM_GEN4
     wait_for_pid(pid_def2, WAIT_SLEEP_USECS, max);
 #endif
-
-    // Wait firmware and di modules
-    wait_for_pid(pid_fw, WAIT_SLEEP_USECS, max);
-    wait_for_pid(pid_di, WAIT_SLEEP_USECS, max);
-    check_and_create_linker64();
-
-    // Send a kedone flag to let the init process continue to boot the system
-    mknod("/dev/kedone", S_IFREG | 0400, makedev(0,0));
 
 #endif // ! __ANDROID_U__
 
@@ -3074,6 +3066,7 @@ int early_init(int init)
   set_permissions("/dev/null", 0666, AID_ROOT, AID_ROOT, "u:object_r:null_device:s0");
   set_permissions("/dev/urandom", 0666, AID_ROOT, AID_ROOT, "u:object_r:random_device:s0");
   load_kmod_and_nodes(EMOD_END);
+  check_and_create_linker64();
   check_and_create_vendor_etc();
   check_and_create_vendor_firmware();
 #ifdef __ANDROID_U__
@@ -3083,7 +3076,6 @@ int early_init(int init)
   launch_early_apps();
 #endif
   // wait for app exec
-  usleep(200*1000);
   wait_for_early_apps();
 
   mknod("/dev/sedone", S_IFREG | 0400, makedev(0,0));
