@@ -239,6 +239,7 @@ using android::base::boot_clock;
 #define ES_CTYPE_DEF2_MOD   2
 #define ES_CTYPE_DI_MOD     3
 #define ES_CTYPE_LOAD_SE    4
+#define ES_CTYPE_DEF_MOD    5
 
 #define PIPE_RD 0
 #define PIPE_WR 1
@@ -248,11 +249,7 @@ using android::base::boot_clock;
 
 #define TEST_APP "init_early_test"
 #define TEST_APP_CMD  "/vendor_early_services/system/bin/init_early_test"
-#ifdef PLATFORM_CANOE
-#define TEST_APP_ENV "/vendor_early_services:/vendor_early_services/system:/vendor_early_services/system/lib64"
-#else
 #define TEST_APP_ENV "/vendor_early_services:/vendor_early_services/system:/vendor_early_services/system/lib64:/vendor_early_services/system/bin/bootstrap"
-#endif //PLATFORM_CANOE
 #define TEST_APP_PID "/vendor_early_services/run/early/init_early_test.pid"
 #define TEST_APP_LOG "/vendor_early_services/run/init_early_test.txt"
 #endif //__ANDROID_U__ || PLATFORM_GEN4 || PLATFORM_CANOE
@@ -1375,7 +1372,9 @@ static int check_dma_heap_device_ready(void)
   //camera
   static int dma_heap_device_created = 0;
   int major = 0, minor = 0;
-
+#ifdef PLATFORM_CANOE
+   dma_heap_device_created = 1;
+#else
   if (!dma_heap_device_created) {
     if (access("/sys/class/dma_heap/qcom,system/uevent", F_OK) == 0) {
       if(get_device_major_minor("/sys/class/dma_heap/qcom,system/uevent", &major, &minor))
@@ -1394,15 +1393,18 @@ static int check_dma_heap_device_ready(void)
       }
     }
   }
-
+#endif
   return dma_heap_device_created;
 }
 
 static int check_gfx_device_ready(void)
 {
   //rvc
-
   static int gfx_device_created = 0;
+#ifdef PLATFORM_CANOE
+  // On Canoe, gfx device check is skipped
+  gfx_device_created = 1;
+#else
   int major = 0, minor = 0;
 
   if (!gfx_device_created) {
@@ -1418,8 +1420,9 @@ static int check_gfx_device_ready(void)
       write_marker("M - EarlyInit gfx nodes ready");
     }
   }
-
+#endif
   return gfx_device_created;
+
 }
 
 static int check_rvc_device_ready(void)
@@ -1562,7 +1565,9 @@ static int check_video_device_ready(void)
   //video
   static int video_device_created = 0;
   int major = 0, minor = 0;
-
+#ifdef PLATFORM_CANOE
+   video_device_created = 1;
+#else
   if (!video_device_created) {
     if ((access("/sys/class/dma_heap/qcom,system/uevent", F_OK) == 0) &&
         (access("/sys/class/video4linux/video32/uevent", F_OK) == 0) &&
@@ -1592,7 +1597,7 @@ static int check_video_device_ready(void)
       video_device_created = 1;
     }
   }
-
+#endif
   return video_device_created;
 }
 
@@ -1987,7 +1992,10 @@ static void create_drm_udev_cards(void)
   int i = 0;
   int major = 0, minor = 0;
   char buf[128];
-
+#ifdef PLATFORM_CANOE
+// No DRM devices on Canoe platform till now
+  return;
+#else
   while (i < cards_max) {
     if (!_drm_cards[i].is_created) {
       // check if sysfs entry is created
@@ -2017,6 +2025,7 @@ static void create_drm_udev_cards(void)
     }
     i++;
   }
+#endif
 }
 
 
@@ -2663,7 +2672,7 @@ static int load_modules_parallel(const std::string& fl,
   return 0;
 }
 
-#if defined(__ANDROID_U__) || defined(PLATFORM_CANOE)
+#if defined(__ANDROID_U__)
 static void launch_test_app(void)
 {
   int fd;
@@ -2948,6 +2957,10 @@ static pid_t __attribute__((unused)) fork_wait_for_child(int type, int run_if_fo
         load_precompiled_sepolicy();
         break;
       }
+      case ES_CTYPE_DEF_MOD: {
+        load_default_modules();
+        break;
+      }
       default:
       break;
     }
@@ -3015,9 +3028,19 @@ int early_init(int init)
     /* Create ais_server/qcxserver socket dir and camera data dir */
 
 #if defined(__ANDROID_U__) || defined(PLATFORM_CANOE)
-     load_default_modules();
-     prepare_fw_dir(true);
-     load_precompiled_sepolicy();
+    int max = (_use_min_wait)?((WAIT_PID_MIN_MSECS * 1000) / WAIT_SLEEP_USECS):
+                      ((WAIT_PID_MAX_MSECS * 1000) / WAIT_SLEEP_USECS);
+     pid_t pid_def = fork_wait_for_child(ES_CTYPE_DEF_MOD, 1);
+     pid_t pid_fw = fork_wait_for_child(ES_CTYPE_FW, 1);
+     pid_t pid_se = fork_wait_for_child(ES_CTYPE_LOAD_SE, 1);
+
+     wait_for_pid(pid_se, WAIT_SLEEP_USECS, max);
+     wait_for_pid(pid_def, WAIT_SLEEP_USECS, max);
+     wait_for_pid(pid_fw, WAIT_SLEEP_USECS, max);
+     // Create linker64 for es-apps
+     check_and_create_linker64();
+     // Send a kedone flag to let the init process continue to boot the system
+     mknod("/dev/kedone", S_IFREG | 0400, makedev(0,0));
 #else
     bool load_parallel = bc_get_lmp();
     pid_t pid_se;
@@ -3104,7 +3127,7 @@ int early_init(int init)
   #endif
   check_and_create_vendor_etc();
   check_and_create_vendor_firmware();
-#if defined(__ANDROID_U__) || defined(PLATFORM_CANOE)
+#if defined(__ANDROID_U__)
   launch_test_app();
   launch_early_apps();
 #else

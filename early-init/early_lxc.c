@@ -36,11 +36,19 @@ static void inline write_marker(const char* name)
     return;
 }
 
-static inline void print_log(const char* str)
+static inline void print_log(const char* fmt, ...)
 {
-    if (str == NULL) return;
+    if (fmt == NULL) return;
     freopen("/dev/kmsg", "w", stdout);
-    printf("ES: %s \r\n", str);
+
+    va_list args;
+    va_start(args, fmt);
+
+    printf("ES: ");
+    vprintf(fmt, args);
+    printf("\r\n");
+
+    va_end(args);
 }
 
 static inline int create_bridge(const char *br_name) {
@@ -62,6 +70,32 @@ static inline int create_bridge(const char *br_name) {
 
     close(sock);
     return 0;
+}
+
+static void wait_for_mount_point() {
+	const char *check_paths[] = {
+        "/dev/dma_heap",
+        "/dev/input",
+        "/dev/dri/renderD128",
+        "/dev/dri/card2",
+        "/dev/snd",
+        "/dev/socket/agm"
+    };
+	int i = 0, retry = 0;
+	int num_paths = sizeof(check_paths) / sizeof(check_paths[0]);
+	usleep(12000 * 1000);//wait about 12s for display
+	for (i = 0; i < num_paths ; i++) {
+		retry = 0;
+		while (retry++ < 20) {
+			if (access(check_paths[i], F_OK) == 0) {
+				print_log("check path okay %s \n", check_paths[i]);
+				break;
+			} else {
+				print_log("check path failed %s \n", check_paths[i]);
+				usleep(1000 * 1000);//sleep 1s
+			}
+		}
+	}
 }
 
 static inline int start_lxc_container() {
@@ -88,6 +122,7 @@ static inline int start_lxc_container() {
             "--logfile=/vendor_early_services/run/lxc.log",
             NULL
         };
+        wait_for_mount_point();
         execv(lxc_path, argv);
         _exit(127);
     } else if (pid > 0) {
@@ -121,6 +156,7 @@ int main(int argc, char *argv[]){
     status = start_lxc_container();
     if (status != 0) {
         print_log("Failed to start LXC container!");
+        write_marker("M - ES lxc start failed");
     } else {
         print_log("Success to start LXC container!");
         write_marker("M - ES lxc start -- done");

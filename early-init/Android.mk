@@ -80,23 +80,6 @@ LOCAL_MODULE_PATH := $(TARGET_VENDOR_RAMDISK_OUT)/vendor_early_services/vendor/b
 include $(BUILD_EXECUTABLE)
 
 include $(CLEAR_VARS)
-# for canoe project
-ifneq ($(filter canoe, $(TARGET_BOARD_PLATFORM)),)
-# static linking start
-LOCAL_MODULE_TAGS := optional
-LOCAL_SRC_FILES := test.c
-LOCAL_MODULE := init_early_test
-LOCAL_STATIC_LIBRARIES := libc++_static \
-       libselinux \
-
-LOCAL_FORCE_STATIC_EXECUTABLE := true
-LOCAL_MODULE_PATH := $(TARGET_RAMDISK_OUT)/vendor_early_services/bin
-
-LOCAL_CPPFLAGS := -std=c++17
-# static linking end
-
-# dynamic linking start
-else
 #To be removed later
 LOCAL_MODULE_TAGS := optional
 LOCAL_LDFLAGS := -Wl,-rpath,'/vendor_early_services/system/lib64' -Wl,--dynamic-linker,/vendor_early_services/system/bin/bootstrap/linker64
@@ -105,7 +88,6 @@ LOCAL_SRC_FILES := test.c
 LOCAL_HEADER_LIBRARIES += libcutils_headers
 LOCAL_SHARED_LIBRARIES:=  libselinux
 LOCAL_MODULE_PATH := $(TARGET_VENDOR_RAMDISK_OUT)/vendor_early_services/bin
-endif
 
 include $(BUILD_EXECUTABLE)
 
