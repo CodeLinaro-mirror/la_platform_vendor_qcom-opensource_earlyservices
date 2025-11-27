@@ -133,7 +133,6 @@ LOCAL_POST_INSTALL_CMD := $(hide) mkdir -p $(LOCAL_MODULE_PATH)/../sbin; \
                                   mkdir -p $(LOCAL_MODULE_PATH)/../vendor/lib64; \
                                   mkdir -p $(LOCAL_MODULE_PATH)/../system/etc/selinux; \
                                   mkdir -p $(LOCAL_MODULE_PATH)/../run/early; \
-                                  mkdir -p $(LOCAL_MODULE_PATH)/../run/lxc/run; \
                                   mkdir -p $(LOCAL_MODULE_PATH)/../proc; \
                                   mkdir -p $(LOCAL_MODULE_PATH)/../sys; \
                                   mkdir -p $(LOCAL_MODULE_PATH)/../dev; \

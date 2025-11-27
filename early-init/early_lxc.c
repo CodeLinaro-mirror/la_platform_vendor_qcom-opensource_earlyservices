@@ -43,6 +43,50 @@ static inline void print_log(const char* str)
     printf("ES: %s \r\n", str);
 }
 
+/*
+ * Only support abs path
+ */
+static inline void mkdirs(const char* p, mode_t mode)
+{
+    char str[1024] = {0};
+    struct stat st;
+    int i = 0, len = 0, ret = 0;
+
+    len = strlen(p);
+    if (len > 1024)
+        printf("input string is too long\r\n");
+
+    strlcpy(str, p, sizeof(str));
+
+    if (len <= 0 || str[0] != '/')
+        return;
+
+    if (str[len - 1] == '/') {
+        len--;
+        str[len] = '\0';
+    }
+
+    for (i = 1; i < len; i++) {
+        if (str[i] == '/') {
+            str[i] = '\0';
+            if (stat(str, &st) == -1) {
+                ret = mkdir(str, 0755);
+                if (ret < 0)
+                    perror("mkdir failed");
+            }
+            str[i] = '/';
+        }
+    }
+
+    if (stat(str, &st) == -1) {
+        ret = mkdir(str, mode);
+        if (ret < 0)
+            perror("mkdir failed");
+    }
+
+    return;
+}
+
 static inline int create_bridge(const char *br_name) {
     int sock = socket(AF_INET, SOCK_STREAM, 0);
     if (sock < 0) {
@@ -67,6 +111,7 @@ static inline int create_bridge(const char *br_name) {
 static inline int start_lxc_container() {
     const char *dir = "/vendor_early_services/vendor/vm-system/lxc/bin";
     const char *lxc_path = "/vendor_early_services/vendor/vm-system/lxc/bin/lxc-start";
+    const char *lxc_runtime_dir = "/vendor_early_services/run/lxc/run";
 
     int retries = 10;
     while (access(dir, X_OK) != 0 && retries-- > 0) {
@@ -74,6 +119,7 @@ static inline int start_lxc_container() {
         usleep(100000); // 100ms
     }
 
+    mkdirs(lxc_runtime_dir, 0777);
     pid_t pid = fork();
     //lxc-start -n lv -l debug --logfile=/vendor_early_services/run/lxc.log
     //lxc-start -n lv -l trace --logfile=/vendor_early_services/run/lxc.log
