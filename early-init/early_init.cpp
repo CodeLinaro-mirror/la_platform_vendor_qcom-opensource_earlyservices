@@ -2328,13 +2328,13 @@ static int prepare_fw_dir(bool set_km)
   if (wait_for_file(lxcrootfsStr.c_str(), WAIT_SLEEP_MSEC, max*2) == 0) {
     // mount partition
 #ifdef PLATFORM_CANOE
-    if (mount(lxcrootfsStr.c_str(), LXC_ROOTFS_PATH, "ext4",
-      MS_RDONLY, NULL) < 0) {
+    //if (mount(lxcrootfsStr.c_str(), LXC_ROOTFS_PATH, "ext4",
+    //  MS_RDONLY, NULL) < 0) {
 #endif
     if (wait_for_file(lxc_start_file, WAIT_SLEEP_MSEC, max*2)) {
       LOG(WARNING) << "ES : lxc rootfs mount failed, err " << errno;
 #ifdef PLATFORM_CANOE
-        }
+     //}
 #endif
     } else {
       LOG(INFO) << "ES : lxc rootfs mount success.";
