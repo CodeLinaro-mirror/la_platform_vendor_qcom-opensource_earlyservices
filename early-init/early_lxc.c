@@ -79,23 +79,27 @@ static void wait_for_mount_point() {
         "/dev/dri/renderD128",
         "/dev/dri/card2",
         "/dev/snd",
-        "/dev/socket/agm"
+        "/dev/socket/agm",
+        "/vendor_early_services/dev/apexd_ready",
     };
 	int i = 0, retry = 0;
 	int num_paths = sizeof(check_paths) / sizeof(check_paths[0]);
-	usleep(12000 * 1000);//wait about 12s for display
 	for (i = 0; i < num_paths ; i++) {
 		retry = 0;
-		while (retry++ < 20) {
+		while (retry++ < 1500) {
 			if (access(check_paths[i], F_OK) == 0) {
 				print_log("check path okay %s \n", check_paths[i]);
 				break;
 			} else {
-				print_log("check path failed %s \n", check_paths[i]);
-				usleep(1000 * 1000);//sleep 1s
+				if (retry % 20 == 1)
+					print_log("check path failed %s \n", check_paths[i]);
+				usleep(100 * 1000);//sleep 100ms
 			}
 		}
 	}
+	//flush log buffer, will removed once all MM ready
+	print_log("\n");
+	usleep(100 * 1000);
 }
 
 static inline int start_lxc_container() {

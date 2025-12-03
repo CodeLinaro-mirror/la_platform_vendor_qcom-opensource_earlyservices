@@ -3030,12 +3030,13 @@ int early_init(int init)
 #if defined(__ANDROID_U__) || defined(PLATFORM_CANOE)
     int max = (_use_min_wait)?((WAIT_PID_MIN_MSECS * 1000) / WAIT_SLEEP_USECS):
                       ((WAIT_PID_MAX_MSECS * 1000) / WAIT_SLEEP_USECS);
-     pid_t pid_def = fork_wait_for_child(ES_CTYPE_DEF_MOD, 1);
+     //pid_t pid_def = fork_wait_for_child(ES_CTYPE_DEF_MOD, 1);
+     load_default_modules();
      pid_t pid_fw = fork_wait_for_child(ES_CTYPE_FW, 1);
      pid_t pid_se = fork_wait_for_child(ES_CTYPE_LOAD_SE, 1);
 
      wait_for_pid(pid_se, WAIT_SLEEP_USECS, max);
-     wait_for_pid(pid_def, WAIT_SLEEP_USECS, max);
+     //wait_for_pid(pid_def, WAIT_SLEEP_USECS, max);
      wait_for_pid(pid_fw, WAIT_SLEEP_USECS, max);
      // Create linker64 for es-apps
      check_and_create_linker64();
