@@ -2762,6 +2762,7 @@ static void launch_early_apps(void)
     return;
   }
 
+
   std::vector<std::string> lines = android::base::Split(list, "\n");
   char buf[LINE_MAX];
   pid_t pid;
@@ -3061,7 +3062,7 @@ int early_init(int init)
 
     write_marker(str);
 
-    setexeccon("u:r:init:s0");
+    setexeccon("u:r:vendor_init:s0");
     const char *path = "/vendor_early_services/bin/early_services_init";
     const char *args[] = { path, "selinux", NULL };
     execv(path, const_cast<char**>(args));
