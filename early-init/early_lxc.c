@@ -20,6 +20,7 @@
 #include <sys/socket.h>
 #include <sys/mount.h>
 #include <sys/sysmacros.h>
+#include <sched.h>
 
 #define LXC_ROOTFS_PATH         "/vendor_early_services/vendor/vm-system"
 #define KPI_VALUE_PATH          "/sys/kernel/boot_kpi/kpi_values"
@@ -108,6 +109,16 @@ static inline int create_bridge(const char *br_name) {
     return 0;
 }
 
+extern int unshare(int __flags);
+static void create_private_ns(void) {
+	//Create new NS for current thread
+	if (unshare(CLONE_NEWNS) != 0)
+		print_log("Create new ns failed\n");
+
+	//private rootfs to avoid mount escape
+	mount("", "/", "", MS_REC | MS_PRIVATE, "");
+}
+
 static inline int start_lxc_container() {
     const char *dir = "/vendor_early_services/vendor/vm-system/lxc/bin";
     const char *lxc_path = "/vendor_early_services/vendor/vm-system/lxc/bin/lxc-start";
@@ -134,6 +145,9 @@ static inline int start_lxc_container() {
             "--logfile=/vendor_early_services/run/lxc.log",
             NULL
         };
+
+        //Create new private ns before exec LXC
+        create_private_ns();
         execv(lxc_path, argv);
         _exit(127);
     } else if (pid > 0) {
