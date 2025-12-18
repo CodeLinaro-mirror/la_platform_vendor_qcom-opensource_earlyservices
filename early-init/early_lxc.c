@@ -20,6 +20,7 @@
 #include <sys/socket.h>
 #include <sys/mount.h>
 #include <sys/sysmacros.h>
+#include <sched.h>
 
 #define LXC_ROOTFS_PATH         "/vendor_early_services/vendor/vm-system"
 #define KPI_VALUE_PATH          "/sys/kernel/boot_kpi/kpi_values"
@@ -80,7 +81,6 @@ static void wait_for_mount_point() {
         "/dev/dri/card2",
         "/dev/snd",
         "/dev/socket/agm",
-        "/vendor_early_services/dev/apexd_ready",
     };
 	int i = 0, retry = 0;
 	int num_paths = sizeof(check_paths) / sizeof(check_paths[0]);
@@ -100,6 +100,16 @@ static void wait_for_mount_point() {
 	//flush log buffer, will removed once all MM ready
 	print_log("\n");
 	usleep(100 * 1000);
+}
+
+extern int unshare(int __flags);
+static void create_private_ns(void) {
+	//Create new NS for current thread
+	if (unshare(CLONE_NEWNS) != 0)
+		print_log("Create new ns failed\n");
+
+	//private rootfs to avoid mount escape
+	mount("", "/", "", MS_REC | MS_PRIVATE, "");
 }
 
 static inline int start_lxc_container() {
@@ -127,6 +137,8 @@ static inline int start_lxc_container() {
             NULL
         };
         wait_for_mount_point();
+        //Create new private ns before exec LXC
+        create_private_ns();
         execv(lxc_path, argv);
         _exit(127);
     } else if (pid > 0) {
