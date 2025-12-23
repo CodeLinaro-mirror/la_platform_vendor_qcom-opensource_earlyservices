@@ -3095,7 +3095,7 @@ int early_init(int init)
   launch_early_apps();
 #endif
   // wait for app exec
-  usleep(200*1000);
+  usleep(2000*1000);
   wait_for_early_apps();
 
   mknod("/dev/sedone", S_IFREG | 0400, makedev(0,0));
