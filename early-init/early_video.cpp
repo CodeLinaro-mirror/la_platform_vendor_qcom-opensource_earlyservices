@@ -37,9 +37,9 @@ static void place_marker(char const *fmt, ...)
 
 int main()
 {
-  usleep(800000);
+  usleep(200000);
   freopen("/dev/kmsg", "w", stdout);
-  place_marker("earlyVideo - Start!");
+  place_marker("earlyVideo - Start!!!");
   int driver_fd = open(EARLY_VIDEO_DEC_DEVICE, O_RDWR);
   if (driver_fd < 0) {
     printf("earlyVideo open fd failed %d, errno %d\n", driver_fd, errno);
