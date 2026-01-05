@@ -22,11 +22,15 @@ ifneq ($(filter gen4, $(TARGET_BOARD_PLATFORM)),)
         LOCAL_CFLAGS := -DPLATFORM_GEN4
 endif
 
-ifneq (,$(filter U 14 UpsideDownCake V 15 VanillaIceCream 16 Baklava, $(PLATFORM_VERSION)))
+ifneq (,$(filter U 14 UpsideDownCake V 15 VanillaIceCream 16 Baklava 17 CinnamonBun, $(PLATFORM_VERSION)))
 LOCAL_CFLAGS += -D__ANDROID_U__
 ifeq ($(PRODUCT_SHIPPING_API_LEVEL), 32)
 LOCAL_CFLAGS += -D__ANDROID_S_U__
 endif
+endif
+
+ifneq (,$(filter 17 CinnamonBun, $(PLATFORM_VERSION)))
+LOCAL_CFLAGS += -D__ANDROID_17__
 endif
 
 LOCAL_CFLAGS += -DUSE_BOOT_MARKER
@@ -166,7 +170,7 @@ ifneq ($(filter gen4, $(TARGET_BOARD_PLATFORM)),)
         LOCAL_CFLAGS := -DPLATFORM_GEN4
 endif
 
-ifneq (,$(filter U 14 UpsideDownCake V 15 VanillaIceCream 16 Baklava, $(PLATFORM_VERSION)))
+ifneq (,$(filter U 14 UpsideDownCake V 15 VanillaIceCream 16 Baklava 17 CinnamonBun, $(PLATFORM_VERSION)))
         LOCAL_CFLAGS += -DSILENT_BOOT_ANDROID_U
 endif
 
