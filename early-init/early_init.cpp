@@ -119,6 +119,8 @@
 #define VIDEO32_DEVICE_PATH     "/dev/video32"
 #define VIDEO33_DEVICE_PATH     "/dev/video33"
 #define AUDIO_FW_PATH           "/vendor_early_services/vendor/firmware_mnt"
+#define AUDIO_SOCCP_FW_PATH     "/vendor/soccp_firmware"
+#define AUDIO_SOCCP_FW_PATH_ES  "/vendor_early_services/vendor/soccp_firmware"
 #define AUDIO_ADSP_FW_PATH      "vendor_early_services/vendor/firmware_mnt/image/adsp.mdt"
 #define LXC_ROOTFS_PATH         "/vendor_early_services/vendor/vm-system"
 #define PCM_ID_PATH             "/proc/asound/card0/id"
@@ -188,6 +190,7 @@ using android::base::boot_clock;
 #define VIDEO_SYS_DMA_HEAP_PATH "/dev/dma_heap/qcom,system"
 
 #define ES_FW_CHK_PATH          "/vendor_early_services/vendor/firmware_mnt/image"
+#define ES_SOCCP_FW_CHECK_PATH  "/vendor_early_services/vendor/soccp_firmware/image"
 #define ES_KMOD_DONE            "/dev/kmdone"
 
 #define ECHIME_APP              "early_chime"
@@ -415,11 +418,19 @@ static void inline write_marker(const char* name)
   return;
 }
 
-static void inline print_log(const char* str)
+static inline void print_log(const char* fmt, ...)
 {
-  if (str == NULL) return;
-  freopen("/dev/kmsg", "w", stdout);
-  printf("ES: %s \r\n", str);
+    if (fmt == NULL) return;
+    freopen("/dev/kmsg", "w", stdout);
+
+    va_list args;
+    va_start(args, fmt);
+
+    printf("ES: ");
+    vprintf(fmt, args);
+    printf("\r\n");
+
+    va_end(args);
 }
 
 #ifdef EARLYINIT_DEBUG
@@ -1642,31 +1653,6 @@ static int check_audio_ar_ion_cma_ready(void)
   return msm_ion_cma_device_created;
 }
 
-static int check_audio_ar_ml_device_ready(void)
-{
-  static int audio_ml_device_created = 0;
-  int major = 0, minor = 0;
-
-  if (!audio_ml_device_created) {
-    if (access(MSM_AUDIO_ML_PATH, F_OK) == 0) {
-      if (get_device_major_minor(MSM_AUDIO_ML_PATH, &major, &minor)) {
-        mkdir(DMA_HEAP_DIR, 0666);
-        set_permissions(DMA_HEAP_DIR, 0755, AID_ROOT,
-            AID_ROOT, "u:object_r:dmabuf_heap_device:s0");
-        mknod(MSM_AUDIO_ML, S_IFCHR | 0666, makedev(major, minor));
-        set_permissions(MSM_AUDIO_ML, 0666, AID_SYSTEM, AID_AUDIO, "u:object_r:vendor_dmabuf_audio_ml_heap_device:s0");
-        audio_ml_device_created = 1;
-        LOG(INFO) << "ES AR - ml device node ready";
-        write_marker("AR - ml node ready");
-      }
-    } else {
-      LOG(INFO) << "ES AR - ml device node access denied";
-      write_marker("AR - ml node access denied");
-    }
-  }
-  return audio_ml_device_created;
-}
-
 static int check_audio_ar_ion_ready(void)
 {
   static int msm_ion_device_created = 0;
@@ -1970,13 +1956,27 @@ static int check_and_create_vendor_firmware (void) {
     return vendor_etc_ready;
 }
 
+static int check_and_create_vendor_soccp_firmware (void) {
+    static int vendor_soccp_ready = 0;
+    if (vendor_soccp_ready == 0) {
+        if (access(AUDIO_SOCCP_FW_PATH_ES, F_OK) == 0) {
+            if (symlink(AUDIO_SOCCP_FW_PATH_ES, AUDIO_SOCCP_FW_PATH) == 0) {
+                vendor_soccp_ready = 1;
+                LOG(INFO) << "symlink /vendor/soccp is created";
+            } else  {
+                LOG(INFO) << "symlink /vendor/soccp create failed error " << errno << " " << strerror(errno);
+            }
+        }
+    }
+    return vendor_soccp_ready;
+}
+
 static int check_audio_ar_ready(void)
 {
     return (int)(check_audio_ar_pkt_ready() &&
                  check_audio_ar_ion_ready() &&
                  check_audio_ar_ion_cma_ready() &&
                  check_audio_ar_system_device_ready() &&
-                 check_audio_ar_ml_device_ready() &&
                  check_audio_ar_snd_device_ready() &&
                  check_audio_ar_pcm_device_ready() &&
                  check_audio_ar_id_device_ready() &&
@@ -2101,20 +2101,6 @@ static int check_storage_device_ready(void)
   }
 
   return sto_device_created;
-}
-
-static void trigger_adsp(char * flag) {
-    int fd = open("/sys/kernel/boot_adsp/boot", O_WRONLY);
-    if (fd < 0) {
-        LOG(WARNING) << "ES : trigger ADSP open sys entry failed";
-    } else if(-1 == write(fd, flag, 1)) {
-        LOG(WARNING) << "ES : trigger ADSP Write to sys entry failed";
-    } else {
-        write_marker("M - ES Start ADSP");
-        LOG(INFO) << "ES : trigger ADSP firmware loading triggered";
-    }
-    if (fd > 0)
-        close(fd);
 }
 
 static int check_pdmapper_ready(void)
@@ -2275,10 +2261,12 @@ static int prepare_fw_dir(bool set_km)
 {
   // FW mount partition
   std::string modemStr("/dev/block/by-name/modem");
+  std::string soccpfsStr("/dev/block/by-name/soccp");
   std::string lxcrootfsStr("/dev/block/by-name/vm-bootsys");
   unsigned int count = 0, max = (WAIT_SET_PERM_SECS * 1000) / WAIT_SLEEP_MSEC;
   boot_clock::time_point module_start_time = boot_clock::now();
   bool mounted = false;
+  bool soccpmounted = false;
   bool lxcmounted = false;
   if (_use_min_wait) {
     max = (WAIT_SET_PERM_MSECS) / WAIT_SLEEP_MSEC;
@@ -2317,6 +2305,30 @@ static int prepare_fw_dir(bool set_km)
     LOG(WARNING) << "ES : modemstr Not Found!";
   }
 
+    //soccp fw for 8838
+
+  if (access(AUDIO_SOCCP_FW_PATH_ES, F_OK) == -1) {
+    LOG(WARNING) << "ES : AUDIO_SOCCP_FW_PATH_ES doesn't exist";
+    mkdirs(AUDIO_SOCCP_FW_PATH_ES, 0755);
+  }
+
+  soccpfsStr += _boot_slot;
+  // wait for node creation
+  if (wait_for_file(soccpfsStr.c_str(), WAIT_SLEEP_MSEC, max*2) == 0) {
+    // mount partition
+    if (mount(soccpfsStr.c_str(), AUDIO_SOCCP_FW_PATH_ES, "vfat",
+      MS_RDONLY, "ro,shortname=lower,uid=0,gid=1000,dmask=227,fmask=337,context=u:object_r:vendor_soccp_file:s0") < 0) {
+      print_log("ES : soccpfsStr mount failed, err %s", strerror(errno));
+    } else {
+      LOG(INFO) << "ES : soccpfsStr mount success.";
+      soccpmounted = true;
+      print_log("soccpfsStr mount success");
+    }
+  } else {
+      print_log("ES : soccpfsStr Not Found!");
+  }
+
+  //mount lxc
   lxcrootfsStr += _boot_slot;
   const char *lxc_start_file = "/vendor_early_services/vendor/vm-system/lxc/bin/lxc-start";
 
@@ -2344,7 +2356,7 @@ static int prepare_fw_dir(bool set_km)
   char str[SHORT_STRING_MAX] = {0};
   auto module_elapse_time = std::chrono::duration_cast<std::chrono::milliseconds>(
                 boot_clock::now() - module_start_time);
-  if (mounted && lxcmounted) {
+  if (mounted && lxcmounted & soccpmounted) {
     snprintf(str, SHORT_STRING_MAX, "%s%d%s", "M - ES fw-load took ",
            (int)module_elapse_time.count(), "ms");
   } else {
@@ -2468,6 +2480,7 @@ static int load_kmod_and_nodes(const char* appname)
   // Wait for FW availability if set
   if (_eapp_info[i].wait == EAPP_WAIT_DEFAULT || _eapp_info[i].wait & EAPP_MOD_WAIT_FW) {
     wait_for_file((char*)ES_FW_CHK_PATH, WAIT_SLEEP_MSEC, max*2);
+    wait_for_file((char*)ES_SOCCP_FW_CHECK_PATH, WAIT_SLEEP_MSEC, max*2);
     if (_eapp_info[i].name[0] == 0)
       return 0;
   }
@@ -2618,7 +2631,6 @@ static int load_modules_parallel(const std::string& fl,
           android::earlyinit::get_kernel_module_param(kmod[j], param, _module_params);
           int ret = finit_module(fd, param.c_str(), 0);
           if (ret < 0 && errno != EEXIST) {
-            LOG(WARNING) << "fd = " << fd << "ES : init_module failed " << fl << " errno: " << errno;
             fail_count++;
           } else {
 #ifdef EARLYINIT_DEBUG
@@ -2626,12 +2638,6 @@ static int load_modules_parallel(const std::string& fl,
 #endif
           }
           close(fd);
-
-          // Check for audio
-          if (flag == LMP_DIRECT_CHK_AUD
-             && !strncmp(kmod[j], ADSP_KO, sizeof(ADSP_KO)-1)) {
-              trigger_adsp("1");
-          }
         } else {
           fail_count++;
           LOG(WARNING) << "ES : Failed to open module " << fl;
@@ -3125,6 +3131,7 @@ int early_init(int init)
   #endif
   check_and_create_vendor_etc();
   check_and_create_vendor_firmware();
+  check_and_create_vendor_soccp_firmware();
 #if defined(__ANDROID_U__)
   launch_test_app();
   launch_early_apps();

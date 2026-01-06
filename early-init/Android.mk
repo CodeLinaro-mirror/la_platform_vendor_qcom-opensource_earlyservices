@@ -137,6 +137,7 @@ LOCAL_POST_INSTALL_CMD := $(hide) mkdir -p $(LOCAL_MODULE_PATH)/../sbin; \
                                   mkdir -p $(LOCAL_MODULE_PATH)/../vendor/lib; \
                                   mkdir -p $(LOCAL_MODULE_PATH)/../vendor/lib/modules; \
                                   mkdir -p $(TARGET_VENDOR_RAMDISK_OUT)/aes_tmpfs; \
+                                  mkdir -p $(LOCAL_MODULE_PATH)/../vendor/soccp_firmware; \
                                   ln -sf system/bin $(LOCAL_MODULE_PATH)/../bin; \
                                   ln -sf system/lib64 $(LOCAL_MODULE_PATH)/../lib64; \
 
