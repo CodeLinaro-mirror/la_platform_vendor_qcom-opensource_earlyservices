@@ -1424,7 +1424,7 @@ int get_device_major_minor(const std::string& uevent_file, int *major, int *mino
     return 0;
 
   std::vector<std::string> lines = android::base::Split(ueven_contents, "\n");
-  for (const std::string line : lines) {
+  for (const std::string &line : lines) {
     if (line.empty())
       continue;
     cstr = line.data();
@@ -2483,7 +2483,7 @@ static int load_modules_parallel(const std::string& fl,
 #endif
 
   std::vector<std::string> lines = android::base::Split(mlist, "\n");
-  for (const std::string line : lines) {
+  for (const std::string &line : lines) {
     if (line.empty())
       continue;
 
@@ -2749,7 +2749,7 @@ static void launch_early_apps(void)
   char buf[ES_LINE_MAX];
   pid_t pid;
   int i = 0;
-  for (const std::string line : lines) {
+  for (const std::string &line : lines) {
     android::base::Trim(line);
     if (line.empty())
       continue;

@@ -70,8 +70,13 @@ void import_kernel_cmdline(bool in_qemu,
 
 bool load_kernel_modules(int& loaded_count, bool is_parallel) {
     Modprobe m({MODULES_DIR}, MODULES_LOAD_FILE);
+#ifdef __ANDROID_17__
+    bool ret = (is_parallel) ? m.LoadModulesParallel(std::thread::hardware_concurrency(),Modprobe::LoadParallelMode::NORMAL,false)
+                   : m.LoadListedModules(false);
+#else
     bool ret = (is_parallel) ? m.LoadModulesParallel(std::thread::hardware_concurrency())
                    : m.LoadListedModules(false);
+#endif
     loaded_count = m.GetModuleCount();
     if (loaded_count > 0) {
         return ret;
