@@ -483,6 +483,7 @@ static inline void mkdirs(const char* p, mode_t mode)
 static inline void prepare_dir(char* p)
 {
   struct stat st;
+  char *cgroupcontroler = "+cpu +cpuset +io +memory";
   int ret = 0;
 
   switch (*p) {
@@ -598,7 +599,7 @@ static inline void prepare_dir(char* p)
           perror("/sys/fs/cgroup folder doesn't exist");
           mkdir("/sys/fs/cgroup", 0755);
         }
-          ret = mount("none", "/sys/fs/cgroup", "cgroup2", 0, NULL);
+          ret = mount("none", "/sys/fs/cgroup", "cgroup2", MS_NODEV|MS_NOEXEC|MS_NOSUID, NULL);
           if (ret < 0) {
             freopen("/dev/kmsg", "w", stdout);
             printf(" /sys/fs/cgroup mount failed error = %d \n", errno);
@@ -607,6 +608,9 @@ static inline void prepare_dir(char* p)
             freopen("/dev/kmsg", "w", stdout);
             printf("/sys/fs/cgroup mount success error = %d \n", errno);
           }
+          int fd = open("/sys/fs/cgroup/cgroup.subtree_control", O_WRONLY);
+          write(fd, cgroupcontroler,strlen(cgroupcontroler));
+          close(fd);
       }
       break;
     default:
