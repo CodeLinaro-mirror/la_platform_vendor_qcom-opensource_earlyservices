@@ -321,7 +321,7 @@ const static struct {
  {EMOD_END, "modules_end_gen4.order", "def_end", NULL, EAPP_WAIT_NONE},
 #else
  {"ais_server", "modules_ais.order", "ais", check_ais_device_ready, EAPP_MOD_WAIT_FW},
- {"qcarcam_edrm_rvc", "modules_rv.order", "rvc", check_rvc_device_ready, EAPP_WAIT_DISP},
+ {"qcarcam_edrm_rvc", "modules_rv.order", "rvc", check_rvc_device_ready, EAPP_MOD_WAIT_FW},
  {EMOD_END, "modules_end.order", "def_end", NULL, EAPP_WAIT_NONE},
 #endif //PLATFORM_GEN4
  {"esplash", "", "splash", NULL, EAPP_WAIT_DISP},
@@ -1372,9 +1372,6 @@ static int check_dma_heap_device_ready(void)
   //camera
   static int dma_heap_device_created = 0;
   int major = 0, minor = 0;
-#ifdef PLATFORM_CANOE
-   dma_heap_device_created = 1;
-#else
   if (!dma_heap_device_created) {
     if (access("/sys/class/dma_heap/qcom,system/uevent", F_OK) == 0) {
       if(get_device_major_minor("/sys/class/dma_heap/qcom,system/uevent", &major, &minor))
@@ -1393,7 +1390,6 @@ static int check_dma_heap_device_ready(void)
       }
     }
   }
-#endif
   return dma_heap_device_created;
 }
 
