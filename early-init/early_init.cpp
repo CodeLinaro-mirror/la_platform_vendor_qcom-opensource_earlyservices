@@ -318,6 +318,7 @@ const static struct {
   int (*is_ready)(void);
   int wait;
 } _eapp_info[] = {
+ {"early_video_app", "modules_early_video_app.order", "early_video_app", check_video_device_ready, EAPP_MOD_WAIT_FW},
 #ifdef PLATFORM_GEN4
  {"qcxserver", "modules_qcx.order", "qcx", check_ais_device_ready, EAPP_MOD_WAIT_FW},
  {"qcarcam_edrm_rvc", "modules_rv_gen4.order", "rvc", check_rvc_device_ready, EAPP_MOD_WAIT_FW},
@@ -328,7 +329,6 @@ const static struct {
  {EMOD_END, "modules_end.order", "def_end", NULL, EAPP_WAIT_NONE},
 #endif //PLATFORM_GEN4
  {"esplash", "", "splash", NULL, EAPP_WAIT_DISP},
- {"earlyVideo", "modules_vi.order", "video", check_video_device_ready, EAPP_MOD_WAIT_FW},
  {"pd-mapper", "", "pd-mapper", check_pdmapper_ready, EAPP_MOD_WAIT_FW},
  {EAUDIO_APP, "modules_r_au.order", EAUDIO_APP, check_audio_ar_ready, EAPP_MOD_WAIT_FW},
  {"init_early_lxc", "", "init_early_lxc", check_lxc_device_ready, EAPP_WAIT_DISP},
@@ -1569,12 +1569,10 @@ static int check_ais_device_ready(void)
 
 static int check_video_device_ready(void)
 {
+  LOG(INFO) << "check_video_device_ready: enter";
   //video
   static int video_device_created = 0;
   int major = 0, minor = 0;
-#ifdef PLATFORM_CANOE
-   video_device_created = 1;
-#else
   if (!video_device_created) {
     if ((access("/sys/class/dma_heap/qcom,system/uevent", F_OK) == 0) &&
         (access("/sys/class/video4linux/video32/uevent", F_OK) == 0) &&
@@ -1604,7 +1602,6 @@ static int check_video_device_ready(void)
       video_device_created = 1;
     }
   }
-#endif
   return video_device_created;
 }
 
@@ -2199,7 +2196,7 @@ static void set_video_permission(void)
 {
   set_permissions(VIDEO32_DEVICE_PATH, 0666, AID_ROOT, AID_GRAPHICS, "u:object_r:video_device:s0");
   set_permissions(VIDEO33_DEVICE_PATH, 0666, AID_ROOT, AID_GRAPHICS, "u:object_r:video_device:s0");
-  LOG(INFO) << "EarlyVideo Setting permission to video device completed";
+  LOG(INFO) << "EarlyVideoApp Setting permission to video device completed";
   return;
 }
 
@@ -2631,6 +2628,7 @@ static int load_modules_parallel(const std::string& fl,
           android::earlyinit::get_kernel_module_param(kmod[j], param, _module_params);
           int ret = finit_module(fd, param.c_str(), 0);
           if (ret < 0 && errno != EEXIST) {
+            LOG(WARNING) << "fd = " << fd << "\nES : init_module failed " << fl << " errno: " << errno;
             fail_count++;
           } else {
 #ifdef EARLYINIT_DEBUG
