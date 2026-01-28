@@ -331,7 +331,7 @@ void GTCodec::handleStats() {
 	auto avgBitrate = getAvgBitRate();
 	bool mbps = avgBitrate > 1024.00;
 
-	VIDC_INFO("GTCodec::handleStats, frameRate %.2f fps, bitRate %.1f %s\n",
+	VIDC_MED("GTCodec::handleStats, frameRate %.2f fps, bitRate %.1f %s\n",
 		getAvgFrameRate(),
 		mbps ? avgBitrate / 1024 : avgBitrate,
 		mbps ? "Mbps" : "Kbps");
@@ -344,7 +344,7 @@ void GTCodec::threadLoop() {
 		handleStats();
 		std::this_thread::sleep_for(std::chrono::milliseconds(1000));
 	}
-	VIDC_INFO("GTCodec::threadLoop, end\n");
+	VIDC_MED("GTCodec::threadLoop, end\n");
 }
 
 int GTCodec::createStatsThread() {
@@ -358,7 +358,7 @@ int GTCodec::createStatsThread() {
 	else {
 		int count = 0;
 		while (!mStatsThreadRunning) {
-			VIDC_INFO("GTCodec::createStatsThread, wait for thread running\n");
+			VIDC_MED("GTCodec::createStatsThread, wait for thread running\n");
 			usleep(5 * 1000);
 			count++;
 			if (count >= 100)
@@ -369,7 +369,7 @@ int GTCodec::createStatsThread() {
 			return -EINVAL;
 		}
 	}
-	VIDC_INFO("GTCodec::createStatsThread, thread started\n");
+	VIDC_MED("GTCodec::createStatsThread, thread started\n");
 	return 0;
 }
 
@@ -380,11 +380,11 @@ int GTCodec::stopStatsThread() {
 	}
 
 	mStatsThreadExit = true;
-	VIDC_INFO("GTCodec::stopStatsThread, join thread\n");
+	VIDC_MED("GTCodec::stopStatsThread, join thread\n");
 	if (mStatsThread != nullptr and mStatsThread->joinable()) {
 		mStatsThread->join();
 	}
-	VIDC_INFO("GTCodec::stopStatsThread, exit stats thread\n");
+	VIDC_MED("GTCodec::stopStatsThread, exit stats thread\n");
 	return 0;
 }
 

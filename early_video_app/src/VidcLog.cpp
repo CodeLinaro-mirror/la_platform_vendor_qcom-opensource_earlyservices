@@ -33,7 +33,7 @@ namespace early_video_app {
     std::mutex mLogMutex;
     uint32_t gVidcLogLevel;
 
-    const char* LogAPPTag = "Early_Video_APP: ";
+    const char* KPILogPath = "/sys/kernel/boot_kpi/kpi_values";
     const char* KernelMsgPath = "/dev/kmsg";
     const char* LogLocalOutputDir = "/vendor_early_services/run/early_video_app";
     const char* LogLocalOutputPath = "/vendor_early_services/run/early_video_app/early_video_app.log";
@@ -59,7 +59,7 @@ namespace early_video_app {
             va_start(args, format);
             va_copy(argsCopy1, args);
             va_copy(argsCopy2, args);
-            if (gVidcLogLevel >= VIDC_MSGLEVEL_INFO) {
+            if (gVidcLogLevel >= VIDC_MSGLEVEL_MED) {
                 printLogToLocalInternal(format, argsCopy1);
             }
             printLogToKMsgInternal(format, argsCopy2);
@@ -75,7 +75,7 @@ namespace early_video_app {
             va_start(args, format);
             va_copy(argsCopy1, args);
             va_copy(argsCopy2, args);
-            if (gVidcLogLevel >= VIDC_MSGLEVEL_INFO) {
+            if (gVidcLogLevel >= VIDC_MSGLEVEL_MED) {
                 printLogToLocalInternal(format, argsCopy1);
             }
             printLogToKMsgInternal(format, argsCopy2);
@@ -85,8 +85,8 @@ namespace early_video_app {
         }
     }
 
-    void VIDC_INFO(const char* format, ...) {
-        if (gVidcLogLevel >= VIDC_MSGLEVEL_INFO) {
+    void VIDC_MED(const char* format, ...) {
+        if (gVidcLogLevel >= VIDC_MSGLEVEL_MED) {
             va_list args, argsCopy1, argsCopy2;
             va_start(args, format);
             va_copy(argsCopy1, args);

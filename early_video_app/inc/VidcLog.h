@@ -21,16 +21,18 @@ namespace early_video_app {
 	enum VidcLogLevels : uint32_t {
 		VIDC_MSGLEVEL_ERROR     = 0x01, //< error logs
 		VIDC_MSGLEVEL_HIGH      = 0x02, //< high logs
-		VIDC_MSGLEVEL_INFO      = 0x04, //< info logs
+		VIDC_MSGLEVEL_MED      = 0x04, //< medium logs
 		VIDC_MSGLEVEL_LOW       = 0x08, //< low logs
 	};
 
 	static const char *kDebugLogsLevelProperty = "vendor.earlyvideoapp.log.msg";
+    static const char* LOGKPITag = "M - ES ";
+    static const char* LogAPPTag = "Early_Video_APP: ";
 	extern uint32_t gVidcLogLevel;
 
 	void vidcUpdateLogLevel();
 	void VIDC_ERR(const char* format, ...);
-	void VIDC_INFO(const char* format, ...);
+	void VIDC_MED(const char* format, ...);
 	void VIDC_HIGH(const char* format, ...);
 	void VIDC_LOW(const char* format, ...);
 	void printLogToKMsg(const char* logFormat, ...);

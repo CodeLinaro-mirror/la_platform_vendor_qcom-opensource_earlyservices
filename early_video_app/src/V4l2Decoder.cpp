@@ -149,7 +149,7 @@ int V4l2Decoder::setOperatingRate(unsigned int numer, unsigned int denom) {
 
 	control.id = V4L2_CID_MPEG_VIDC_OPERATING_RATE;
 	control.value = (denom / numer) << 16;
-	VIDC_INFO("V4l2Decoder::setOperatingRate, setopRate id %d val %d", control.id, control.value);
+	VIDC_MED("V4l2Decoder::setOperatingRate, setopRate id %d val %d", control.id, control.value);
 	if (mV4l2Driver->setControl(&control)) {
 		VIDC_ERR("V4l2Decoder::setOperatingRate, set control failed\n");
 		return -EINVAL;
@@ -164,7 +164,7 @@ int V4l2Decoder::setFrameRate(unsigned int numer, unsigned int denom) {
 
 	control.id = V4L2_CID_MPEG_VIDC_FRAME_RATE;
 	control.value = (denom / numer) << 16;
-	VIDC_INFO("V4l2Decoder::setFrameRate, setFrameRate id %d val %d", control.id, control.value);
+	VIDC_MED("V4l2Decoder::setFrameRate, setFrameRate id %d val %d", control.id, control.value);
 	if (mV4l2Driver->setControl(&control)) {
 		VIDC_ERR("V4l2Decoder::setFrameRate, set control failed\n");
 		return -EINVAL;
@@ -264,7 +264,7 @@ int V4l2Decoder::configureInput() {
 		return -EINVAL;
 	}
 	if (mActualInputCount < mMinInputCount) {
-		VIDC_INFO("V4l2Decoder::configureInput, update input count from %d to %d\n",
+		VIDC_MED("V4l2Decoder::configureInput, update input count from %d to %d\n",
 			mActualInputCount, mMinInputCount);
 		mActualInputCount = mMinInputCount;
 	}
@@ -321,14 +321,14 @@ int V4l2Decoder::configureOutput() {
 		queryctrl.id = V4L2_CID_MPEG_VIDC_EARLY_NOTIFY_ENABLE;
 		ret = mV4l2Driver->queryControl(&queryctrl);
 		if (ret) {
-			VIDC_INFO("V4l2Decoder::configureOutput, queryControl failed\n");
+			VIDC_MED("V4l2Decoder::configureOutput, queryControl failed\n");
 			return false;
 		}
 
 		ctrl.id = V4L2_CID_MPEG_VIDC_EARLY_NOTIFY_ENABLE;
 		ret = mV4l2Driver->getControl(&ctrl);
 		if (ret) {
-			VIDC_INFO("V4l2Decoder::configureOutput, getControl failed\n");
+			VIDC_MED("V4l2Decoder::configureOutput, getControl failed\n");
 			return false;
 		}
 
@@ -433,7 +433,7 @@ int V4l2Decoder::configureOutput() {
 		return -EINVAL;
 	}
 	if (mActualOutputCount < mMinOutputCount) {
-		VIDC_INFO("V4l2Decoder::configureOutput, update output count from %d to %d\n",
+		VIDC_MED("V4l2Decoder::configureOutput, update output count from %d to %d\n",
 			mActualOutputCount, mMinOutputCount);
 		mActualOutputCount = mMinOutputCount;
 	}
@@ -512,7 +512,7 @@ int V4l2Decoder::detectFilmGrainChange(bool *hasFilmGrainChanged) {
 		return -EINVAL;
 
 	if (ctrl.value != mFgPresent) {
-		VIDC_INFO("V4l2Decoder::detectFilmGrainChange, Update film grain from %d to %d\n", mFgPresent, ctrl.value);
+		VIDC_MED("V4l2Decoder::detectFilmGrainChange, Update film grain from %d to %d\n", mFgPresent, ctrl.value);
 		mFgPresent = ctrl.value;
 		*hasFilmGrainChanged = true;
 	}
@@ -532,7 +532,7 @@ int V4l2Decoder::detectResolutionChange(bool *hasResolutionChanged) {
 	width = fmt.fmt.pix_mp.width;
 	height = fmt.fmt.pix_mp.height;
 	if (mWidth != width || mHeight != height) {
-		VIDC_INFO("V4l2Decoder::detectResolutionChange, Update bitstream resolution to wxh %dx%d from %dx%d\n",
+		VIDC_MED("V4l2Decoder::detectResolutionChange, Update bitstream resolution to wxh %dx%d from %dx%d\n",
 			width, height, mWidth, mHeight);
 		mWidth = width;
 		mHeight = height;
@@ -585,9 +585,9 @@ int V4l2Decoder::reconfigureOutput() {
 	if (detectResolutionChange(&hasResolutionChanged))
 		return -EINVAL;
 
-	VIDC_INFO("V4l2Decoder::reconfigureOutput, curent min cnt %d, latest min cnt %d\n",
+	VIDC_MED("V4l2Decoder::reconfigureOutput, curent min cnt %d, latest min cnt %d\n",
 		mMinOutputCount, latestOutputMinCount);
-	VIDC_INFO("V4l2Decoder::reconfigureOutput, current o/p buffersize %d, latest output size %d, \n",
+	VIDC_MED("V4l2Decoder::reconfigureOutput, current o/p buffersize %d, latest output size %d, \n",
 		mOutputSize, latestOutputSize);
 	if (latestOutputMinCount <= mMinOutputCount &&
 			latestOutputSize <= mOutputSize &&
@@ -702,7 +702,7 @@ int V4l2Decoder::getFenceFds(struct V4L2OutputFenceInfo* fenceInfo) {
 }
 
 int V4l2Decoder::registerCallbacks(std::shared_ptr<V4l2CodecCb> cb) {
-	VIDC_INFO("V4l2Codec::registerCallbacks\n");
+	VIDC_MED("V4l2Codec::registerCallbacks\n");
 	mCb = cb;
 
 	std::shared_ptr<V4l2Callback> v4l2cb = std::make_shared<V4l2Callback>(this);

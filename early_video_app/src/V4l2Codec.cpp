@@ -25,7 +25,7 @@ V4l2Codec::V4l2Codec() {
 
 int V4l2Codec::setCvpMetaFile(std::string cvpFile) {
 	mCvpMetaFile = fopen(cvpFile.c_str(), "r+b");
-	VIDC_INFO("V4l2Codec::setCvpMetaFile, CVP Meta input file name:%s\n",cvpFile.c_str());
+	VIDC_MED("V4l2Codec::setCvpMetaFile, CVP Meta input file name:%s\n",cvpFile.c_str());
 	if (!mCvpMetaFile) {
 		VIDC_ERR("V4l2Codec::setCvpMetaFile, CVPMeta file open failed\n");
 		return -1;
@@ -97,37 +97,37 @@ bool V4l2Codec::isOutBufFenceEnabled() {
 }
 
 int V4l2Codec::setStride(unsigned int stride) {
-	VIDC_INFO("V4l2Codec::setStride, client stride %d\n", stride);
+	VIDC_MED("V4l2Codec::setStride, client stride %d\n", stride);
 	mStride = stride;
 	return 0;
 }
 
 int V4l2Codec::setScanline(unsigned int scanline) {
-	VIDC_INFO("V4l2Codec::setScanline, client scanline %d\n", scanline);
+	VIDC_MED("V4l2Codec::setScanline, client scanline %d\n", scanline);
 	mScanline = scanline;
 	return 0;
 }
 
 int V4l2Codec::setColorFormat(unsigned int colorformat) {
-	VIDC_INFO("V4l2Codec::setColorFormat, client color format %#x\n", colorformat);
+	VIDC_MED("V4l2Codec::setColorFormat, client color format %#x\n", colorformat);
 	mColorFormat = colorformat;
 	return 0;
 }
 
 int V4l2Codec::setWidth(unsigned int width) {
-	VIDC_INFO("V4l2Codec::setWidth, client width %#x\n", width);
+	VIDC_MED("V4l2Codec::setWidth, client width %#x\n", width);
 	mWidth = width;
 	return 0;
 }
 
 int V4l2Codec::setHeight(unsigned int height) {
-	VIDC_INFO("V4l2Codec::setHeight, client height %#x\n", height);
+	VIDC_MED("V4l2Codec::setHeight, client height %#x\n", height);
 	mHeight = height;
 	return 0;
 }
 
 int V4l2Codec::setDownscaleResolution(unsigned int width, unsigned int height) {
-	VIDC_INFO("V4l2Codec::setDownscaleResolution, client downscale width %#x height %#x\n", width, height);
+	VIDC_MED("V4l2Codec::setDownscaleResolution, client downscale width %#x height %#x\n", width, height);
 	mDownscaleWidth = width;
 	mDownscaleHeight = height;
 	mDownscaleEnable = true;
@@ -143,42 +143,42 @@ int V4l2Codec::getMinOutputCount() {
 }
 
 int V4l2Codec::setInputCount(int count) {
-	VIDC_INFO("V4l2Codec::setInputCount, client input count %d\n", count);
+	VIDC_MED("V4l2Codec::setInputCount, client input count %d\n", count);
 	mActualInputCount = count;
 
 	return 0;
 }
 
 int V4l2Codec::setOutputCount(int count) {
-	VIDC_INFO("V4l2Codec::setOutputCount, client output count %d\n", count);
+	VIDC_MED("V4l2Codec::setOutputCount, client output count %d\n", count);
 	mActualOutputCount = count;
 
 	return 0;
 }
 
 int V4l2Codec::setInputSizeOverWrite(int size) {
-	VIDC_INFO("V4l2Codec::setInputSizeOverWrite, Client Input Size OverWrite %d\n", size);
+	VIDC_MED("V4l2Codec::setInputSizeOverWrite, Client Input Size OverWrite %d\n", size);
 	mInputSizeOverWrite = size;
 
 	return 0;
 }
 
 int V4l2Codec::setInputActualCount(int count) {
-	VIDC_INFO("V4l2Codec::setInputActualCount, Client set input actual count %d\n", count);
+	VIDC_MED("V4l2Codec::setInputActualCount, Client set input actual count %d\n", count);
 	mActualInputCount = count;
 
 	return 0;
 }
 
 int V4l2Codec::setOutputActualCount(int count) {
-	VIDC_INFO("V4l2Codec::setOutputActualCount, Client set output actual count %d\n", count);
+	VIDC_MED("V4l2Codec::setOutputActualCount, Client set output actual count %d\n", count);
 	mActualOutputCount = count;
 
 	return 0;
 }
 
 int V4l2Codec::setOutputBufferRecycle(bool enable) {
-	VIDC_INFO("V4l2Codec::setOutputBufferRecycle, Output buffer reuse %d\n", enable);
+	VIDC_MED("V4l2Codec::setOutputBufferRecycle, Output buffer reuse %d\n", enable);
 	mOutputBufferRecycle = enable;
 
 	return 0;
@@ -229,7 +229,7 @@ int V4l2Codec::getColorSpaceInfo(enum port_type port, unsigned int *colorPrimari
 }
 
 int V4l2Codec::setProfile(int profile) {
-	VIDC_INFO("V4l2Codec::setProfile, setting profile %d\n", profile);
+	VIDC_MED("V4l2Codec::setProfile, setting profile %d\n", profile);
 	mProfile = profile;
 	return 0;
 }
@@ -417,7 +417,7 @@ int V4l2Codec::setV4l2Controls() {
 
 	while(!mControls.empty()) {
 		auto ctrl = mControls.front();
-		VIDC_INFO("V4l2Codec::setV4l2Controls, id: %#x, value: %d\n", ctrl->id, ctrl->value);
+		VIDC_MED("V4l2Codec::setV4l2Controls, id: %#x, value: %d\n", ctrl->id, ctrl->value);
 
 		memset(&control, 0, sizeof(control));
 		control.id = ctrl->id;
@@ -431,10 +431,10 @@ int V4l2Codec::setV4l2Controls() {
 			if (ctrl->value & V4L2_MPEG_VIDC_META_ENABLE &&
 				ctrl->value & V4L2_MPEG_VIDC_META_RX_INPUT) {
 				mV4l2Driver->enableOutBufFence(1);
-				VIDC_INFO("V4l2Codec::setV4l2Controls, fence is enabled\n");
+				VIDC_MED("V4l2Codec::setV4l2Controls, fence is enabled\n");
 			} else {
 				mV4l2Driver->enableOutBufFence(0);
-				VIDC_INFO("V4l2Codec::setV4l2Controls, fence is disabled\n");
+				VIDC_MED("V4l2Codec::setV4l2Controls, fence is disabled\n");
 			}
 		}
 
@@ -445,7 +445,7 @@ int V4l2Codec::setV4l2Controls() {
 }
 
 std::shared_ptr<v4l2_buffer> V4l2Codec::allocateBuffer(int index, enum port_type port, int bufSize) {
-	VIDC_INFO("V4l2Codec::allocateBuffer\n");
+	VIDC_MED("V4l2Codec::allocateBuffer\n");
 	std::shared_ptr<v4l2_buffer> buf;
 	struct v4l2_plane* plane;
 
@@ -509,7 +509,7 @@ std::shared_ptr<v4l2_buffer> V4l2Codec::allocateMetaBuffer(int index, enum port_
 }
 
 int V4l2Codec::allocateBuffers(enum port_type port) {
-	VIDC_INFO("V4l2Codec::allocateBuffers, enter\n");
+	VIDC_MED("V4l2Codec::allocateBuffers, enter\n");
 	int bufCount = 0, bufSize = 0;
 	std::shared_ptr<v4l2_buffer> buf;
 
@@ -542,7 +542,7 @@ int V4l2Codec::allocateBuffers(enum port_type port) {
 		}
 		print_v4l2_buffer("AllocBuffer", buf.get());
 	}
-	VIDC_INFO("V4l2Codec::allocateBuffers, exit\n");
+	VIDC_MED("V4l2Codec::allocateBuffers, exit\n");
 
 	return 0;
 }
@@ -839,7 +839,7 @@ int V4l2Codec::extractMetadata(struct v4l2_buffer* metaBuf, struct V4L2OutputFen
 					fenceInfo != nullptr) {
 					fenceInfo->outputBufTag = *tagptr;
 				}
-				VIDC_INFO("V4l2Codec::extractMetadata, index %u %s %llu\n", metaBuf->index,
+				VIDC_MED("V4l2Codec::extractMetadata, index %u %s %llu\n", metaBuf->index,
 					metaBuf->type == INPUT_META_PLANE ? "Input buffer's Output tag" :
 					metaBuf->type == OUTPUT_META_PLANE ? "Output buffer's Input tag" :
 					"UNKNOWN tag", *tagptr);
@@ -854,7 +854,7 @@ int V4l2Codec::extractMetadata(struct v4l2_buffer* metaBuf, struct V4L2OutputFen
 					return -EINVAL;
 				}
 				setCompleteFrame(*subframe ? false : true);
-				VIDC_INFO("SV4l2Codec::extractMetadata, ubframe flag %s\n", *subframe ? "Set" : "Not-Set");
+				VIDC_MED("SV4l2Codec::extractMetadata, ubframe flag %s\n", *subframe ? "Set" : "Not-Set");
 				break;
 			}
 			case METADATA_DPB_LUMA_CHROMA_MISR:
@@ -869,11 +869,11 @@ int V4l2Codec::extractMetadata(struct v4l2_buffer* metaBuf, struct V4L2OutputFen
 				//TODO: Check MISR based on interlace type
 				for (int i = 0; i < kNumPipes && mMisrFrame < MAX_FRAMES; i++) {
 					if (base[i * 2] != kMisrArr[mMisrFrame][i * 2]) {
-						VIDC_INFO("V4l2Codec::extractMetadata, Luma DPB MISR mismatch at %d frame %d \n", i * 2, mMisrFrame);
+						VIDC_MED("V4l2Codec::extractMetadata, Luma DPB MISR mismatch at %d frame %d \n", i * 2, mMisrFrame);
 						break;
 					}
 					if (base[i * 2 + 1] != kMisrArr[mMisrFrame][i * 2 + 1]) {
-						VIDC_INFO("V4l2Codec::extractMetadata, Chroma DPB MISR mismatch at %d frame %d \n", i * 2 + 1, mMisrFrame);
+						VIDC_MED("V4l2Codec::extractMetadata, Chroma DPB MISR mismatch at %d frame %d \n", i * 2 + 1, mMisrFrame);
 						break;
 					}
 				}
@@ -908,7 +908,7 @@ int V4l2Codec::extractMetadata(struct v4l2_buffer* metaBuf, struct V4L2OutputFen
 				if (metaBuf->type == INPUT_META_PLANE && mV4l2Driver->isOutBufFenceEnabled() &&
 					fenceInfo != nullptr)
 					fenceInfo->fenceIds.push_back(*fence);
-				VIDC_INFO("V4l2Codec::extractMetadata, Fence id %u\n", *fence);
+				VIDC_MED("V4l2Codec::extractMetadata, Fence id %u\n", *fence);
 				break;
 			}
 			default:
@@ -992,7 +992,7 @@ queuebufferLabel:
 }
 
 int V4l2Codec::queueBuffer(std::shared_ptr<v4l2_buffer> buffer) {
-	VIDC_INFO("V4l2Codec: queueBuffer, buffer byteused = %d\n", buffer->m.planes[0].bytesused);
+	VIDC_MED("V4l2Codec: queueBuffer, buffer byteused = %d\n", buffer->m.planes[0].bytesused);
 	if (buffer->type == INPUT_META_PLANE) {
 		/* queue input metabuffer via meta port if input meta port enabled */
 		if (mV4l2Driver->isInputMetaPortEnabled()) {
@@ -1102,10 +1102,10 @@ int V4l2Codec::fillMetadata(std::shared_ptr<v4l2_buffer> metaBuf) {
 
 				if (metaBuf->type == INPUT_META_PLANE) {
 					*tagptr = InputTag::fromId(metaBuf->index);
-					VIDC_INFO("V4l2Codec::fillMetadata, Input Tag %llu\n", *tagptr);
+					VIDC_MED("V4l2Codec::fillMetadata, Input Tag %llu\n", *tagptr);
 				} else {
 					*tagptr = OutputTag::fromId(metaBuf->index);
-					VIDC_INFO("V4l2Codec::fillMetadata, Output Tag %llu\n", *tagptr);
+					VIDC_MED("V4l2Codec::fillMetadata, Output Tag %llu\n", *tagptr);
 				}
 
 				metaPayloadOffset += mphdr->size;
@@ -1228,7 +1228,7 @@ int V4l2Codec::fillMetadata(std::shared_ptr<v4l2_buffer> metaBuf) {
 				static bool viewId = true;
 				*viewIdMeta = viewId ? 0 : 1;
 				viewId = !viewId;
-				VIDC_INFO("V4l2Codec::fillMetadata, View id is %d \n", *viewIdMeta);
+				VIDC_MED("V4l2Codec::fillMetadata, View id is %d \n", *viewIdMeta);
 
 				metaPayloadOffset += mphdr->size;
 				mhdr->size += sizeof(struct msm_vidc_metapayload_header) + mphdr->size;

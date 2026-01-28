@@ -18,15 +18,15 @@ using namespace early_video_app;
 
 void scanDevDirectory(const std::string& devPath) {
     try {
-		VIDC_INFO("Utils::scanDevDirectory, devPath = %s\n", devPath.c_str());
+		VIDC_MED("Utils::scanDevDirectory, devPath = %s\n", devPath.c_str());
         for (const auto& entry : std::filesystem::directory_iterator(devPath)) {
             if (entry.is_character_file()) {
                 const std::string filename = entry.path().filename().string();
 				struct stat statbuf;
 				if (stat(devPath.c_str(), &statbuf) == 0) {
 					if (S_ISCHR(statbuf.st_mode)) {
-						VIDC_INFO("Utils::scanDevDirectory, device: %s, Major: %d, Minor: %d, Permissions: %d\n",  
-							filename.c_str(), major(statbuf.st_rdev), minor(statbuf.st_rdev), statbuf.st_mode & 0777);
+						VIDC_MED("Utils::scanDevDirectory, device: %s, Major: %d, Minor: %d, Permissions: %d\n",
+                            filename.c_str(), major(statbuf.st_rdev), minor(statbuf.st_rdev), statbuf.st_mode & 0777);
 					}
 				}
             }

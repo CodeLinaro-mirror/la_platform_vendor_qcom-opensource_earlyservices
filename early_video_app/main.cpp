@@ -42,7 +42,6 @@ int main(int argc, char **argv) {
                 break;
         }
     }
-
     VIDC_HIGH("main, run decoder\n");
     int result = GTDecoder::runDecoder();
     if (result != 0) {

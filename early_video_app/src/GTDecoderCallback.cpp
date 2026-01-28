@@ -23,7 +23,7 @@ int GTDecoderCallback::onBufferDone(struct v4l2_buffer* buffer) {
 	std::list<std::shared_ptr<v4l2_buffer>>::iterator it;
 	std::unique_lock<std::mutex> lock(mGTDecoder->mV4l2Codec->mBufLock);
 	if (buffer->type == INPUT_MPLANE) {
-		VIDC_INFO("GTDecoderCallback::onBufferDone, INPUT_MPLANE\n");
+		VIDC_MED("GTDecoderCallback::onBufferDone, INPUT_MPLANE\n");
 		for (std::list<std::shared_ptr<v4l2_buffer>>::iterator it =
 				mGTDecoder->mV4l2Codec->mPendingInputBufs.begin();
 			it != mGTDecoder->mV4l2Codec->mPendingInputBufs.end(); ++it) {
@@ -37,7 +37,7 @@ int GTDecoderCallback::onBufferDone(struct v4l2_buffer* buffer) {
 			}
 		}
 	} else if (buffer->type == OUTPUT_MPLANE) {
-		VIDC_INFO("GTDecoderCallback::onBufferDone, OUTPUT_MPLANE\n");
+		VIDC_MED("GTDecoderCallback::onBufferDone, OUTPUT_MPLANE\n");
 		for (std::list<std::shared_ptr<v4l2_buffer>>::iterator it = mGTDecoder->mV4l2Codec->mPendingOutputBufs.begin();
 			it != mGTDecoder->mV4l2Codec->mPendingOutputBufs.end(); ++it) {
 			if (buffer->index == (*it)->index) {
@@ -49,7 +49,7 @@ int GTDecoderCallback::onBufferDone(struct v4l2_buffer* buffer) {
 					if (pBuffer == MAP_FAILED) {
 						VIDC_ERR("GTDecoderCallback::onBufferDone, mmap failed, not dumping\n");
 					} else {
-						VIDC_INFO("GTDecoderCallback::onBufferDone, output data, buffer->m.planes[0].bytesused = %d\n", buffer->m.planes[0].bytesused);
+						VIDC_MED("GTDecoderCallback::onBufferDone, output data, buffer->m.planes[0].bytesused = %d\n", buffer->m.planes[0].bytesused);
 						mGTDecoder->mGTDecoderIOAdapter->onOutput(pBuffer, buffer->m.planes[0].bytesused);
 						munmap((void *)pBuffer, buffer->m.planes[0].length);
 					}
@@ -69,7 +69,7 @@ int GTDecoderCallback::onBufferDone(struct v4l2_buffer* buffer) {
 										if (fd == 0)
 											VIDC_ERR("GTDecoderCallback::onBufferDone, attempting to close fd 0\n");
 										close(fd);
-										VIDC_INFO("GTDecoderCallback::onBufferDone, closed fence fd %d for buf %u\n",
+										VIDC_MED("GTDecoderCallback::onBufferDone, closed fence fd %d for buf %u\n",
 											fd, buffer->index);
 									} else {
 										VIDC_ERR("GTDecoderCallback::onBufferDone, invalid fence fd for buf %u\n",
@@ -125,7 +125,7 @@ int GTDecoderCallback::onBufferDone(struct v4l2_buffer* buffer) {
 			}
 		}
 	} else if (buffer->type == INPUT_META_PLANE) {
-		VIDC_INFO("GTDecoderCallback::onBufferDone, INPUT_META_PLANE\n");
+		VIDC_MED("GTDecoderCallback::onBufferDone, INPUT_META_PLANE\n");
 		for (std::list<std::shared_ptr<v4l2_buffer>>::iterator it =
 				mGTDecoder->mV4l2Codec->mPendingMetaInputBufs.begin();
 			it != mGTDecoder->mV4l2Codec->mPendingMetaInputBufs.end(); ++it) {
@@ -160,7 +160,7 @@ int GTDecoderCallback::onBufferDone(struct v4l2_buffer* buffer) {
 			}
 		}
 	} else if (buffer->type == OUTPUT_META_PLANE) {
-		VIDC_INFO("GTDecoderCallback::onBufferDone, OUTPUT_META_PLANE\n");
+		VIDC_MED("GTDecoderCallback::onBufferDone, OUTPUT_META_PLANE\n");
 		for (std::list<std::shared_ptr<v4l2_buffer>>::iterator it =
 				mGTDecoder->mV4l2Codec->mPendingMetaOutputBufs.begin();
 			it != mGTDecoder->mV4l2Codec->mPendingMetaOutputBufs.end(); ++it) {
@@ -192,7 +192,7 @@ void GTDecoderCallback::onEventDone(struct v4l2_event* event) {
 		VIDC_ERR("GTDecoderCallback::onEventDone, event is null\n");
 		return;
 	}
-	VIDC_INFO("GTDecoderCallback::onEventDone\n");
+	VIDC_MED("GTDecoderCallback::onEventDone\n");
 	if (event->type == V4L2_EVENT_SOURCE_CHANGE &&
 		event->u.src_change.changes == V4L2_EVENT_SRC_CH_RESOLUTION) {
 		VIDC_HIGH("GTDecoderCallback::onEventDone, source change event received\n");

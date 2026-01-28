@@ -21,7 +21,7 @@ using namespace early_video_app;
 class V4l2Decoder : public V4l2Codec {
 public:
 	~V4l2Decoder() {
-		VIDC_INFO("V4l2Decoder, destructor\n");
+		VIDC_MED("V4l2Decoder, destructor\n");
 	};
 
 	int init(unsigned int codec);

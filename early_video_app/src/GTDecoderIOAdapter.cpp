@@ -110,7 +110,7 @@ bool GTDecoderIOAdapter::onOutput(std::uint8_t* pBuffer, uint32_t length) {
 		if (!std::filesystem::exists(decodedOutputCacheDir)) {
 			fileCheckResult = std::filesystem::create_directories(decodedOutputCacheDir);
 		}
-		VIDC_INFO("GTDecoderIOAdapter::onOutput, dump path check result : %d", fileCheckResult);
+		VIDC_MED("GTDecoderIOAdapter::onOutput, dump path check result : %d", fileCheckResult);
 		if (fileCheckResult) {
 			std::string decodedOutputCachePath = decodedOutputCacheDir.string() + "/" + currentDateTimeStr + ".yuv";
 			VIDC_HIGH("GTDecoderIOAdapter::onOutput, dump path : %s", decodedOutputCachePath.c_str());
@@ -118,7 +118,7 @@ bool GTDecoderIOAdapter::onOutput(std::uint8_t* pBuffer, uint32_t length) {
 		}
 	}
 	if (mOutputFile != NULL) {
-		VIDC_INFO("GTDecoderIOAdapter::onOutput, output data wrote to file, length = %d\n", length);
+		VIDC_MED("GTDecoderIOAdapter::onOutput, output data wrote to file, length = %d\n", length);
 		fwrite(pBuffer, length, 1, mOutputFile);
 		result = true;
 	}
@@ -143,7 +143,7 @@ void GTDecoderIOAdapter::str2bytes(const std::string& source, InputData* dstData
     }
 	int resultSize = result.size();
 	unsigned char* resultBytes = new unsigned char[resultSize];
-	VIDC_INFO("GTDecoderIOAdapter: str2bytes, index = %d\n", dstData->frameIndex);
+	VIDC_MED("GTDecoderIOAdapter: str2bytes, index = %d\n", dstData->frameIndex);
 	for(int i = 0; i < resultSize; i++) {
 		std::string strItem = result[i];
 		unsigned char resultValue = hexStrToByte(strItem);

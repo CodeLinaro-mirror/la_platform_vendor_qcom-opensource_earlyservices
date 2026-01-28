@@ -38,7 +38,7 @@ void EventHandler::threadLoop() {
 					continue;
 				}
 			if (mEvents.size() == 0) {
-				VIDC_INFO("EventHandler::threadLoop, No events available to process\n");
+				VIDC_MED("EventHandler::threadLoop, No events available to process\n");
 				continue;
 			}
 			event = mEvents.front();
@@ -48,7 +48,7 @@ void EventHandler::threadLoop() {
 			VIDC_ERR("EventHandler::threadLoop, invalid event\n");
 			break;
 		}
-		VIDC_INFO("EventHandler::threadLoop, processing event %ld\n", event->id);
+		VIDC_MED("EventHandler::threadLoop, processing event %ld\n", event->id);
 		switch (event->id) {
 			case EVENT_CONFIGURE_INPUT: {
 				rc = mV4l2Codec->configureInput();
@@ -154,7 +154,7 @@ int EventHandler::createEventThread() {
 	else {
 		int count = 0;
 		while (!mEventThreadRunning) {
-			VIDC_INFO("EventHandler::createEventThread, wait for thread running\n");
+			VIDC_MED("EventHandler::createEventThread, wait for thread running\n");
 			usleep(5 * 1000);
 			count++;
 			if (count >= 100)
@@ -165,25 +165,25 @@ int EventHandler::createEventThread() {
 			return -EINVAL;
 		}
 	}
-	VIDC_INFO("EventHandler::createEventThread, thread started\n");
+	VIDC_MED("EventHandler::createEventThread, thread started\n");
 	return 0;
 }
 
 int EventHandler::stopEventThread() {
 	if (!mEventThread  || mEventThreadExit) {
-		VIDC_INFO("EventHandler::stopEventThread, invalid event thread. exit %d\n",
+		VIDC_MED("EventHandler::stopEventThread, invalid event thread. exit %d\n",
 			mEventThreadExit);
 		return -EINVAL;
 	}
 
 	mEventThreadExit = true;
-	VIDC_INFO("EventHandler::stopEventThread, join thread\n");
+	VIDC_MED("EventHandler::stopEventThread, join thread\n");
 	if (mEventThread != nullptr and mEventThread->joinable()) {
 		mEventThread->join();
 	}
 	mEventThread = nullptr;
 
-	VIDC_INFO("EventHandler::stopEventThread, exit event thread\n");
+	VIDC_MED("EventHandler::stopEventThread, exit event thread\n");
 	return 0;
 }
 
@@ -206,7 +206,7 @@ int EventHandler::queueEvent(enum event_id eventId, bool blocking) {
 				std::cv_status wait_ret = mEventWaitCondition.wait_for(lock,
 					std::chrono::seconds(15));
 				if (wait_ret == std::cv_status::timeout) {
-					VIDC_INFO("EventHandler::queueEvent, timedout for eventId %d\n", eventId);
+					VIDC_MED("EventHandler::queueEvent, timedout for eventId %d\n", eventId);
 					return -EINVAL;
 				}
 			}
@@ -235,7 +235,7 @@ int EventHandler::queueBuffer(enum event_id eventId, std::shared_ptr<v4l2_buffer
 			std::cv_status wait_ret = mEventWaitCondition.wait_for(lock,
 				std::chrono::seconds(15));
 			if (wait_ret == std::cv_status::timeout) {
-				VIDC_INFO("EventHandler::queueBuffer, timedout for eventId %d\n", eventId);
+				VIDC_MED("EventHandler::queueBuffer, timedout for eventId %d\n", eventId);
 				return -EINVAL;
 			}
 		}

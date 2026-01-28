@@ -139,13 +139,13 @@ void print_v4l2_buffer(const char* string, struct v4l2_buffer* b) {
 	//comment out following print due to SEGV_MAPERR error during early lunching
 	// if (b->type == OUTPUT_META_PLANE ||
 	// 	b->type == INPUT_META_PLANE) {
-	// 	VIDC_INFO("%s: %s: idx %2d fd %u size %8d filled %8d flags %#8x\n",
+	// 	VIDC_MED("%s: %s: idx %2d fd %u size %8d filled %8d flags %#8x\n",
 	// 		string, v4l2_type_name(b->type), b->index, b->m.fd,
 	// 		b->length, b->bytesused, b->flags);
 	// }
 	// else if (b->type == OUTPUT_MPLANE ||
 	// 		b->type == INPUT_MPLANE) {
-	// 	VIDC_INFO("%s: %s: idx %2d fd %u req_fd %d off %8d size %8d filled %8d flags %#8x\n",
+	// 	VIDC_MED("%s: %s: idx %2d fd %u req_fd %d off %8d size %8d filled %8d flags %#8x\n",
 	// 		string, v4l2_type_name(b->type), b->index, b->m.planes[0].m.fd,
 	// 		b->request_fd, b->m.planes[0].data_offset, b->m.planes[0].length,
 	// 		b->m.planes[0].bytesused, b->flags);
@@ -302,7 +302,7 @@ int V4l2Driver::Open(unsigned int type) {
 }
 
 int V4l2Driver::openMediaDevice(unsigned int type) {
-	VIDC_INFO("V4l2Driver::openMediaDevice, type = %d\n", type);
+	VIDC_MED("V4l2Driver::openMediaDevice, type = %d\n", type);
 
 	int rc = 0;
 	int numTries = 25;
@@ -353,7 +353,7 @@ int V4l2Driver::openMediaDevice(unsigned int type) {
 			mMediaFd = -1;
 		}
 		else {
-			VIDC_INFO("V4l2Driver::openMediaDevice, open media device: \"%s\", fd %d\n", mediaDevInfo.model, mMediaFd);
+			VIDC_MED("V4l2Driver::openMediaDevice, open media device: \"%s\", fd %d\n", mediaDevInfo.model, mMediaFd);
 			enableInputRequest(true);
 			break;
 		}
@@ -363,7 +363,7 @@ int V4l2Driver::openMediaDevice(unsigned int type) {
 }
 
 void V4l2Driver::Close() {
-	VIDC_INFO("V4l2Driver::Close, close driver fd %d\n", mFd);
+	VIDC_MED("V4l2Driver::Close, close driver fd %d\n", mFd);
 #ifdef ANDROID
 	close(mFd);
 #elif _LINUX_VENV_
@@ -375,7 +375,7 @@ void V4l2Driver::Close() {
 }
 
 void V4l2Driver::closeMediaDevice() {
-	VIDC_INFO("V4l2Driver::closeMediaDevice, close media driver fd %d\n", mMediaFd);
+	VIDC_MED("V4l2Driver::closeMediaDevice, close media driver fd %d\n", mMediaFd);
 #ifdef ANDROID
 	close(mMediaFd);
 #endif
@@ -383,14 +383,14 @@ void V4l2Driver::closeMediaDevice() {
 }
 
 int V4l2Driver::queryControl(struct v4l2_queryctrl* queryctrl) {
-	VIDC_INFO("V4l2Driver::queryControl\n");
+	VIDC_MED("V4l2Driver::queryControl\n");
 	int rc = IOCTL(mFd, VIDIOC_QUERYCTRL, queryctrl);
 	if (rc != 0) {
 		VIDC_ERR("V4l2Driver::queryControl, queryCotrol failed for \"%s\"\n", ctrl_name(queryctrl->id));
 		rc = -EINVAL;
 	}
 	else {
-		VIDC_INFO("V4l2Driver::queryControl, name: \"%s\", min: %d, max: %d, step: %d, default: %d\n",
+		VIDC_MED("V4l2Driver::queryControl, name: \"%s\", min: %d, max: %d, step: %d, default: %d\n",
 			queryctrl->name, queryctrl->minimum, queryctrl->maximum,
 			queryctrl->step, queryctrl->default_value);
 	}
@@ -398,21 +398,21 @@ int V4l2Driver::queryControl(struct v4l2_queryctrl* queryctrl) {
 }
 
 int V4l2Driver::queryMenu(struct v4l2_querymenu* querymenu) {
-	VIDC_INFO("V4l2Driver::queryMenu\n");
+	VIDC_MED("V4l2Driver::queryMenu\n");
 	int rc = IOCTL(mFd, VIDIOC_QUERYMENU, querymenu);
 	if (rc != 0) {
 		VIDC_ERR("V4l2Driver::queryMenu, failed for \"%s\"\n", ctrl_name(querymenu->id));
 		rc = -EINVAL;
 	}
 	else {
-		VIDC_INFO("V4l2Driver::queryMenu, name: \"%s\", id: %#x, index: %d\n",
+		VIDC_MED("V4l2Driver::queryMenu, name: \"%s\", id: %#x, index: %d\n",
 			querymenu->name, querymenu->id, querymenu->index);
 	}
 	return rc;
 }
 
 int V4l2Driver::queryCapabilities(struct v4l2_capability *caps) {
-	VIDC_INFO("V4l2Driver::queryCapabilities\n");
+	VIDC_MED("V4l2Driver::queryCapabilities\n");
 	int rc = IOCTL(mFd, VIDIOC_QUERYCAP, caps);
 	if (rc != 0) {
 		VIDC_ERR("V4l2Driver::queryCapabilities, Failed to query capabilities\n");
@@ -420,7 +420,7 @@ int V4l2Driver::queryCapabilities(struct v4l2_capability *caps) {
 	}
 	else {
 		//comment out following print due to SEGV_MAPERR error during early lunching
-		// VIDC_INFO("V4l2Driver::queryCapabilities, driver name: %s, card: %s, bus_info: %s, "
+		// VIDC_MED("V4l2Driver::queryCapabilities, driver name: %s, card: %s, bus_info: %s, "
 		// 	"version: %d, capabilities: %#x, device_caps: %#x\n",
 		// 	caps->driver, caps->card, caps->bus_info,
 		// 	caps->version, caps->capabilities, caps->device_caps);
@@ -429,7 +429,7 @@ int V4l2Driver::queryCapabilities(struct v4l2_capability *caps) {
 }
 
 int V4l2Driver::enumFormat(struct v4l2_fmtdesc* fmtDesc) {
-	VIDC_INFO("V4l2Driver::enumFormat\n");
+	VIDC_MED("V4l2Driver::enumFormat\n");
 	int rc = IOCTL(mFd, VIDIOC_ENUM_FMT, fmtDesc);
 	if (rc != 0) {
 		VIDC_ERR("V4l2Driver::enumFormat, ended for index %d\n", fmtDesc->index);
@@ -437,14 +437,14 @@ int V4l2Driver::enumFormat(struct v4l2_fmtdesc* fmtDesc) {
 	}
 	else {
 		//comment out following print due to SEGV_MAPERR error during early lunching
-		// VIDC_INFO("V4l2Driver::enumFormat, index %d, description: \"%s\", pixelFmt: %#x, flags: %#x\n",
+		// VIDC_MED("V4l2Driver::enumFormat, index %d, description: \"%s\", pixelFmt: %#x, flags: %#x\n",
 		// 	fmtDesc->index, fmtDesc->description, fmtDesc->pixelformat, fmtDesc->flags);
 	}
 	return rc;
 }
 
 int V4l2Driver::enumFramesize(struct v4l2_frmsizeenum* frameSize) {
-	VIDC_INFO("V4l2Driver::enumFramesize\n");
+	VIDC_MED("V4l2Driver::enumFramesize\n");
 	int rc = IOCTL(mFd, VIDIOC_ENUM_FRAMESIZES, frameSize);
 	if (rc != 0) {
 		VIDC_ERR("V4l2Driver::enumFramesize, failed for pixel_format %#x\n", frameSize->pixel_format);
@@ -456,7 +456,7 @@ int V4l2Driver::enumFramesize(struct v4l2_frmsizeenum* frameSize) {
 		rc = -EINVAL;
 	}
 	else {
-		VIDC_INFO("V4l2Driver::enumFramesize, [%u x %u] to [%u x %u]\n",
+		VIDC_MED("V4l2Driver::enumFramesize, [%u x %u] to [%u x %u]\n",
 			frameSize->stepwise.min_width, frameSize->stepwise.min_height,
 			frameSize->stepwise.max_width, frameSize->stepwise.max_height);
 	}
@@ -465,7 +465,7 @@ int V4l2Driver::enumFramesize(struct v4l2_frmsizeenum* frameSize) {
 }
 
 int V4l2Driver::enumFrameInterval(struct v4l2_frmivalenum *fival) {
-	VIDC_INFO("V4l2Driver::enumFrameInterval\n");
+	VIDC_MED("V4l2Driver::enumFrameInterval\n");
 	int rc = IOCTL(mFd, VIDIOC_ENUM_FRAMEINTERVALS, fival);
 	if (rc) {
 		VIDC_ERR("V4l2Driver::enumFrameInterval, failed for pixel_format %#x, resoltion [%u x %u]\n",
@@ -478,7 +478,7 @@ int V4l2Driver::enumFrameInterval(struct v4l2_frmivalenum *fival) {
 		rc = -EINVAL;
 	}
 	else {
-		VIDC_INFO("V4l2Driver::enumFrameInterval, resoltion [%u x %u], interval [%u / %u] to [%u / %u]\n",
+		VIDC_MED("V4l2Driver::enumFrameInterval, resoltion [%u x %u], interval [%u / %u] to [%u / %u]\n",
 			fival->width, fival->height,
 			fival->stepwise.min.numerator, fival->stepwise.min.denominator,
 			fival->stepwise.max.numerator, fival->stepwise.max.denominator);
@@ -488,14 +488,14 @@ int V4l2Driver::enumFrameInterval(struct v4l2_frmivalenum *fival) {
 }
 
 int V4l2Driver::getFormat(struct v4l2_format* fmt) {
-	VIDC_INFO("V4l2Driver::getFormat\n");
+	VIDC_MED("V4l2Driver::getFormat\n");
 	int rc = IOCTL(mFd, VIDIOC_G_FMT, fmt);
 	if (rc != 0) {
 		VIDC_ERR("V4l2Driver::getFormat, failed for type %d\n", fmt->type);
 		rc = -EINVAL;
 	}
 	else{
-		VIDC_INFO("V4l2Driver::getFormat, type %d, [wxh] %dx%d, fmt %#x, size %d\n",
+		VIDC_MED("V4l2Driver::getFormat, type %d, [wxh] %dx%d, fmt %#x, size %d\n",
 			fmt->type, fmt->fmt.pix_mp.width, fmt->fmt.pix_mp.height,
 			fmt->fmt.pix_mp.pixelformat, fmt->fmt.pix_mp.plane_fmt[0].sizeimage);
 	}
@@ -503,14 +503,14 @@ int V4l2Driver::getFormat(struct v4l2_format* fmt) {
 }
 
 int V4l2Driver::setFormat(struct v4l2_format* fmt) {
-	VIDC_INFO("V4l2Driver::setFormat\n");
+	VIDC_MED("V4l2Driver::setFormat\n");
 	int rc = IOCTL(mFd, VIDIOC_S_FMT, fmt);
 	if (rc != 0) {
 		VIDC_ERR("V4l2Driver::setFormat, failed for type %d\n", fmt->type);
 		rc = -EINVAL;
 	}
 	else {
-		VIDC_INFO("V4l2Driver::setFormat, type %d, [wxh] %dx%d, fmt %#x, size %d\n",
+		VIDC_MED("V4l2Driver::setFormat, type %d, [wxh] %dx%d, fmt %#x, size %d\n",
 			fmt->type, fmt->fmt.pix_mp.width, fmt->fmt.pix_mp.height,
 			fmt->fmt.pix_mp.pixelformat, fmt->fmt.pix_mp.plane_fmt[0].sizeimage);
 	}
@@ -518,7 +518,7 @@ int V4l2Driver::setFormat(struct v4l2_format* fmt) {
 }
 
 int V4l2Driver::decCommand(struct v4l2_decoder_cmd* cmd) {
-	VIDC_INFO("V4l2Driver::decCommand\n");
+	VIDC_MED("V4l2Driver::decCommand\n");
 	int rc = IOCTL(mFd, VIDIOC_DECODER_CMD, cmd);
 	if (rc != 0) {
 		VIDC_ERR("V4l2Driver::decCommand, error %d\n", rc);
@@ -527,7 +527,7 @@ int V4l2Driver::decCommand(struct v4l2_decoder_cmd* cmd) {
 }
 
 int V4l2Driver::encCommand(struct v4l2_encoder_cmd* cmd) {
-	VIDC_INFO("V4l2Driver::encCommand\n");
+	VIDC_MED("V4l2Driver::encCommand\n");
 	int rc = IOCTL(mFd, VIDIOC_ENCODER_CMD, cmd);
 	if (rc != 0) {
 		VIDC_ERR("V4l2Driver::encCommand, error %d\n", rc);
@@ -536,11 +536,11 @@ int V4l2Driver::encCommand(struct v4l2_encoder_cmd* cmd) {
 }
 
 int V4l2Driver::subscribeEvent(unsigned int event_type) {
-	VIDC_INFO("V4l2Driver::subscribeEvent\n");
+	VIDC_MED("V4l2Driver::subscribeEvent\n");
 	struct v4l2_event_subscription event;
 	memset(&event, 0, sizeof(event));
 	event.type = event_type;
-	VIDC_INFO("V4l2Driver::subscribeEvent, type %d \n", event_type);
+	VIDC_MED("V4l2Driver::subscribeEvent, type %d \n", event_type);
 	int rc = IOCTL(mFd, VIDIOC_SUBSCRIBE_EVENT, &event);
 	if (rc != 0) {
 		VIDC_ERR("V4l2Driver::subscribeEvent, error %d\n", rc);
@@ -549,11 +549,11 @@ int V4l2Driver::subscribeEvent(unsigned int event_type) {
 }
 
 int V4l2Driver::unsubscribeEvent(unsigned int event_type) {
-	VIDC_INFO("V4l2Driver::unsubscribeEvent\n");
+	VIDC_MED("V4l2Driver::unsubscribeEvent\n");
 	struct v4l2_event_subscription event;
 	memset(&event, 0, sizeof(event));
 	event.type = event_type;
-	VIDC_INFO("V4l2Driver::unsubscribeEvent, type %d\n", event_type);
+	VIDC_MED("V4l2Driver::unsubscribeEvent, type %d\n", event_type);
 	int rc = IOCTL(mFd, VIDIOC_UNSUBSCRIBE_EVENT, &event);
 	if (rc != 0) {
 		VIDC_ERR("V4l2Driver::unsubscribeEvent, error %d\n", rc);
@@ -562,7 +562,7 @@ int V4l2Driver::unsubscribeEvent(unsigned int event_type) {
 }
 
 int V4l2Driver::setParm(struct v4l2_streamparm* sparm) {
-	VIDC_INFO("V4l2Driver::setParm\n");
+	VIDC_MED("V4l2Driver::setParm\n");
 	int rc = IOCTL(mFd, VIDIOC_S_PARM, sparm);
 	if (rc != 0) {
 		VIDC_ERR("V4l2Driver::setParm, failed for type: %u\n", sparm->type);
@@ -570,13 +570,13 @@ int V4l2Driver::setParm(struct v4l2_streamparm* sparm) {
 	}
 	else {
 		if (sparm->type == INPUT_MPLANE) {
-			VIDC_INFO("V4l2Driver::setParm:INPUT_MPLANE, type: %u, numer: %u denom: %u\n",
+			VIDC_MED("V4l2Driver::setParm:INPUT_MPLANE, type: %u, numer: %u denom: %u\n",
 			sparm->type,
 			sparm->parm.output.timeperframe.numerator,
 			sparm->parm.output.timeperframe.denominator);
 		}
 		else {
-			VIDC_INFO("V4l2Driver::setParm, type: %u, numer: %u denom: %u\n",
+			VIDC_MED("V4l2Driver::setParm, type: %u, numer: %u denom: %u\n",
 			sparm->type,
 			sparm->parm.capture.timeperframe.numerator,
 			sparm->parm.capture.timeperframe.denominator);
@@ -587,7 +587,7 @@ int V4l2Driver::setParm(struct v4l2_streamparm* sparm) {
 }
 
 int V4l2Driver::getParm(struct v4l2_streamparm* sparm) {
-	VIDC_INFO("V4l2Driver::getParm\n");
+	VIDC_MED("V4l2Driver::getParm\n");
 	int rc = IOCTL(mFd, VIDIOC_G_PARM, sparm);
 	if (rc != 0) {
 		VIDC_ERR("V4l2Driver::getParm, failed for type: %u\n", sparm->type);
@@ -595,13 +595,13 @@ int V4l2Driver::getParm(struct v4l2_streamparm* sparm) {
 	}
 	else {
 		if (sparm->type == INPUT_MPLANE) {
-			VIDC_INFO("V4l2Driver::getParm:INPUT_MPLANE, type: %u, numer: %u denom: %u\n",
+			VIDC_MED("V4l2Driver::getParm:INPUT_MPLANE, type: %u, numer: %u denom: %u\n",
 			sparm->type,
 			sparm->parm.output.timeperframe.numerator,
 			sparm->parm.output.timeperframe.denominator);
 		}
 		else {
-			VIDC_INFO("V4l2Driver::getParm, type: %u, numer: %u denom: %u\n",
+			VIDC_MED("V4l2Driver::getParm, type: %u, numer: %u denom: %u\n",
 			sparm->type,
 			sparm->parm.capture.timeperframe.numerator,
 			sparm->parm.capture.timeperframe.denominator);
@@ -612,35 +612,35 @@ int V4l2Driver::getParm(struct v4l2_streamparm* sparm) {
 }
 
 int V4l2Driver::getControl(struct v4l2_control* ctrl) {
-	VIDC_INFO("V4l2Driver::getControl\n");
+	VIDC_MED("V4l2Driver::getControl\n");
 	int rc = IOCTL(mFd, VIDIOC_G_CTRL, ctrl);
 	if (rc != 0) {
 		VIDC_ERR("V4l2Driver::getControl, failed for \"%s\"\n", ctrl_name(ctrl->id));
 		rc = -EINVAL;
 	}
 	else {
-		VIDC_INFO("V4l2Driver::getControl, \"%s\", value %d\n",
+		VIDC_MED("V4l2Driver::getControl, \"%s\", value %d\n",
 			ctrl_name(ctrl->id), ctrl->value);
 	}
 	return rc;
 }
 
 int V4l2Driver::setControl(struct v4l2_control* ctrl) {
-	VIDC_INFO("V4l2Driver::setControl\n");
+	VIDC_MED("V4l2Driver::setControl\n");
 	int rc = IOCTL(mFd, VIDIOC_S_CTRL, ctrl);
 	if (rc != 0) {
 		VIDC_ERR("V4l2Driver::setControl, failed for \"%s\"\n", ctrl_name(ctrl->id));
 		rc = -EINVAL;
 	}
 	else {
-		VIDC_INFO("V4l2Driver::setControl, \"%s\", value %d\n",
+		VIDC_MED("V4l2Driver::setControl, \"%s\", value %d\n",
 			ctrl_name(ctrl->id), ctrl->value);
 	}
 	return rc;
 }
 
 int V4l2Driver::getSelection(struct v4l2_selection* sel) {
-	VIDC_INFO("V4l2Driver::getSelection\n");
+	VIDC_MED("V4l2Driver::getSelection\n");
 	int rc = IOCTL(mFd, VIDIOC_G_SELECTION, sel);
 	if (rc != 0) {
 		VIDC_ERR("V4l2Driver::getSelection, failed for type %d, target %d\n",
@@ -648,7 +648,7 @@ int V4l2Driver::getSelection(struct v4l2_selection* sel) {
 		rc = -EINVAL;
 	}
 	else {
-		VIDC_INFO("V4l2Driver::getSelection, type %d, target %d, left %d top %d width %d height %d\n",
+		VIDC_MED("V4l2Driver::getSelection, type %d, target %d, left %d top %d width %d height %d\n",
 			sel->type, sel->target, sel->r.left, sel->r.top,
 			sel->r.width, sel->r.height);
 	}
@@ -656,13 +656,13 @@ int V4l2Driver::getSelection(struct v4l2_selection* sel) {
 }
 
 int V4l2Driver::setSelection(struct v4l2_selection* sel) {
-	VIDC_INFO("V4l2Driver::setSelection\n");
-	VIDC_INFO("V4l2Driver::setSelection, type %d, target %d, left %d top %d width %d height %d\n",
+	VIDC_MED("V4l2Driver::setSelection\n");
+	VIDC_MED("V4l2Driver::setSelection, type %d, target %d, left %d top %d width %d height %d\n",
 		sel->type, sel->target, sel->r.left, sel->r.top,
 		sel->r.width, sel->r.height);
 	int rc = IOCTL(mFd, VIDIOC_S_SELECTION, sel);
 	if (rc != 0) {
-		VIDC_INFO("V4l2Driver::setSelection, failed for type %d, target %d\n",
+		VIDC_MED("V4l2Driver::setSelection, failed for type %d, target %d\n",
 			sel->type, sel->target);
 		rc = -EINVAL;
 	}
@@ -670,8 +670,8 @@ int V4l2Driver::setSelection(struct v4l2_selection* sel) {
 }
 
 int V4l2Driver::reqBufs(struct v4l2_requestbuffers* reqbufs) {
-	VIDC_INFO("V4l2Driver::reqBufs\n");
-	VIDC_INFO("V4l2Driver::reqBufs, type %d, count %d memory %d\n",
+	VIDC_MED("V4l2Driver::reqBufs\n");
+	VIDC_MED("V4l2Driver::reqBufs, type %d, count %d memory %d\n",
 		reqbufs->type, reqbufs->count, reqbufs->memory);
 	int rc = IOCTL(mFd, VIDIOC_REQBUFS, reqbufs);
 	if (rc != 0) {
@@ -683,7 +683,7 @@ int V4l2Driver::reqBufs(struct v4l2_requestbuffers* reqbufs) {
 }
 
 int V4l2Driver::allocateRequestFd(int port) {
-	VIDC_INFO("V4l2Driver::allocateRequestFd\n");
+	VIDC_MED("V4l2Driver::allocateRequestFd\n");
 	int rc = 0;
 	int i;
 
@@ -708,7 +708,7 @@ int V4l2Driver::allocateRequestFd(int port) {
 }
 
 int V4l2Driver::closeRequestFd(int port) {
-	VIDC_INFO("V4l2Driver::closeRequestFd\n");
+	VIDC_MED("V4l2Driver::closeRequestFd\n");
 	int rc = 0;
 	int i;
 
@@ -731,7 +731,7 @@ int V4l2Driver::closeRequestFd(int port) {
 
 
 int V4l2Driver::streamOn(int port) {
-	VIDC_INFO("V4l2Driver::streamOn, port %d\n", port);
+	VIDC_MED("V4l2Driver::streamOn, port %d\n", port);
 	int rc = IOCTL(mFd, VIDIOC_STREAMON, &port);
 	if (rc != 0) {
 		VIDC_ERR("V4l2Driver::streamOn, failed for port %d\n", port);
@@ -741,7 +741,7 @@ int V4l2Driver::streamOn(int port) {
 }
 
 int V4l2Driver::streamOff(int port) {
-	VIDC_INFO("V4l2Driver::streamOff, port %d\n", port);
+	VIDC_MED("V4l2Driver::streamOff, port %d\n", port);
 	int rc = IOCTL(mFd, VIDIOC_STREAMOFF, &port);
 	if (rc != 0) {
 		VIDC_ERR("V4l2Driver::streamOff, failed for port %d\n", port);
@@ -751,7 +751,7 @@ int V4l2Driver::streamOff(int port) {
 }
 
 int V4l2Driver::queueBuf(struct v4l2_buffer* b) {
-	VIDC_INFO("V4l2Driver::queueBuf\n");
+	VIDC_MED("V4l2Driver::queueBuf\n");
 	print_v4l2_buffer("V4l2Driver::queueBuf", b);
 	int rc = IOCTL(mFd, VIDIOC_QBUF, b);
 	if (rc != 0) {
@@ -762,7 +762,7 @@ int V4l2Driver::queueBuf(struct v4l2_buffer* b) {
 }
 
 int V4l2Driver::queueBufferRequest(struct v4l2_buffer *v4l2_buf, struct v4l2_ext_controls *controls) {
-	VIDC_INFO("V4l2Driver::queueBufferRequest\n");
+	VIDC_MED("V4l2Driver::queueBufferRequest\n");
 
 	int rc = 0;
 	int reqFd = -1;
@@ -815,7 +815,7 @@ int V4l2Driver::queueBufferRequest(struct v4l2_buffer *v4l2_buf, struct v4l2_ext
 }
 
 int V4l2Driver::deQueueBuf(struct v4l2_buffer* buffer) {
-	VIDC_INFO("V4l2Driver::deQueueBuf\n");
+	VIDC_MED("V4l2Driver::deQueueBuf\n");
 	int rc = IOCTL(mFd, VIDIOC_DQBUF, buffer);
 	if (rc != 0) {
 		VIDC_ERR("V4l2Driver::deQueueBuf, error %d\n", rc);
@@ -825,7 +825,7 @@ int V4l2Driver::deQueueBuf(struct v4l2_buffer* buffer) {
 }
 
 void V4l2Driver::dequeueInputMetaBuffersEarly() {
-	VIDC_INFO("V4l2Driver::dequeueInputMetaBuffersEarly\n");
+	VIDC_MED("V4l2Driver::dequeueInputMetaBuffersEarly\n");
 	if (mCb == NULL) {
 		return;
 	}
@@ -854,7 +854,7 @@ int V4l2Driver::threadLoop() {
 	struct v4l2_event event;
 	struct pollfd pollFds[2];
 
-	VIDC_INFO("V4l2Driver::threadLoop, begin\n");
+	VIDC_MED("V4l2Driver::threadLoop, begin\n");
 	mThreadRunning = true;
 	pollFds[0].events = POLLIN | POLLRDNORM | POLLOUT | POLLWRNORM | POLLRDBAND | POLLPRI | POLLERR;
 	pollFds[0].fd = mFd;
@@ -867,7 +867,7 @@ int V4l2Driver::threadLoop() {
 			continue;
 		}
 		if (rc == -ETIMEDOUT) {
-			VIDC_INFO("V4l2Driver::threadLoop, poll timedout\n");
+			VIDC_MED("V4l2Driver::threadLoop, poll timedout\n");
 			continue;
 		}
 		else if (rc < 0 && errno != EINTR && errno != EAGAIN) {
@@ -885,12 +885,12 @@ int V4l2Driver::threadLoop() {
 			memset(&event, 0, sizeof(event));
 			rc = IOCTL(mFd, VIDIOC_DQEVENT, &event);
 			if (rc == 0) {
-				VIDC_INFO("V4l2Driver::threadLoop, Received v4l2 event, type %#x\n", event.type);
+				VIDC_MED("V4l2Driver::threadLoop, Received v4l2 event, type %#x\n", event.type);
 				mCb->onV4l2EventDone(&event);
 			}
 		}
 		if ((pollFds[0].revents & POLLIN) || (pollFds[0].revents & POLLRDNORM)) {
-			VIDC_INFO("V4l2Driver::threadLoop, Received v4l2 POLLIN or POLLRDNORM\n");
+			VIDC_MED("V4l2Driver::threadLoop, Received v4l2 POLLIN or POLLRDNORM\n");
 			memset(&buffer, 0, sizeof(buffer));
 			memset(&plane[0], 0, sizeof(plane));
 			buffer.type = OUTPUT_MPLANE;
@@ -926,7 +926,7 @@ int V4l2Driver::threadLoop() {
 			} while (1);
 		}
 		if ((pollFds[0].revents & POLLOUT) || (pollFds[0].revents & POLLWRNORM)) {
-			VIDC_INFO("V4l2Driver::threadLoop, Received v4l2 POLLOUT or POLLWRNORM\n");
+			VIDC_MED("V4l2Driver::threadLoop, Received v4l2 POLLOUT or POLLWRNORM\n");
 			memset(&buffer, 0, sizeof(buffer));
 			memset(&plane[0], 0, sizeof(plane));
 			buffer.type = INPUT_MPLANE;
@@ -939,7 +939,7 @@ int V4l2Driver::threadLoop() {
 				}
 				rc = IOCTL(mFd, VIDIOC_DQBUF, &buffer);
 				if (rc != 0) {
-					VIDC_INFO("V4l2Driver::threadLoop, Received v4l2 POLLOUT or POLLWRNORM\n");
+					VIDC_MED("V4l2Driver::threadLoop, Received v4l2 POLLOUT or POLLWRNORM\n");
 					break;
 				}
 				if (mInputMetaPortEnabled && mInputMetadataEnabled) {
@@ -975,17 +975,17 @@ int V4l2Driver::threadLoop() {
 							break;
 						}
 					} else {
-						VIDC_INFO("V4l2Driver::threadLoop, request fd %d not found for index %d\n",
+						VIDC_MED("V4l2Driver::threadLoop, request fd %d not found for index %d\n",
 							buffer.request_fd, buffer.index);
 					}
 				}
-				VIDC_INFO("V4l2Driver::threadLoop, Received v4l2 POLLOUT or POLLWRNORM\n");
+				VIDC_MED("V4l2Driver::threadLoop, Received v4l2 POLLOUT or POLLWRNORM\n");
 				rc = mCb->onV4l2BufferDone(&buffer);
 				mError = (rc != 0);
 			} while (1);
 		}
 	}
-	VIDC_INFO("V4l2Driver::threadLoop, end\n");
+	VIDC_MED("V4l2Driver::threadLoop, end\n");
 	return 0;
 }
 
@@ -994,7 +994,7 @@ void ThreadFunc(V4l2Driver& driver) {
 }
 
 int V4l2Driver::createPollThread() {
-	VIDC_INFO("V4l2Driver::createPollThread\n");
+	VIDC_MED("V4l2Driver::createPollThread\n");
 	mPollThreadExit = false;
 	mThreadRunning = false;
 	mPollThread = std::make_shared<std::thread>(ThreadFunc, std::ref(*this));
@@ -1005,7 +1005,7 @@ int V4l2Driver::createPollThread() {
 	else {
 		int count = 0;
 		while (!mThreadRunning) {
-			VIDC_INFO("V4l2Driver::createPollThread, wait for poll thread running\n");
+			VIDC_MED("V4l2Driver::createPollThread, wait for poll thread running\n");
 			usleep(10 * 1000); // 10 ms
 			count++;
 			if (count >= 100)
@@ -1016,31 +1016,31 @@ int V4l2Driver::createPollThread() {
 			return -EINVAL;
 		}
 	}
-	VIDC_INFO("V4l2Driver::createPollThread, poll thread started\n");
+	VIDC_MED("V4l2Driver::createPollThread, poll thread started\n");
 	return 0;
 }
 
 int V4l2Driver::stopPollThread() {
-	VIDC_INFO("V4l2Driver::stopPollThread\n");
+	VIDC_MED("V4l2Driver::stopPollThread\n");
 	if (!mPollThread || mPollThreadExit) {
-		VIDC_INFO("V4l2Driver::stopPollThread, invalid poll thread. exit %d\n",
+		VIDC_MED("V4l2Driver::stopPollThread, invalid poll thread. exit %d\n",
 		mPollThreadExit);
 		return -EINVAL;
 	}
 
 	mPollThreadExit = true;
-	VIDC_INFO("V4l2Driver::stopPollThread, join thread\n");
+	VIDC_MED("V4l2Driver::stopPollThread, join thread\n");
 	if (mPollThread != nullptr and mPollThread->joinable()) {
 		mPollThread->join();
 	}
 	mPollThread = nullptr;
 
-	VIDC_INFO("V4l2Driver::stopPollThread, exit poll thread\n");
+	VIDC_MED("V4l2Driver::stopPollThread, exit poll thread\n");
 	return 0;
 }
 
 int V4l2Driver::registerCallbacks(std::shared_ptr<V4l2DriverCb> cb) {
-	VIDC_INFO("V4l2Driver::registerCallbacks\n");
+	VIDC_MED("V4l2Driver::registerCallbacks\n");
 	mCb = cb;
 	return 0;
 }
