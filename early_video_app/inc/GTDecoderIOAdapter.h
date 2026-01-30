@@ -22,6 +22,7 @@ class GTDecoderIOAdapter {
 		bool isInputAvailabe();
         bool isInputEOS();
 		bool getInput(InputData* dstData);
+		void releaseInput(InputData* sourceData);
 		bool onOutput(std::uint8_t* pBuffer, uint32_t length);
         void close();
 	private:

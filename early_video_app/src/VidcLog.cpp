@@ -113,6 +113,20 @@ namespace early_video_app {
         }
     }
 
+    void printKPILog(const char* format, ...) {
+        mLogMutex.lock();
+        int KPILogFD = open(KPILogPath, O_WRONLY);
+        if (KPILogFD > 0) {
+            va_list args;
+            va_start(args, format);
+            int length = vsnprintf(OneTimeLogCacheBuffer, OneTimeLogCacheBufferSize, format, args);
+            va_end(args);
+            write(KPILogFD, OneTimeLogCacheBuffer, length);
+            close(KPILogFD);
+        }
+        mLogMutex.unlock();
+    }
+
     void printLogToKMsg(const char* format, ...) {
         if (format == NULL || *format == '\0') {
             return;
@@ -161,6 +175,9 @@ namespace early_video_app {
                     case 'f':
                         std::cout << va_arg(args, double);
                         break;
+                    case 'p':
+                        std::cout << va_arg(args, long);
+                        break;
                     default:
                         std::cout << logFormat[i];
                         break;
@@ -193,7 +210,7 @@ namespace early_video_app {
             }
         }
         if (mInnerLogFile != NULL) {
-            int length = snprintf(OneTimeLogCacheBuffer, OneTimeLogCacheBufferSize, logFormat, args);
+            int length = vsnprintf(OneTimeLogCacheBuffer, OneTimeLogCacheBufferSize, logFormat, args);
             int wroteLength = fwrite(OneTimeLogCacheBuffer, sizeof(char), length, mInnerLogFile);
             int result = fflush(mInnerLogFile);
         }

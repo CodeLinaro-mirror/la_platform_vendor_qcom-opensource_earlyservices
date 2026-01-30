@@ -91,10 +91,18 @@ bool GTDecoderIOAdapter::getInput(InputData* dstData) {
 	return result;
 }
 
+void GTDecoderIOAdapter::releaseInput(InputData* sourceData) {
+	if (sourceData == NULL || sourceData->data == NULL) {
+		return;
+	}
+	delete[] sourceData->data;
+}
+
 bool GTDecoderIOAdapter::onOutput(std::uint8_t* pBuffer, uint32_t length) {
 	if (pBuffer == NULL || length <= 0) {
 		return false;
 	}
+    printKPILog("%s%s%s", LogKPITag, LogAPPTag, "video frame output");
 	VIDC_HIGH("GTDecoderIOAdapter::onOutput, video frame decoded");
 
 	bool result = false;

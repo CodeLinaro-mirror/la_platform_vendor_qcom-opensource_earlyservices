@@ -348,6 +348,7 @@ void GTDecoder::handleSeek(int seekTo) {
 }
 
 int GTDecoder::queueBuffers() {
+    printKPILog("%s%s%s", LogKPITag, LogAPPTag, "queueBuffers to decoder");
 	VIDC_HIGH("GTDecoder::queueBuffers: enter\n");
 
 	int ret = 0;
@@ -618,7 +619,7 @@ int GTDecoder::queueBuffers() {
 				uint32_t flags = spBuffer->flags() | Buffer::Flags::EOS;
 				spBuffer->setFlags((Buffer::Flags)flags);
 			}
-			free(inputData.data);
+			mGTDecoderIOAdapter->releaseInput(&inputData);
 			VIDC_MED("GTDecoder::queueBuffers, input data length: %d, spBuffer->timestamp():%d, inputData.isCodecConfig = %d, inputData.isLastFrame = %d\n",
 				inputData.length, spBuffer->timestamp(), inputData.isCodecConfig, inputData.isLastFrame);
 		}

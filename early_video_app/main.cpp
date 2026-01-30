@@ -19,6 +19,7 @@ int main(int argc, char **argv) {
     opterr = 0;
     vidcUpdateLogLevel();
     VIDC_HIGH("main, enter\n");
+    printKPILog("%s%s%s", LogKPITag, LogAPPTag, "app start");
 
     while (1) {
         int option_index = 0;
@@ -42,11 +43,14 @@ int main(int argc, char **argv) {
                 break;
         }
     }
+    printKPILog("%s%s%s", LogKPITag, LogAPPTag, "run decoder");
     VIDC_HIGH("main, run decoder\n");
     int result = GTDecoder::runDecoder();
     if (result != 0) {
+        printKPILog("%s%s%s", LogKPITag, LogAPPTag, "run decoder failed");
         VIDC_ERR("main: run decoder failed, result = %d\n", result);
     }
+    printKPILog("%s%s%s", LogKPITag, LogAPPTag, "app exit");
     VIDC_HIGH("main, exit\n");
     closeLogInstance();
 
