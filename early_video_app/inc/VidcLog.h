@@ -26,8 +26,8 @@ namespace early_video_app {
 	};
 
 	static const char *kDebugLogsLevelProperty = "vendor.earlyvideoapp.log.msg";
-    static const char* LogKPITag = "M - ES ";
-    static const char* LogAPPTag = "Early_Video_APP: ";
+	static const char* LogKPITag = "M - ES ";
+	static const char* LogAPPTag = "Early_Video_APP: ";
 	extern uint32_t gVidcLogLevel;
 
 	void vidcUpdateLogLevel();

@@ -348,7 +348,6 @@ void GTDecoder::handleSeek(int seekTo) {
 }
 
 int GTDecoder::queueBuffers() {
-    printKPILog("%s%s%s", LogKPITag, LogAPPTag, "queueBuffers to decoder");
 	VIDC_HIGH("GTDecoder::queueBuffers: enter\n");
 
 	int ret = 0;

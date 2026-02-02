@@ -195,7 +195,6 @@ void GTDecoderCallback::onEventDone(struct v4l2_event* event) {
 	VIDC_MED("GTDecoderCallback::onEventDone\n");
 	if (event->type == V4L2_EVENT_SOURCE_CHANGE &&
 		event->u.src_change.changes == V4L2_EVENT_SRC_CH_RESOLUTION) {
-    	printKPILog("%s%s%s", LogKPITag, LogAPPTag, "source configuration changed");
 		VIDC_HIGH("GTDecoderCallback::onEventDone, source change event received\n");
 		mGTDecoder->mReconfigEventReceived = true;
 		mGTDecoder->mV4l2Codec->mFirstReconfigReceived = true;

@@ -37,7 +37,7 @@ namespace early_video_app {
     const char* KernelMsgPath = "/dev/kmsg";
     const char* LogLocalOutputDir = "/vendor_early_services/run/early_video_app";
     const char* LogLocalOutputPath = "/vendor_early_services/run/early_video_app/early_video_app.log";
-    const int OneTimeLogCacheBufferSize = 512 * 1;
+    const int OneTimeLogCacheBufferSize = 256 * 1;
     char OneTimeLogCacheBuffer[OneTimeLogCacheBufferSize];
 
     void vidcUpdateLogLevel() {
@@ -114,17 +114,16 @@ namespace early_video_app {
     }
 
     void printKPILog(const char* format, ...) {
-        mLogMutex.lock();
         int KPILogFD = open(KPILogPath, O_WRONLY);
         if (KPILogFD > 0) {
             va_list args;
             va_start(args, format);
-            int length = vsnprintf(OneTimeLogCacheBuffer, OneTimeLogCacheBufferSize, format, args);
+            char KPILogCacheBuffer[OneTimeLogCacheBufferSize];
+            int length = vsnprintf(KPILogCacheBuffer, OneTimeLogCacheBufferSize, format, args);
             va_end(args);
-            write(KPILogFD, OneTimeLogCacheBuffer, length);
+            write(KPILogFD, KPILogCacheBuffer, length);
             close(KPILogFD);
         }
-        mLogMutex.unlock();
     }
 
     void printLogToKMsg(const char* format, ...) {

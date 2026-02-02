@@ -282,7 +282,7 @@ int V4l2Driver::Open(unsigned int type) {
 	scanDevDirectory("/dev");
 	scanDevDirectory("/early_services/dev");
 
-    printKPILog("%s%s%s", LogKPITag, LogAPPTag, "open video driver device");
+	printKPILog("%s%s%s", LogKPITag, LogAPPTag, "open video driver device");
 #ifdef ANDROID
 	VIDC_HIGH("V4l2Driver::Open, android env\n");
 	mFd = open(devPath.c_str(), O_RDWR);
