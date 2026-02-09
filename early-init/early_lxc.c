@@ -40,9 +40,11 @@ static void inline write_marker(const char* name)
 
 static inline void print_log(const char* str)
 {
-    if (str == NULL) return;
-    freopen("/dev/kmsg", "w", stdout);
-    printf("ES: %s \r\n", str);
+    if (!str) return;
+    FILE *fp = fopen("/dev/kmsg", "w");
+    if (!fp) return;
+    fprintf(fp, "ES early-lxc: %s\n", str);
+    fclose(fp);
 }
 
 /*
@@ -110,62 +112,6 @@ static inline int create_bridge(const char *br_name) {
     return 0;
 }
 
-
-// To avoid mismatch "cpu" with "cpuset"
-static bool contains_token(const char *text, const char *tok) {
-    size_t n = strlen(tok);
-    const char *p = text;
-    while (p && *p) {
-        const char *hit = strstr(p, tok);
-        if (!hit)
-            return false;
-        bool left_ok  = (hit == text) || isspace((unsigned char)hit[-1]);
-        bool right_ok = isspace((unsigned char)hit[n]) || hit[n] == '\0';
-        if (left_ok && right_ok)
-            return true;
-        p = hit + 1;
-    }
-    return false;
-}
-
-static int wait_cgroup_controllers_ready(const char *subtree_path,
-                                         const char *const *need, size_t need_cnt,
-                                         int timeout_ms, int interval_ms) {
-    int waited_ms = 0;
-    char buf[512];
-
-    while (waited_ms < timeout_ms) {
-        int fd = open(subtree_path, O_RDONLY | O_CLOEXEC);
-        if (fd < 0) {
-            usleep(interval_ms * 1000);
-            waited_ms += interval_ms;
-            continue;
-        }
-        ssize_t r = read(fd, buf, sizeof(buf) - 1);
-        int saved_errno = errno;
-        close(fd);
-
-        if (r < 0) {
-            (void)saved_errno;
-        } else {
-            buf[(r >= 0 ? r : 0)] = '\0';
-            bool all_found = true;
-            for (size_t i = 0; i < need_cnt; ++i) {
-                if (!contains_token(buf, need[i])) {
-                    all_found = false;
-                    break;
-                }
-            }
-            if (all_found)
-                return 0;
-        }
-
-        usleep(interval_ms * 1000);
-        waited_ms += interval_ms;
-    }
-    return -ETIMEDOUT;
-}
-
 extern int unshare(int __flags);
 static void create_private_ns(void) {
 	//Create new NS for current thread
@@ -180,19 +126,11 @@ static inline int start_lxc_container() {
     const char *dir = "/vendor_early_services/vendor/vm-system/lxc/bin";
     const char *lxc_path = "/vendor_early_services/vendor/vm-system/lxc/bin/lxc-start";
     const char *lxc_runtime_dir = "/vendor_early_services/run/lxc/run";
-    const char *need_ctrls[] = { "cpu", "cpuset", "io", "memory" };
 
     int retries = 10;
     while (access(dir, X_OK) != 0 && retries-- > 0) {
         print_log("wait the lxc contatiner partion");
         usleep(100000); // 100ms
-    }
-
-    int rc = wait_cgroup_controllers_ready("/sys/fs/cgroup/cgroup.subtree_control", need_ctrls,
-                                        sizeof(need_ctrls)/sizeof(need_ctrls[0]), /*timeout_ms*/ 2000, /*interval_ms*/ 100);
-    if (rc != 0) {
-        print_log("cgroup controllers NOT ready . abort lxc-start");
-        return -1;
     }
 
     mkdirs(lxc_runtime_dir, 0777);

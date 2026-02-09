@@ -412,12 +412,27 @@ static void inline write_marker(const char* name)
   return;
 }
 
-static void inline print_log(const char* str)
+static void inline _print_log(const char* str)
 {
   if (str == NULL) return;
   freopen("/dev/kmsg", "w", stdout);
   printf("ES: %s \r\n", str);
 }
+
+static void inline print_log(const char* fmt, ...) __attribute__((format(printf, 1, 2)));
+
+static void inline print_log(const char* fmt, ...) {
+    if (fmt == NULL) return;
+    freopen("/dev/kmsg", "w", stdout);
+
+    va_list args;
+    va_start(args, fmt);
+    printf("Early: ");
+    vprintf(fmt, args);
+    printf("\r\n");
+    va_end(args);
+}
+
 
 #ifdef EARLYINIT_DEBUG
 static void inline write_smack_label(char* label)
@@ -594,23 +609,94 @@ static inline void prepare_dir(char* p)
       }
       break;
 	case 'c':
-      if (0 == strncmp(p + 1, "group2", strlen("group2"))) {
+      if (0 == strncmp(p + 1, "group", strlen("group"))) {
         if (stat("/sys/fs/cgroup", &st) == -1) {
-          perror("/sys/fs/cgroup folder doesn't exist");
+          print_log("/sys/fs/cgroup folder doesn't exist");
           mkdir("/sys/fs/cgroup", 0755);
         }
-          ret = mount("none", "/sys/fs/cgroup", "cgroup2", MS_NODEV|MS_NOEXEC|MS_NOSUID, NULL);
-          if (ret < 0) {
-            freopen("/dev/kmsg", "w", stdout);
-            printf(" /sys/fs/cgroup mount failed error = %d \n", errno);
-            perror(" mount /sys/fs/cgroup with cgroup2 failed ");
-          } else {
-            freopen("/dev/kmsg", "w", stdout);
-            printf("/sys/fs/cgroup mount success error = %d \n", errno);
-          }
-          int fd = open("/sys/fs/cgroup/cgroup.subtree_control", O_WRONLY);
-          write(fd, cgroupcontroler,strlen(cgroupcontroler));
-          close(fd);
+        if (mount("tmpfs", "/sys/fs/cgroup", "tmpfs", 0, "mode=755") != 0) {
+            print_log("Failed to mount tmpfs on /sys/fs/cgroup");
+        }else
+            print_log("OK to mount tmpfs on /sys/fs/cgroup");
+
+        ret = mkdir("/sys/fs/cgroup/cpu,cpuacct", 0755);
+        if (ret < 0) {
+            print_log("mkdir v1 cpu,cpuacct failed, errno = %d\n", errno);
+        } else {
+            print_log("mkdir v1 cpu,cpuacct success\n");
+        }
+        ret = mount("none", "/sys/fs/cgroup/cpu,cpuacct", "cgroup", 0, "cpu,cpuacct");
+        if (ret < 0) {
+            print_log("Mount v1 cpu,cpuacct failed, errno = %d\n", errno);
+        } else {
+            print_log("Mount v1 cpu,cpuacct success\n");
+        }
+
+        ret = mkdir("/sys/fs/cgroup/devices", 0755);
+        if (ret < 0) {
+            print_log("mkdir v1 devices failed, errno = %d\n", errno);
+        } else {
+            print_log("mkdir v1 devices success\n");
+        }
+        ret = mount("none", "/sys/fs/cgroup/devices", "cgroup", 0, "devices");
+        if (ret < 0) {
+            print_log("Mount v1 devices failed, errno = %d\n", errno);
+        } else {
+            print_log("Mount v1 devices success\n");
+        }
+
+        ret = mkdir("/sys/fs/cgroup/systemd", 0755);
+        if (ret < 0) {
+            print_log("mkdir v1 systemd failed, errno = %d\n", errno);
+        } else {
+            print_log("mkdir v1 systemd success\n");
+        }
+        ret = mount("none", "/sys/fs/cgroup/systemd", "cgroup", 0, "none,name=systemd");
+        if (ret < 0) {
+            print_log("Mount v1 systemd failed, errno = %d\n", errno);
+        } else {
+            print_log("Mount v1 systemd success\n");
+        }
+
+        ret = mkdir("/sys/fs/cgroup/cpuset", 0755);
+        if (ret < 0) {
+            print_log("mkdir v1 cpuset failed, errno = %d\n", errno);
+        } else {
+            print_log("mkdir v1 cpuset success\n");
+        }
+        ret = mount("none", "/sys/fs/cgroup/cpuset", "cgroup", 0, "cpuset");
+        if (ret < 0) {
+            print_log("Mount v1 cpuset failed, errno = %d\n", errno);
+        } else {
+            print_log("Mount v1 cpuset success\n");
+        }
+
+        ret = mkdir("/sys/fs/cgroup/blkio", 0755);
+        if (ret < 0) {
+            print_log("mkdir v1 blkio failed, errno = %d\n", errno);
+        } else {
+            print_log("mkdir v1 blkio success\n");
+        }
+        ret = mount("none", "/sys/fs/cgroup/blkio", "cgroup", 0, "blkio");
+        if (ret < 0) {
+            print_log("Mount v1 blkio failed, errno = %d\n", errno);
+        } else {
+            print_log("Mount v1 blkio success\n");
+        }
+
+        ret = mkdir("/sys/fs/cgroup/unified", 0755);
+        if (ret < 0) {
+            print_log("mkdir /sys/fs/cgroup/unified failed, errno = %d\n", errno);
+        } else {
+            print_log("mkdir /sys/fs/cgroup/unified success\n");
+        }
+        ret = mount("none", "/sys/fs/cgroup/unified", "cgroup2", 0, NULL);
+        if (ret < 0) {
+          print_log(" /sys/fs/cgroup/unified mount failed error = %d \n", errno);
+          perror(" mount /sys/fs/cgroup/unified with cgroup2 failed ");
+        } else {
+          print_log("/sys/fs/cgroup/unified mount success error = %d \n", errno);
+        }
       }
       break;
     default:
@@ -3000,7 +3086,7 @@ int early_init(int init)
     //prepare_dir((char*)"dev");
     prepare_dir((char*)"procfs");
     prepare_dir((char*)"shm");
-    prepare_dir((char*)"cgroup2");
+    prepare_dir((char*)"cgroup");
     mkdirs("/dev/socket/agm", 0775);
     mkdirs("/dev/socket/camera", 0775);
 
