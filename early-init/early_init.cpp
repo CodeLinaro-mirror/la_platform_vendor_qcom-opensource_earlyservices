@@ -619,6 +619,34 @@ static inline void prepare_dir(char* p)
         }else
             print_log("OK to mount tmpfs on /sys/fs/cgroup");
 
+        if ( (ret = mount("none", "/sys/fs/cgroup", "cgroup2", MS_NODEV | MS_NOEXEC | MS_NOSUID,
+              "memory_recursiveprot")) < 0) {
+            print_log(" Mounting unified with memory_recursiveprot failed , ret %d, error = %d ,Retrying without\n", ret,errno);
+            if ((ret = mount("none", "/sys/fs/cgroup", "cgroup2", MS_NODEV | MS_NOEXEC | MS_NOSUID,
+                  nullptr)) < 0) {
+              print_log(" Mounting without memory_recursiveprot failed , ret %d, error = %d ,Retrying without\n", ret,errno);
+        }else
+            print_log("====== Ok to mount cgroup v2 without memory_recursiveprot");
+        }else
+            print_log("====== Ok to mount cgroup v2 with memory_recursiveprot");
+
+        ret = mkdir("/sys/fs/cgroup/unified", 0755);
+        if (ret < 0) {
+            print_log("mkdir /sys/fs/cgroup/unified failed, errno = %d\n", errno);
+        } else {
+            print_log("mkdir /sys/fs/cgroup/unified success\n");
+        }
+
+        if (mount("/sys/fs/cgroup", "/sys/fs/cgroup/unified",
+          NULL, MS_BIND, NULL) < 0) {
+            print_log("bind mount failed, errno=%d\n", errno);
+        }
+        if ( (ret = mount(nullptr, "/sys/fs/cgroup/unified",
+              nullptr, MS_REMOUNT | MS_BIND | MS_NODEV | MS_NOEXEC | MS_NOSUID,nullptr)) < 0) {
+            print_log(" Fail to mount bind unified , ret %d, error = %d \n", ret,errno);
+        }else
+            print_log("====== Ok to mount bind unified");
+
         ret = mkdir("/sys/fs/cgroup/cpu,cpuacct", 0755);
         if (ret < 0) {
             print_log("mkdir v1 cpu,cpuacct failed, errno = %d\n", errno);
