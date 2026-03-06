@@ -115,6 +115,8 @@ static void create_private_ns(void) {
 static inline int start_lxc_container() {
     const char *dir = "/vendor_early_services/vendor/vm-system/lxc/bin";
     const char *lxc_path = "/vendor_early_services/vendor/vm-system/lxc/bin/lxc-start";
+    const char *monitor_path = "/vendor_early_services/vendor/vm-system/lxc/bin/lxc-monitor";
+
 
     int retries = 10;
     while (access(dir, X_OK) != 0 && retries-- > 0) {
@@ -122,10 +124,11 @@ static inline int start_lxc_container() {
         usleep(100000); // 100ms
     }
 
-    pid_t pid = fork();
-    //lxc-start -n lv -l debug --logfile=/vendor_early_services/run/lxc.log
+    wait_for_mount_point();
+    pid_t pid_start = fork();
+    //lxc-monitor -n lv -W -o /vendor_early_services/run/lxc_monitor.log
     //lxc-start -n lv -l trace --logfile=/vendor_early_services/run/lxc.log
-    if (pid == 0)
+    if (pid_start == 0)
     {
         // char *const argv[] = { "lxc-start", "-n", "lv", NULL };
         char *const argv[] = {
@@ -136,14 +139,28 @@ static inline int start_lxc_container() {
             "--logfile=/vendor_early_services/run/lxc.log",
             NULL
         };
-        wait_for_mount_point();
+
         //Create new private ns before exec LXC
         create_private_ns();
-        execv(lxc_path, argv);
-        _exit(127);
-    } else if (pid > 0) {
+        pid_t pid_monitor = fork();
+        if (pid_monitor == 0) {
+            char *const argv_m[] = {
+                "lxc-monitor",
+                "-n", "lv",
+                "-W",
+                "-l", "debug",
+                "-o", "/vendor_early_services/run/lxc_monitor.log",
+                NULL
+            };
+            execv(monitor_path, argv_m);
+        } else if (pid_monitor > 0) {
+            execv(lxc_path, argv);
+            _exit(127);
+        } else
+            _exit(127);
+    } else if (pid_start > 0) {
         int status;
-        waitpid(pid, &status, 0);
+        waitpid(pid_start, &status, 0);
         if (WIFEXITED(status) && WEXITSTATUS(status) == 0) {
             print_log("execv lxc-start success!");
             return 0;
@@ -155,6 +172,7 @@ static inline int start_lxc_container() {
         printf("fork failed %s\n", strerror(errno));
         return -1;
     }
+    return 0;
 }
 
 int main(int argc, char *argv[]){
