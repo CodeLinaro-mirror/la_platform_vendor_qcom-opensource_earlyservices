@@ -1985,10 +1985,6 @@ static void create_drm_udev_cards(void)
   int i = 0;
   int major = 0, minor = 0;
   char buf[128];
-#ifdef PLATFORM_CANOE
-// No DRM devices on Canoe platform till now
-  return;
-#else
   while (i < cards_max) {
     if (!_drm_cards[i].is_created) {
       // check if sysfs entry is created
@@ -2018,7 +2014,6 @@ static void create_drm_udev_cards(void)
     }
     i++;
   }
-#endif
 }
 
 
@@ -2067,7 +2062,18 @@ static int check_display_driver_ready(void)
 {
 	int ret = 0;
 #if defined(PLATFORM_CANOE)
-	ret = 1;
+  int retry_count = 20;
+  while (retry_count--) {
+    if(access(DISP_DRM_DRIVER_CARD3_READY_PATH, F_OK) == 0)
+    {
+      LOG(INFO) << "Function: " << __func__ << ", Line: " << __LINE__ << " check driver sucess------\n";
+      ret = 1;
+      return ret;
+    }
+    sleep(1);
+  }
+
+  LOG(ERROR) << "Function: " << __func__ << ", Line: " << __LINE__ << " check driver timeout failed------\n";
 #else
 	if(access(DISP_DRM_DRIVER_CARD4_READY_PATH, F_OK) == 0 && access(DISP_DRM_DRIVER_RENDER_READY_PATH, F_OK) == 0)
 	{
@@ -3036,10 +3042,14 @@ int early_init(int init)
      pid_t pid_fw = fork_wait_for_child(ES_CTYPE_FW, 1);
      pid_t pid_se = fork_wait_for_child(ES_CTYPE_LOAD_SE, 1);
 
+     // Load Display modules in parallel
+     pid_t pid_di = fork_wait_for_child(ES_CTYPE_DI_MOD, 1);
+
      wait_for_pid(pid_se, WAIT_SLEEP_USECS, max);
      //wait_for_pid(pid_def, WAIT_SLEEP_USECS, max);
      wait_for_pid(pid_fw, WAIT_SLEEP_USECS, max);
      // Create linker64 for es-apps
+     wait_for_pid(pid_di, WAIT_SLEEP_USECS, max);
      check_and_create_linker64();
      // Send a kedone flag to let the init process continue to boot the system
      mknod("/dev/kedone", S_IFREG | 0400, makedev(0,0));
