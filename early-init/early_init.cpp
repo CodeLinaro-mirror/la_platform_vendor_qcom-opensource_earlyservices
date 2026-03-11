@@ -322,7 +322,7 @@ const static struct {
  {EMOD_END, "modules_end.order", "def_end", NULL, EAPP_WAIT_NONE},
 #endif //PLATFORM_GEN4
  {"esplash", "", "splash", NULL, EAPP_WAIT_DISP},
- {"earlyVideo", "modules_vi.order", "video", check_video_device_ready, EAPP_MOD_WAIT_FW},
+ {"early_video_app", "modules_vi.order", "video", check_video_device_ready, EAPP_MOD_WAIT_FW},
  {"pd-mapper", "", "pd-mapper", check_pdmapper_ready, EAPP_MOD_WAIT_FW},
  {EAUDIO_APP, "modules_r_au.order", EAUDIO_APP, check_audio_ar_ready, EAPP_MOD_WAIT_FW},
  {"init_early_lxc", "", "init_early_lxc", check_lxc_device_ready, EAPP_WAIT_DISP},

@@ -67,15 +67,6 @@ LOCAL_MODULE_PATH := $(TARGET_VENDOR_RAMDISK_OUT)/vendor_early_services/system/b
 include $(BUILD_EXECUTABLE)
 
 include $(CLEAR_VARS)
-LOCAL_MODULE_TAGS := optional
-LOCAL_LDFLAGS := -Wl,-rpath,'/vendor_early_services/system/lib64' -Wl,--dynamic-linker,/vendor_early_services/system/bin/bootstrap/linker64
-LOCAL_MODULE := earlyVideo
-LOCAL_SRC_FILES := early_video.cpp
-LOCAL_HEADER_LIBRARIES := libcutils_headers
-LOCAL_MODULE_PATH := $(TARGET_VENDOR_RAMDISK_OUT)/vendor_early_services/vendor/bin
-include $(BUILD_EXECUTABLE)
-
-include $(CLEAR_VARS)
 
 # static linking start
 #LOCAL_MODULE_TAGS := optional
