@@ -139,6 +139,13 @@ int GTCodec::gtCodecConfigOutput() {
 	return mV4l2Codec->configureOutput();
 }
 
+struct v4l2_format* GTCodec::getOutputFormat() {
+	if (mV4l2Codec != nullptr) {
+		return mV4l2Codec->getOutputFormat();
+	}
+	return nullptr;
+}
+
 int GTCodec::gtCodecStartOutput() {
 	return mV4l2Codec->startOutput();
 }

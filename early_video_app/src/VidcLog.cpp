@@ -157,6 +157,7 @@ namespace early_video_app {
         if (logFormat == NULL || *logFormat == '\0') {
             return;
         }
+        mLogMutex.lock();
         freopen(KernelMsgPath, "w", stdout);
 
         std::cout << LogAPPTag;
@@ -170,6 +171,9 @@ namespace early_video_app {
                         break;
                     case 'd':
                         std::cout << va_arg(args, int);
+                        break;
+                    case 'u':
+                        std::cout << va_arg(args, unsigned int);
                         break;
                     case 'f':
                         std::cout << va_arg(args, double);
@@ -188,6 +192,7 @@ namespace early_video_app {
             i++;
         }
         std::cout << std::endl;
+        mLogMutex.unlock();
     }
 
     void printLogToLocalInternal(const char* logFormat, va_list args) {

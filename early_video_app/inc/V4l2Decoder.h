@@ -40,6 +40,7 @@ public:
 	int getFrameRate();
 	int drain();
 	int resume();
+	struct v4l2_format* getOutputFormat();
 	int getFenceFds(struct V4L2OutputFenceInfo* fenceInfo);
 	int getFenceFd(int fence_id);
 };
