@@ -331,7 +331,7 @@ const static struct {
  {"esplash", "", "splash", NULL, EAPP_WAIT_DISP},
  {"pd-mapper", "", "pd-mapper", check_pdmapper_ready, EAPP_MOD_WAIT_FW},
  {EAUDIO_APP, "modules_r_au.order", EAUDIO_APP, check_audio_ar_ready, EAPP_MOD_WAIT_FW},
- {"init_early_lxc", "", "init_early_lxc", check_lxc_device_ready, EAPP_WAIT_DISP},
+ {ELXC_APP, "modules_lxc.order", ELXC_APP, check_lxc_device_ready, EAPP_WAIT_DISP},
 #ifdef ES_AUDIOE_DISABLED
  {"", "modules_au.order", "audio", check_audio_device_ready, EAPP_MOD_WAIT_FW},
 #endif
@@ -1408,10 +1408,6 @@ static int check_gfx_device_ready(void)
 {
   //rvc
   static int gfx_device_created = 0;
-#ifdef PLATFORM_CANOE
-  // On Canoe, gfx device check is skipped
-  gfx_device_created = 1;
-#else
   int major = 0, minor = 0;
 
   if (!gfx_device_created) {
@@ -1427,7 +1423,6 @@ static int check_gfx_device_ready(void)
       write_marker("M - EarlyInit gfx nodes ready");
     }
   }
-#endif
   return gfx_device_created;
 
 }
@@ -2891,7 +2886,8 @@ int early_init_kmod(const char *idx)
     if (!strncmp(_eapp_info[i].name, EMOD_END, sizeof(_eapp_info[i].name)-1))
       flag = LMP_MODPROBE;
     else if (strncmp(_eapp_info[i].name, ECHIME_APP, sizeof(_eapp_info[i].name)-1)
-            && strncmp(_eapp_info[i].name, EAUDIO_APP, sizeof(_eapp_info[i].name)-1))
+            || strncmp(_eapp_info[i].name, EAUDIO_APP, sizeof(_eapp_info[i].name)-1)
+            || strncmp(_eapp_info[i].name, ELXC_APP, sizeof(_eapp_info[i].name)-1))
       flag = LMP_DIRECT;
     else
       flag = LMP_DIRECT_CHK_AUD;
@@ -3132,11 +3128,7 @@ int early_init(int init)
   getSysInfo("/sys/devices/soc0/platform_subtype_id", platformId);
   set_permissions("/dev/null", 0666, AID_ROOT, AID_ROOT, "u:object_r:null_device:s0");
   set_permissions("/dev/urandom", 0666, AID_ROOT, AID_ROOT, "u:object_r:random_device:s0");
-  #if defined(PLATFORM_CANOE)
-  LOG(WARNING) << "ES : Canoe project no end kmod ";
-  #else
   load_kmod_and_nodes(EMOD_END);
-  #endif
   check_and_create_vendor_etc();
   check_and_create_vendor_firmware();
   check_and_create_vendor_soccp_firmware();

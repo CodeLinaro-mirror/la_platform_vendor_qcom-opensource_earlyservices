@@ -76,9 +76,9 @@ static inline int create_bridge(const char *br_name) {
 static void wait_for_mount_point() {
 	const char *check_paths[] = {
         "/dev/dma_heap",
-        "/dev/input",
         "/dev/dri/renderD128",
         "/dev/dri/card2",
+        "/dev/kgsl-3d0",
         "/dev/snd",
         "/dev/socket/agm",
     };
