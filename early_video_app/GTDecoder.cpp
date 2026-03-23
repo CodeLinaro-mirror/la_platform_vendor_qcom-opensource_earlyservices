@@ -238,14 +238,14 @@ int GTDecoder::runDecoder() {
 
 GTDecoder::GTDecoder(unsigned int codec, unsigned int colorFmt) :
 	GTCodec(codec, colorFmt) {
-	VIDC_HIGH("GTDecoder, Constructor\n");
+	VIDC_MED("GTDecoder, Constructor\n");
 	mV4l2Codec = std::make_shared<V4l2Decoder>();
 	mEventHandler = std::make_shared<EventHandler>(mV4l2Codec);
 	mCb = std::make_shared<GTDecoderCallback>(this);
 }
 
 GTDecoder::~GTDecoder() {
-	VIDC_HIGH("GTDecoder, Destructor");
+	VIDC_MED("GTDecoder, Destructor");
 	if (mGTDecoderIOAdapter != NULL) {
 		mGTDecoderIOAdapter->close();
 	}
@@ -348,7 +348,7 @@ void GTDecoder::handleSeek(int seekTo) {
 }
 
 int GTDecoder::queueBuffers() {
-	VIDC_HIGH("GTDecoder::queueBuffers: enter\n");
+	VIDC_MED("GTDecoder::queueBuffers: enter\n");
 
 	int ret = 0;
 	bool eos = false;

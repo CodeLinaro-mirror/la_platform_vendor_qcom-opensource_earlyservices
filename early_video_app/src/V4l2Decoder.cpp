@@ -21,61 +21,61 @@ int V4l2Decoder::init(unsigned int codec) {
 	struct v4l2_selection sel;
 	struct v4l2_capability caps;
 
-	VIDC_HIGH("V4l2Decoder::init\n");
+	VIDC_MED("V4l2Decoder::init\n");
 
 	mCodec = codec;
 	mDomain = V4L2_CODEC_TYPE_DECODER;
 
-	VIDC_HIGH("V4l2Decoder::init, open decoder\n");
+	VIDC_MED("V4l2Decoder::init, open decoder\n");
 	if (mV4l2Driver->Open(V4L2_CODEC_TYPE_DECODER)) {
 		VIDC_ERR("V4l2Decoder::init, open decoder failed\n");
 		return -EINVAL;
 	}
 
-	VIDC_HIGH("V4l2Decoder::init, subscribe source change event\n");
+	VIDC_MED("V4l2Decoder::init, subscribe source change event\n");
 	if (mV4l2Driver->subscribeEvent(V4L2_EVENT_SOURCE_CHANGE)) {
 		VIDC_ERR("V4l2Decoder::init, subscribe source change event failed\n");
 		return -EINVAL;
 	}
 
-	VIDC_HIGH("V4l2Decoder::init, subscribe EOS event\n");
+	VIDC_MED("V4l2Decoder::init, subscribe EOS event\n");
 	if (mV4l2Driver->subscribeEvent(V4L2_EVENT_EOS)) {
 		VIDC_ERR("V4l2Decoder::init, subscribe EOS event failed\n");
 		return -EINVAL;
 	}
 
-	VIDC_HIGH("V4l2Decoder::init, create poll thread\n");
+	VIDC_MED("V4l2Decoder::init, create poll thread\n");
 	if (mV4l2Driver->createPollThread()) {
 		VIDC_ERR("V4l2Decoder::init, create poll thread failed\n");
 		return -EINVAL;
 	}
 
 	memset(&caps, 0, sizeof(caps));
-	VIDC_HIGH("V4l2Decoder::init, query capabilities\n");
+	VIDC_MED("V4l2Decoder::init, query capabilities\n");
 	if (mV4l2Driver->queryCapabilities(&caps)) {
 		VIDC_ERR("V4l2Decoder::init, query capabilities failed\n");
 		return -EINVAL;
 	}
-	VIDC_HIGH("V4l2Decoder::init, enable input meta port\n");
+	VIDC_MED("V4l2Decoder::init, enable input meta port\n");
 	if (caps.device_caps & V4L2_CAP_META_OUTPUT) {
 		mV4l2Driver->enableInputMetaPort(1);
 	}
 	/* enable input meta port to send input meta buffers */
 	mV4l2Driver->enableInputMetaPort(1);
-	VIDC_HIGH("V4l2Decoder::init, enable output meta port\n");
+	VIDC_MED("V4l2Decoder::init, enable output meta port\n");
 	if (caps.device_caps & V4L2_CAP_META_CAPTURE) {
 		mV4l2Driver->enableOutputMetaPort(1);
 	}
 
 	memset(&fmt, 0, sizeof(fmt));
 	fmt.type = INPUT_MPLANE;
-	VIDC_HIGH("V4l2Decoder::init, get input format\n");
+	VIDC_MED("V4l2Decoder::init, get input format\n");
 	if (mV4l2Driver->getFormat(&fmt)) {
 		VIDC_ERR("V4l2Decoder::init, get input format failed\n");
 		return -EINVAL;
 	}
 	fmt.fmt.pix_mp.pixelformat = mCodec;
-	VIDC_HIGH("V4l2Decoder::init, set input format\n");
+	VIDC_MED("V4l2Decoder::init, set input format\n");
 	if (mV4l2Driver->setFormat(&fmt)) {
 		VIDC_ERR("V4l2Decoder::init, set input format failed\n");
 		return -EINVAL;
@@ -89,7 +89,7 @@ int V4l2Decoder::init(unsigned int codec) {
 
 	memset(&mOutputFormat, 0, sizeof(mOutputFormat));
 	mOutputFormat.type = OUTPUT_MPLANE;
-	VIDC_HIGH("V4l2Decoder::init, get output format\n");
+	VIDC_MED("V4l2Decoder::init, get output format\n");
 	if (mV4l2Driver->getFormat(&mOutputFormat)) {
 		VIDC_ERR("V4l2Decoder::init, get output format failed\n");
 		return -EINVAL;
@@ -104,7 +104,7 @@ int V4l2Decoder::init(unsigned int codec) {
 	memset(&sel, 0, sizeof(sel));
 	sel.type = OUTPUT_MPLANE;
 	sel.target = V4L2_SEL_TGT_COMPOSE;
-	VIDC_HIGH("V4l2Decoder::init, get output selection\n");
+	VIDC_MED("V4l2Decoder::init, get output selection\n");
 	if (mV4l2Driver->getSelection(&sel)) {
 		VIDC_ERR("V4l2Decoder::init, get output selection failed\n");
 		return -EINVAL;
@@ -115,7 +115,7 @@ int V4l2Decoder::init(unsigned int codec) {
 	mCropHeight = sel.r.height;
 
 	ctrl.id = V4L2_CID_MIN_BUFFERS_FOR_OUTPUT;
-	VIDC_HIGH("V4l2Decoder::init, get output min buffers control\n");
+	VIDC_MED("V4l2Decoder::init, get output min buffers control\n");
 	if (mV4l2Driver->getControl(&ctrl)) {
 		VIDC_ERR("V4l2Decoder::init, get output min buffers control failed\n");
 		return -EINVAL;
@@ -124,7 +124,7 @@ int V4l2Decoder::init(unsigned int codec) {
 	mActualInputCount = mMinInputCount;
 
 	ctrl.id = V4L2_CID_MIN_BUFFERS_FOR_CAPTURE;
-	VIDC_HIGH("V4l2Decoder::init, get capture min buffers control\n");
+	VIDC_MED("V4l2Decoder::init, get capture min buffers control\n");
 	if (mV4l2Driver->getControl(&ctrl)) {
 		VIDC_ERR("V4l2Decoder::init, get capture min buffers control failed\n");
 		return -EINVAL;

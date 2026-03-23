@@ -38,7 +38,7 @@ struct dma_heap_allocation_data {
 // alloc ioctl
 #define DMA_HEAP_IOCTL_ALLOC  _IOWR(DMA_HEAP_IOC_MAGIC, 0x0, struct dma_heap_allocation_data)
 
-const char* DMADevicePath = "/dev/dma_heap/system";
+const char* DMADevicePath = "/dev/dma_heap/qcom,system";
 const char* DisplayCardPath = "/dev/dri/card5";
 static const char* ConnectorTypeNames[] = {
    "unknown",
@@ -87,6 +87,7 @@ bool DisplayAdaptor::initAdaptor(int frameWidth, int frameHeight) {
       return result;
    }
    VIDC_HIGH("DisplayAdaptor::initAdaptor, frameWidth = %d, frameHeight = %d\n", frameWidth, frameHeight);
+   VIDC_HIGH("DisplayAdaptor::initAdaptor, open display card: %s\n", DisplayCardPath);
    mDisplayCardFD = open(DisplayCardPath, O_RDWR, 0);
    if (mDisplayCardFD < 0) {
       VIDC_ERR("DisplayAdaptor::initAdaptor, failed to open %s\n", DisplayCardPath);
@@ -97,6 +98,7 @@ bool DisplayAdaptor::initAdaptor(int frameWidth, int frameHeight) {
    drmSetClientCap(mDisplayCardFD, DRM_CLIENT_CAP_UNIVERSAL_PLANES, 1);
    drmSetClientCap(mDisplayCardFD, DRM_CLIENT_CAP_ATOMIC, 1);
 
+   VIDC_HIGH("DisplayAdaptor::initAdaptor, parse display\n");
    int result = parseDisplay();
    if (result != 0) {
       VIDC_ERR("DisplayAdaptor::initAdaptor, parse_display failed\n");
@@ -104,6 +106,7 @@ bool DisplayAdaptor::initAdaptor(int frameWidth, int frameHeight) {
       return false;
    }
 
+   VIDC_HIGH("DisplayAdaptor::initAdaptor, create frame buffer\n");
    result = createFrameBuffer(frameWidth, frameHeight);
    if (result != 0) {
       VIDC_ERR("DisplayAdaptor::initAdaptor, Failed to create framebuffer\n");
@@ -112,6 +115,7 @@ bool DisplayAdaptor::initAdaptor(int frameWidth, int frameHeight) {
    }
 
    /* init atomic commit */
+   VIDC_HIGH("DisplayAdaptor::initAdaptor, alloc atomic commit\n");
    mDRMModeReqPtr = drmModeAtomicAlloc();
    if (mDRMModeReqPtr == NULL) {
       VIDC_ERR("DisplayAdaptor::initAdaptor, failed to init atomic commit\n");
@@ -121,12 +125,14 @@ bool DisplayAdaptor::initAdaptor(int frameWidth, int frameHeight) {
    }
 
    /* setup crtc / connector */
+   VIDC_HIGH("DisplayAdaptor::initAdaptor, setup connector\n");
    result = setupConnector();
    if (result != 0) {
       VIDC_ERR("DisplayAdaptor::initAdaptor, failed to setup connector\n");
       initMutex.unlock();
       return false;
    }
+   VIDC_HIGH("DisplayAdaptor::initAdaptor, setup connector successfully\n");
    mSourceFrameWidth = frameWidth;
    mSourceFrameHeight = frameHeight;
    isAdaptorInitialized.store(true);
@@ -165,7 +171,7 @@ bool DisplayAdaptor::commitData(std::uint8_t* pBuffer, uint32_t length) {
             isFirstKPILogPrinted = true;
             printKPILog("%s%s%s", LogKPITag, LogAPPTag, "1st video frame rendered\n");
          }
-	      VIDC_HIGH("GTDecoderIOAdapter::commitData, video frame rendered\n");
+	      VIDC_HIGH("GTDecoderIOAdapter::commitData, video frame rendered to screen\n");
       }
    }
    mCurrentFrameBufferIndex++;
@@ -518,7 +524,7 @@ int DisplayAdaptor::createFrameBuffer(uint32_t frameWidth, uint32_t frameHeight)
    mDMAHeapDeaviceFD = open(DMADevicePath, O_RDWR);
    if (mDMAHeapDeaviceFD < 0) {
       result = -1;
-      VIDC_ERR("DisplayAdaptor::createFrameBuffer, failed to open ion: errno: %d, %s\n", errno, strerror(errno));
+      VIDC_ERR("DisplayAdaptor::createFrameBuffer, failed to open DMA: errno: %d, %s\n", errno, strerror(errno));
       return result;
    }
    for (int j = 0; j < MAX_BUFFER; j++) {
@@ -601,6 +607,7 @@ bool DisplayAdaptor::updateFrameBuffer(int connectorCfgIndex, int bufIndex) {
       /* first run */
       if (mPlaneCfgVector[i].first_run) {
          /*update crtc_id and plane_id*/
+         VIDC_HIGH("DisplayAdaptor::initAdaptor, update render parameters for plane %d\n", i);
          drmModeAtomicAddProperty(
             mDRMModeReqPtr, mPlaneCfgVector[i].plane_id, mPlaneCfgVector[i].crtc_pid, mPlaneCfgVector[i].crtc_id);
          drmModeAtomicAddProperty(

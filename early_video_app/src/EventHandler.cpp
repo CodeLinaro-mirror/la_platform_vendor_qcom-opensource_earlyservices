@@ -15,17 +15,17 @@ using namespace early_video_app;
 using namespace std::chrono_literals;
 
 EventHandler::EventHandler(std::shared_ptr<V4l2Codec> codec) : mV4l2Codec(codec) {
-	VIDC_HIGH("EventHandler, contructor\n");
+	VIDC_MED("EventHandler, contructor\n");
 }
 
 EventHandler::~EventHandler() {
-	VIDC_HIGH("EventHandler, destructor\n");
+	VIDC_MED("EventHandler, destructor\n");
 }
 
 void EventHandler::threadLoop() {
 	int rc = 0;
 
-	VIDC_HIGH("EventHandler::threadLoop, enter\n");
+	VIDC_MED("EventHandler::threadLoop, enter\n");
 	mEventThreadRunning = true;
 
 	while (!mEventThreadExit) {
@@ -136,7 +136,7 @@ void EventHandler::threadLoop() {
 		}
 	}
 
-	VIDC_HIGH("EventHandler::threadLoop, end\n");
+	VIDC_MED("EventHandler::threadLoop, end\n");
 }
 
 void ThreadFunc(EventHandler& handler) {
