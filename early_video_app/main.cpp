@@ -44,7 +44,7 @@ int main(int argc, char **argv) {
         }
     }
     printKPILog("%s%s%s", LogKPITag, LogAPPTag, "run decoder");
-    VIDC_HIGH("main, run decoder\n");
+    VIDC_MED("main, run decoder\n");
     int result = GTDecoder::runDecoder();
     if (result != 0) {
         printKPILog("%s%s%s", LogKPITag, LogAPPTag, "run decoder failed");

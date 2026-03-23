@@ -19,7 +19,7 @@ using namespace early_video_app;
 #define SALIENCY_METADATA_SIZE 64
 
 V4l2Codec::V4l2Codec() {
-	VIDC_HIGH("V4l2Codec, constructor\n");
+	VIDC_MED("V4l2Codec, constructor\n");
 	mV4l2Driver = std::make_shared<V4l2Driver>();
 }
 
