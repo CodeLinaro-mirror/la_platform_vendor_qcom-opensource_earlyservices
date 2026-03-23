@@ -98,6 +98,10 @@ void GTDecoderIOAdapter::releaseInput(InputData* sourceData) {
 	delete[] sourceData->data;
 }
 
+void GTDecoderIOAdapter::setOutputFormat(struct v4l2_format* outputFormat) {
+	mOutputFormat = outputFormat;
+}
+
 bool GTDecoderIOAdapter::onOutput(std::uint8_t* pBuffer, uint32_t length) {
 	if (pBuffer == NULL || length <= 0) {
 		return false;
@@ -111,6 +115,25 @@ bool GTDecoderIOAdapter::onOutput(std::uint8_t* pBuffer, uint32_t length) {
 	VIDC_HIGH("GTDecoderIOAdapter::onOutput, video frame decoded");
 
 	bool result = false;
+	if (mDisplayAdaptor == NULL) {
+		mDisplayAdaptor = std::make_shared<DisplayAdaptor>();
+	}
+	if (!mDisplayAdaptor->isInitialized()) {
+		int outputWidth = 0;
+		int outputHeight = 0;
+		if (mOutputFormat != NULL) {
+			outputWidth = mOutputFormat->fmt.pix_mp.width;
+			outputHeight = mOutputFormat->fmt.pix_mp.height;
+		}
+		VIDC_MED("GTDecoderIOAdapter::onOutput, outputWidth = %d, outputHeight = %d", outputWidth, outputHeight);
+		bool result = mDisplayAdaptor->initAdaptor(outputWidth, outputHeight);
+		if (!result) {
+			mDisplayAdaptor->deinitAdaptor();
+		}
+	}
+	if (mDisplayAdaptor != NULL) {
+		mDisplayAdaptor->commitData(pBuffer, length);
+	}
 #if 0
 	if (mOutputFile == NULL) {
 		auto time = std::time(nullptr);
@@ -140,11 +163,15 @@ bool GTDecoderIOAdapter::onOutput(std::uint8_t* pBuffer, uint32_t length) {
 }
 
 void GTDecoderIOAdapter::close() {
+	if (mDisplayAdaptor != NULL) {
+		mDisplayAdaptor->deinitAdaptor();
+	}
 	if (mOutputFile != NULL) {
 		fclose(mOutputFile);
 		mOutputFile = NULL;
 	}
 	mCurrentInputDataIndex = 0;
+	mOutputFormat = NULL;
 }
 
 void GTDecoderIOAdapter::str2bytes(const std::string& source, InputData* dstData) {

@@ -49,6 +49,7 @@ class GTCodec {
 		int gtGetFrameRate();
 		int gtCodecConfigInput();
 		int gtCodecConfigOutput();
+		struct v4l2_format* getOutputFormat();
 		int gtCodecStartOutput();
 		int gtCodecStartInput();
 		int gtCodecStartMetaOutput();

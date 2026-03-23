@@ -50,6 +50,8 @@ int GTDecoderCallback::onBufferDone(struct v4l2_buffer* buffer) {
 						VIDC_ERR("GTDecoderCallback::onBufferDone, mmap failed, not dumping\n");
 					} else {
 						VIDC_MED("GTDecoderCallback::onBufferDone, output data, buffer->m.planes[0].bytesused = %d\n", buffer->m.planes[0].bytesused);
+						struct v4l2_format* outputFormat = mGTDecoder->getOutputFormat();
+						mGTDecoder->mGTDecoderIOAdapter->setOutputFormat(outputFormat);
 						mGTDecoder->mGTDecoderIOAdapter->onOutput(pBuffer, buffer->m.planes[0].bytesused);
 						munmap((void *)pBuffer, buffer->m.planes[0].length);
 					}

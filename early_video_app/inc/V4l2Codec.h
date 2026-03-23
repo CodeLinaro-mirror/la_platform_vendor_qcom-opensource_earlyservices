@@ -69,6 +69,7 @@ class V4l2Codec {
 		virtual int getFrameRate() = 0;
 		virtual int drain() = 0;
 		virtual int resume() = 0;
+		virtual struct v4l2_format* getOutputFormat() = 0;
 		virtual int getFenceFds(struct V4L2OutputFenceInfo* fenceInfo) = 0;
 		virtual int getFenceFd(int fence_id) = 0;
 		virtual int setDSResolution(unsigned int width, unsigned int height) = 0;
@@ -162,6 +163,7 @@ class V4l2Codec {
 
 	protected:
 		friend class V4l2Callback;
+		struct v4l2_format mOutputFormat;
 		std::shared_ptr<V4l2CodecCb> mCb;
 		unsigned int mCodec = 0;
 		unsigned int mDomain = 0;

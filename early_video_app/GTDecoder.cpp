@@ -32,7 +32,7 @@ void ThreadFunc(GTCodec& codec) {
 int GTDecoder::runDecoder() {
     VIDC_HIGH("GTDecoder::runDecoder\n");
 
-	unsigned int colorFmt = V4L2_PIX_FMT_QC08C;
+	unsigned int colorFmt = V4L2_PIX_FMT_NV12;//V4L2_PIX_FMT_QC08C;
     std::shared_ptr<GTDecoder> decoder = std::make_shared<GTDecoder>(V4L2_PIX_FMT_H264, colorFmt);
     if (decoder == NULL) {
         VIDC_ERR("GTDecoder::runDecoder, Decoder create failed!\n");
