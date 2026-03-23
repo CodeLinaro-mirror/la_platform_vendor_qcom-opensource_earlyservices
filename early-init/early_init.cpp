@@ -2886,7 +2886,7 @@ int early_init_kmod(const char *idx)
   if (i < sizeof(_eapp_info)/sizeof(_eapp_info[0]) &&
       _eapp_info[i].name[0] != 0) {
     char str[SHORT_STRING_MAX];
-    if (!strncmp(_eapp_info[i].name, EMOD_END, sizeof(_eapp_info[i].name)-1))
+    if (!strncmp(_eapp_info[i].name, EMOD_END, sizeof(_eapp_info[i].name)-1) || !strncmp(_eapp_info[i].name, "qcarcam_edrm_rvc", sizeof(_eapp_info[i].name)-1))
       flag = LMP_MODPROBE;
     else if (strncmp(_eapp_info[i].name, ECHIME_APP, sizeof(_eapp_info[i].name)-1)
             || strncmp(_eapp_info[i].name, EAUDIO_APP, sizeof(_eapp_info[i].name)-1)

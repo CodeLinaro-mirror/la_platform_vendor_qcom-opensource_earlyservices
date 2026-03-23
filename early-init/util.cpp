@@ -69,10 +69,9 @@ void import_kernel_cmdline(bool in_qemu,
 }
 
 bool load_kernel_modules(int& loaded_count, bool is_parallel) {
-    Modprobe m({MODULES_DIR}, MODULES_LOAD_FILE);
-    bool ret = (is_parallel) ? m.LoadModulesParallel(std::thread::hardware_concurrency())
-                   : m.LoadListedModules(false);
-    loaded_count = m.GetModuleCount();
+    bool ret = (is_parallel) ? _modprobe.LoadModulesParallel(std::thread::hardware_concurrency())
+                   : _modprobe.LoadListedModules(false);
+    loaded_count = _modprobe.GetModuleCount();
     if (loaded_count > 0) {
         return ret;
     }

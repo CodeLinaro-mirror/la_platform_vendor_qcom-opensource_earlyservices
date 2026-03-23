@@ -73,35 +73,6 @@ static inline int create_bridge(const char *br_name) {
     return 0;
 }
 
-static void wait_for_mount_point() {
-	const char *check_paths[] = {
-        "/dev/dma_heap",
-        "/dev/dri/renderD128",
-        "/dev/dri/card2",
-        "/dev/kgsl-3d0",
-        "/dev/snd",
-        "/dev/socket/agm",
-    };
-	int i = 0, retry = 0;
-	int num_paths = sizeof(check_paths) / sizeof(check_paths[0]);
-	for (i = 0; i < num_paths ; i++) {
-		retry = 0;
-		while (retry++ < 1500) {
-			if (access(check_paths[i], F_OK) == 0) {
-				print_log("check path okay %s \n", check_paths[i]);
-				break;
-			} else {
-				if (retry % 20 == 1)
-					print_log("check path failed %s \n", check_paths[i]);
-				usleep(100 * 1000);//sleep 100ms
-			}
-		}
-	}
-	//flush log buffer, will removed once all MM ready
-	print_log("\n");
-	usleep(100 * 1000);
-}
-
 extern int unshare(int __flags);
 static void create_private_ns(void) {
 	//Create new NS for current thread
@@ -124,7 +95,6 @@ static inline int start_lxc_container() {
         usleep(100000); // 100ms
     }
 
-    wait_for_mount_point();
     pid_t pid_start = fork();
     //lxc-monitor -n lv -W -o /vendor_early_services/run/lxc_monitor.log
     //lxc-start -n lv -l trace --logfile=/vendor_early_services/run/lxc.log
