@@ -142,6 +142,7 @@ void V4l2Decoder::deinit() {
 	mV4l2Driver->Close();
 	mV4l2Driver->closeMediaDevice();
 	memset(&mOutputFormat, 0, sizeof(mOutputFormat));
+	mFrameRate = 0;
 	VIDC_MED("V4l2Decoder::deinit\n");
 }
 
@@ -199,17 +200,21 @@ int V4l2Decoder::setDSResolution(unsigned int width, unsigned int height) {
 	return mV4l2Driver->setSelection(&sel);
 }
 
-int V4l2Decoder::getFrameRate() {
+float V4l2Decoder::getFrameRate() {
+	if (mFrameRate > 0) {
+		return mFrameRate;
+	}
+
 	struct v4l2_control control;
 	memset(&control, 0, sizeof(control));
 
 	control.id = V4L2_CID_MPEG_VIDC_FRAME_RATE;
 	if (mV4l2Driver->getControl(&control)) {
 		VIDC_ERR("V4l2Decoder::getFrameRate, get control failed\n");
-		return -EINVAL;
+		return 0;
 	}
-
-	return 0;
+	mFrameRate = control.value / (float)65536;
+	return mFrameRate;
 }
 
 int V4l2Decoder::configureInput() {

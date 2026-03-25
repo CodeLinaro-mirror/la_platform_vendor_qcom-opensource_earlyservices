@@ -32,7 +32,7 @@ void ThreadFunc(GTCodec& codec) {
 int GTDecoder::runDecoder() {
     VIDC_HIGH("GTDecoder::runDecoder\n");
 
-	unsigned int colorFmt = V4L2_PIX_FMT_NV12;//V4L2_PIX_FMT_QC08C;
+	unsigned int colorFmt = V4L2_PIX_FMT_QC08C;//V4L2_PIX_FMT_NV12, V4L2_PIX_FMT_QC08C;
     std::shared_ptr<GTDecoder> decoder = std::make_shared<GTDecoder>(V4L2_PIX_FMT_H264, colorFmt);
     if (decoder == NULL) {
         VIDC_ERR("GTDecoder::runDecoder, Decoder create failed!\n");
@@ -215,24 +215,6 @@ int GTDecoder::runDecoder() {
         VIDC_MED("GTDecoder::runDecoder, free input buffer successfully\n");
     }
 
-	decoder->gtCodecDeInit();
-	if (result != 0) {
-        VIDC_ERR("GTDecoder::runDecoder, deinit decoder failed!, result = %d\n", result);
-		return result;
-	}
-    else {
-        VIDC_MED("GTDecoder::runDecoder, deinit decoder successfully\n");
-    }
-
-	result= eventHandler->stopEventThread();
-	if (result != 0) {
-        VIDC_ERR("GTDecoder::runDecoder, stop event thread failed!, result = %d\n", result);
-		return result;
-	}
-    else {
-        VIDC_MED("GTDecoder::runDecoder, stop event thread successfully\n");
-    }
-
 	return result;
 }
 
@@ -248,9 +230,16 @@ GTDecoder::~GTDecoder() {
 	VIDC_MED("GTDecoder, Destructor");
 	if (mGTDecoderIOAdapter != NULL) {
 		mGTDecoderIOAdapter->close();
+		mGTDecoderIOAdapter = NULL;
 	}
-	mEventHandler->stopEventThread();
-	mV4l2Codec->deinit();
+	if (mEventHandler != NULL) {
+		mEventHandler->stopEventThread();
+		mEventHandler = NULL;
+	}
+	if (mV4l2Codec != NULL) {
+		mV4l2Codec->deinit();
+		mV4l2Codec = NULL;
+	}
 }
 
 std::shared_ptr<EventHandler> GTDecoder::getEventHandler() {
@@ -305,7 +294,7 @@ int GTDecoder::gtRegisterCallbacks() {
 int GTDecoder::setControl(unsigned int ctrlId, int value) {
 	int ret = mV4l2Codec->setControl(ctrlId, value);
 	if (ret) {
-		VIDC_ERR("GTDecoder::setControl, %s: failed, ret = %d\n", ret);
+		VIDC_ERR("GTDecoder::setControl, failed, ret = %d\n", ret);
 		return ret;
 	}
 	if (ctrlId == V4L2_CID_MPEG_VIDC_LAST_FLAG_EVENT_ENABLE && value)

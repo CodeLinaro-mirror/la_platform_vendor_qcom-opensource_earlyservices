@@ -37,7 +37,7 @@ public:
 	int setFrameRate(unsigned int numer, unsigned int denom);
 	int setDSResolution(unsigned int width, unsigned int height);
 	int getOperatingRate();
-	int getFrameRate();
+	float getFrameRate();
 	int drain();
 	int resume();
 	struct v4l2_format* getOutputFormat();

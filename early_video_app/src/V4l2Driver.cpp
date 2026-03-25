@@ -366,6 +366,9 @@ int V4l2Driver::openMediaDevice(unsigned int type) {
 }
 
 void V4l2Driver::Close() {
+	if (mFd < 0) {
+		return;
+	}
 	VIDC_MED("V4l2Driver::Close, close driver fd %d\n", mFd);
 #ifdef ANDROID
 	close(mFd);
@@ -378,6 +381,9 @@ void V4l2Driver::Close() {
 }
 
 void V4l2Driver::closeMediaDevice() {
+	if (mMediaFd < 0) {
+		return;
+	}
 	VIDC_MED("V4l2Driver::closeMediaDevice, close media driver fd %d\n", mMediaFd);
 #ifdef ANDROID
 	close(mMediaFd);

@@ -66,7 +66,7 @@ class V4l2Codec {
 		virtual int setOperatingRate(unsigned int numer, unsigned int denom) = 0;
 		virtual int setFrameRate(unsigned int numer, unsigned int denom) = 0;
 		virtual int getOperatingRate() = 0;
-		virtual int getFrameRate() = 0;
+		virtual float getFrameRate() = 0;
 		virtual int drain() = 0;
 		virtual int resume() = 0;
 		virtual struct v4l2_format* getOutputFormat() = 0;
@@ -195,6 +195,7 @@ class V4l2Codec {
 		int mDownscaleWidth = 0;
 		int mDownscaleHeight = 0;
 		bool mDownscaleEnable = false;
+		float mFrameRate = 0;
 		int mBitrate = 0;
 		int mBitrateMode = 0;
 		unsigned int mColorFormat = 0;

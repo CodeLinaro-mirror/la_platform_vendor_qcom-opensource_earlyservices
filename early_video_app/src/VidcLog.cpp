@@ -172,17 +172,43 @@ namespace early_video_app {
                     case 'd':
                         std::cout << va_arg(args, int);
                         break;
+                    case 'l': {
+                        if (logFormat[i + 1] == 'd') {
+                            i++;
+                            std::cout << va_arg(args, long);
+                        }
+                        else {
+                            std::cout << '%' << logFormat[i];
+                        }
+                    }
                     case 'u':
                         std::cout << va_arg(args, unsigned int);
+                        break;
+                    case 'c':
+                        std::cout << static_cast<char>(va_arg(args, long));
                         break;
                     case 'f':
                         std::cout << va_arg(args, double);
                         break;
+                    case 'x':
+                        std::cout << std::hex << va_arg(args, int) << std::dec;
+                        break;
+                    case '#': {
+                        if (logFormat[i + 1] == 'x') {
+                            i++;
+                            unsigned int val = va_arg(args, unsigned int);
+                            std::cout << std::hex << va_arg(args, unsigned int) << std::dec;
+                        }
+                        else {
+                            std::cout << '%' << logFormat[i];
+                        }
+                        break;
+                    }
                     case 'p':
                         std::cout << va_arg(args, long);
                         break;
                     default:
-                        std::cout << logFormat[i];
+                        std::cout << '%' << logFormat[i];
                         break;
                 }
             }
