@@ -26,13 +26,15 @@ class GTDecoderIOAdapter {
 		bool getInput(InputData* dstData);
 		void releaseInput(InputData* sourceData);
 		void setOutputFormat(struct v4l2_format* outputForma);
-		bool onOutput(std::uint8_t* pBuffer, uint32_t length);
+		void setOutputFrameRate(float frameRate);
+		bool onOutput(std::uint8_t* pBuffer, uint32_t length, uint32_t offset, bool isKeyFrame);
         void close();
 	private:
         static void str2bytes(const std::string& source, InputData* data);
 		static unsigned char hexStrToByte(const std::string& sourceHexStr);
 
 		struct v4l2_format* mOutputFormat = NULL;
+		float mOutputFrameRate = 30; //default 30fps.
 
 		FILE* mOutputFile = NULL;
 		std::shared_ptr<DisplayAdaptor> mDisplayAdaptor = NULL;

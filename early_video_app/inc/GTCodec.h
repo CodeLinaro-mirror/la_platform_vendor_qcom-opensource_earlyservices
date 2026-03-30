@@ -46,7 +46,7 @@ class GTCodec {
 		int gtSetOperatingRate(unsigned int numer, unsigned int denom);
 		int gtSetFrameRate(unsigned int numer, unsigned int denom);
 		int gtGetOperatingRate();
-		int gtGetFrameRate();
+		float gtGetFrameRate();
 		int gtCodecConfigInput();
 		int gtCodecConfigOutput();
 		struct v4l2_format* getOutputFormat();

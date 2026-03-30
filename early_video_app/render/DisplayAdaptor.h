@@ -90,13 +90,14 @@ class DisplayAdaptor {
     public:
         DisplayAdaptor(void);
         bool isInitialized();
-        bool initAdaptor(int frameWidth, int frameHeight);
-        bool commitData(std::uint8_t* pBuffer, uint32_t length);
+        bool initAdaptor(uint32_t frameWidth, uint32_t frameHeight, uint32_t dataSize);
+        bool commitData(std::uint8_t* pBuffer, uint32_t length, uint32_t offset);
         bool deinitAdaptor(void);
 
     private:
         int parseDisplay();
-        int createFrameBuffer(uint32_t frameWidth, uint32_t frameHeight);
+        int createFrameBufferForNV12(uint32_t frameWidth, uint32_t frameHeight);
+        int createFrameBufferForNV12UBWC(uint32_t frameWidth, uint32_t frameHeight, uint32_t dataSize);
         bool updateFrameBuffer(int connectorCfgIndex, int bufIndex);
         int setupConnector();
         bool atomicCommit(bool isAsync);

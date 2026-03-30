@@ -49,10 +49,18 @@ int GTDecoderCallback::onBufferDone(struct v4l2_buffer* buffer) {
 					if (pBuffer == MAP_FAILED) {
 						VIDC_ERR("GTDecoderCallback::onBufferDone, mmap failed, not dumping\n");
 					} else {
-						VIDC_MED("GTDecoderCallback::onBufferDone, output data, buffer->m.planes[0].bytesused = %d\n", buffer->m.planes[0].bytesused);
+						VIDC_MED("GTDecoderCallback::onBufferDone, output data, buffer->m.planes[0].bytesused = %d, buffer->m.planes[0].data_offset = %d\n",
+							buffer->m.planes[0].bytesused, buffer->m.planes[0].data_offset);
 						struct v4l2_format* outputFormat = mGTDecoder->getOutputFormat();
 						mGTDecoder->mGTDecoderIOAdapter->setOutputFormat(outputFormat);
-						mGTDecoder->mGTDecoderIOAdapter->onOutput(pBuffer, buffer->m.planes[0].bytesused);
+
+						int frameRate = mGTDecoder->mV4l2Codec->getFrameRate();
+						mGTDecoder->mGTDecoderIOAdapter->setOutputFrameRate(frameRate);
+
+						bool isKeyFrame = buffer->flags & V4L2_BUF_FLAG_KEYFRAME;
+						VIDC_MED("GTDecoderCallback::onBufferDone, output data, frameRate = %d, isKeyFrame = %d\n", frameRate, isKeyFrame);
+
+						mGTDecoder->mGTDecoderIOAdapter->onOutput(pBuffer, buffer->m.planes[0].bytesused, buffer->m.planes[0].data_offset, isKeyFrame);
 						munmap((void *)pBuffer, buffer->m.planes[0].length);
 					}
 				}

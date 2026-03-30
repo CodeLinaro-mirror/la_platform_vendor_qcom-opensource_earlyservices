@@ -127,7 +127,7 @@ int GTCodec::gtGetOperatingRate() {
 	return mV4l2Codec->getOperatingRate();
 }
 
-int GTCodec::gtGetFrameRate() {
+float GTCodec::gtGetFrameRate() {
 	return mV4l2Codec->getFrameRate();
 }
 
