@@ -153,6 +153,10 @@ void place_marker(char const *name)
    int fd=open("/sys/kernel/boot_kpi/kpi_values", O_WRONLY);
    if (fd > 0)
    {
+       if (name == NULL) {
+            close(fd);
+            return;
+       }
        char earlyapp[128] = {0};
        strlcpy(earlyapp, name, sizeof(earlyapp));
        write(fd, earlyapp, strlen(earlyapp));
