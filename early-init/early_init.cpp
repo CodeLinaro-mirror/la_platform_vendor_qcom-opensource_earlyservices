@@ -323,11 +323,11 @@ const static struct {
 #ifdef PLATFORM_GEN4
  {"qcxserver", "modules_qcx.order", "qcx", check_ais_device_ready, EAPP_MOD_WAIT_FW},
  {"qcarcam_edrm_rvc", "modules_rv_gen4.order", "rvc", check_rvc_device_ready, EAPP_MOD_WAIT_FW},
- {EMOD_END, "modules_end_gen4.order", "def_end", NULL, EAPP_WAIT_NONE},
+ {EMOD_END, "modules_end_gen4.order", "def_end", NULL, EAPP_MOD_WAIT_FW},
 #else
  {"ais_server", "modules_ais.order", "ais", check_ais_device_ready, EAPP_MOD_WAIT_FW},
  {"qcarcam_edrm_rvc", "modules_rv.order", "rvc", check_rvc_device_ready, EAPP_WAIT_DISP},
- {EMOD_END, "modules_end.order", "def_end", NULL, EAPP_WAIT_NONE},
+ {EMOD_END, "modules_end.order", "def_end", NULL, EAPP_MOD_WAIT_FW},
 #endif //PLATFORM_GEN4
  {"esplash", "", "splash", NULL, EAPP_WAIT_DISP},
  {"pd-mapper", "", "pd-mapper", check_pdmapper_ready, EAPP_MOD_WAIT_FW},
