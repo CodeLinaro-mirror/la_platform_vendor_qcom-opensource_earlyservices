@@ -28,13 +28,14 @@ int GTDecoder::runDecoder() {
     VIDC_HIGH("GTDecoder::runDecoder\n");
 
     unsigned int colorFmt = V4L2_PIX_FMT_VIDC_NV12C;
-    std::shared_ptr<GTDecoder> decoder = std::make_shared<GTDecoder>(V4L2_PIX_FMT_H264, colorFmt);
-    if (decoder == NULL) {
-        VIDC_ERR("GTDecoder::runDecoder, Decoder create failed!\n");
-        return -ENOMEM;
-    }
-    else {
+    std::shared_ptr<GTDecoder> decoder;
+
+    try {
+        decoder = std::make_shared<GTDecoder>(V4L2_PIX_FMT_H264, colorFmt);
         VIDC_MED("GTDecoder::runDecoder, Decoder created successfully\n");
+    } catch (const std::bad_alloc&) {
+        VIDC_ERR("GTDecoder::runDecoder, Decoder create failed: out of memory!\n");
+        return -ENOMEM;
     }
 
     /*create event thread*/
@@ -193,31 +194,9 @@ int GTDecoder::runDecoder() {
     }
 
     decoder->freeBuffers(OUTPUT_PORT);
-    if (result != 0) {
-        VIDC_ERR("GTDecoder::runDecoder, free output buffer failed!, result = %d\n", result);
-        return result;
-    }
-    else {
-        VIDC_MED("GTDecoder::runDecoder, free output buffer successfully\n");
-    }
-
     decoder->freeBuffers(INPUT_PORT);
-    if (result != 0) {
-        VIDC_ERR("GTDecoder::runDecoder, free input buffer failed!, result = %d\n", result);
-        return result;
-    }
-    else {
-        VIDC_MED("GTDecoder::runDecoder, free input buffer successfully\n");
-    }
 
     decoder->gtCodecDeInit();
-    if (result != 0) {
-        VIDC_ERR("GTDecoder::runDecoder, deinit decoder failed!, result = %d\n", result);
-        return result;
-    }
-    else {
-        VIDC_MED("GTDecoder::runDecoder, deinit decoder successfully\n");
-    }
 
     result= eventHandler->stopEventThread();
     if (result != 0) {
@@ -271,7 +250,7 @@ int GTDecoder::setSeekInfo(const int& seekFrom, const int& seekTo) {
 }
 
 int GTDecoder::enableInputQbufSleep(int sleep) {
-    inputQbufSleep = sleep;
+    mInputQbufSleep = sleep;
     return 0;
 }
 
@@ -300,7 +279,7 @@ int GTDecoder::gtRegisterCallbacks() {
 int GTDecoder::setControl(unsigned int ctrlId, int value) {
     int ret = mV4l2Codec->setControl(ctrlId, value);
     if (ret) {
-        VIDC_ERR("GTDecoder::setControl, %s: failed, ret = %d\n", ret);
+        VIDC_ERR("GTDecoder::setControl, ctrlId=%u failed, ret = %d\n", ctrlId, ret);
         return ret;
     }
     if (ctrlId == V4L2_CID_MPEG_VIDC_LAST_FLAG_EVENT_ENABLE && value)
@@ -580,7 +559,7 @@ int GTDecoder::queueBuffers() {
 
         /*----------------fill data begin--------------*/
         VIDC_MED("GTDecoder::queueBuffers, Input raw data\n");
-        usleep(inputQbufSleep * 1000);
+        usleep(mInputQbufSleep * 1000);
         std::shared_ptr<Buffer> spBuffer = nullptr;
         if (!buffer->m.planes[0].data_offset) {
             spBuffer.reset(new Buffer(

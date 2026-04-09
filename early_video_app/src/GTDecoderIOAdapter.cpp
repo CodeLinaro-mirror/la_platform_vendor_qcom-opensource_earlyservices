@@ -107,7 +107,7 @@ bool GTDecoderIOAdapter::onOutput(std::uint8_t* pBuffer, uint32_t length) {
     static bool isFirstKPILogPrinted = false;
     if (!isFirstKPILogPrinted) {
         isFirstKPILogPrinted = true;
-        printKPILog("%s%s%s", LogKPITag, LogAPPTag, "1st video frame output");
+        printKPILog("%s%s%s", LogKPITag, LogAPPTag, "1st-frame output");
     }
     VIDC_HIGH("GTDecoderIOAdapter::onOutput, video frame decoded");
 

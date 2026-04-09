@@ -15,17 +15,17 @@ using namespace early_video_app;
 using namespace std::chrono_literals;
 
 EventHandler::EventHandler(std::shared_ptr<V4l2Codec> codec) : mV4l2Codec(codec) {
-    VIDC_HIGH("EventHandler, contructor\n");
+    VIDC_MED("EventHandler, contructor\n");
 }
 
 EventHandler::~EventHandler() {
-    VIDC_HIGH("EventHandler, destructor\n");
+    VIDC_MED("EventHandler, destructor\n");
 }
 
 void EventHandler::threadLoop() {
     int rc = 0;
 
-    VIDC_HIGH("EventHandler::threadLoop, enter\n");
+    VIDC_MED("EventHandler::threadLoop, enter\n");
     mEventThreadRunning = true;
 
     while (!mEventThreadExit) {
@@ -136,7 +136,7 @@ void EventHandler::threadLoop() {
         }
     }
 
-    VIDC_HIGH("EventHandler::threadLoop, end\n");
+    VIDC_MED("EventHandler::threadLoop, end\n");
 }
 
 void ThreadFunc(EventHandler& handler) {
@@ -202,13 +202,14 @@ int EventHandler::queueEvent(enum event_id eventId, bool blocking) {
     {
         if (blocking) {
             std::unique_lock<std::mutex> lock(mEventWaitLock);
-            if (mEventWaitNotified == false) {
-                std::cv_status wait_ret = mEventWaitCondition.wait_for(lock,
-                    std::chrono::seconds(15));
-                if (wait_ret == std::cv_status::timeout) {
-                    VIDC_MED("EventHandler::queueEvent, timedout for eventId %d\n", eventId);
-                    return -EINVAL;
-                }
+            bool notified = mEventWaitCondition.wait_for(
+                lock,
+                std::chrono::seconds(15),
+                [this] { return mEventWaitNotified; });
+
+            if (!notified) {
+                VIDC_MED("EventHandler::queueEvent, timeout for eventId %d\n", eventId);
+                return -EINVAL;
             }
             mEventWaitNotified = false;
         }
@@ -231,13 +232,13 @@ int EventHandler::queueBuffer(enum event_id eventId, std::shared_ptr<v4l2_buffer
     }
     {
         std::unique_lock<std::mutex> lock(mEventWaitLock);
-        if (mEventWaitNotified == false) {
-            std::cv_status wait_ret = mEventWaitCondition.wait_for(lock,
-                std::chrono::seconds(15));
-            if (wait_ret == std::cv_status::timeout) {
-                VIDC_MED("EventHandler::queueBuffer, timedout for eventId %d\n", eventId);
-                return -EINVAL;
-            }
+        bool notified = mEventWaitCondition.wait_for(
+            lock,
+            std::chrono::seconds(15),
+            [this] { return mEventWaitNotified; });
+        if (!notified) {
+            VIDC_MED("EventHandler::queueBuffer, timeout for eventId %d\n", eventId);
+            return -EINVAL;
         }
         mEventWaitNotified = false;
     }

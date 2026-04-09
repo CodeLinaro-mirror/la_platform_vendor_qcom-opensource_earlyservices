@@ -56,7 +56,7 @@ class GTDecoder : public GTCodec {
 
         int mSeekFrom = -1;
         int mSeekTo = -1;
-        bool inputQbufSleep = 0;
+        int mInputQbufSleep = 0;
         int mFenceErrorCount = 0;
         bool mDrcLastFlagReceived = false;
         bool mIsReallocateOutputBufferEnabled = false;

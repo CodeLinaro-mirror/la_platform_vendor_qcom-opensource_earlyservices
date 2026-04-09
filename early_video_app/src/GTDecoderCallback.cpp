@@ -10,11 +10,11 @@ using namespace early_video_app;
 
 GTDecoderCallback::GTDecoderCallback(GTDecoder* dec) :
     mGTDecoder(dec) {
-    VIDC_HIGH("V4l2Callback, constructor\n");
+    VIDC_MED("V4l2Callback, constructor\n");
 }
 
 GTDecoderCallback::~GTDecoderCallback() {
-    VIDC_HIGH("V4l2Callback, destructor\n");
+    VIDC_MED("V4l2Callback, destructor\n");
 }
 
 int GTDecoderCallback::onBufferDone(struct v4l2_buffer* buffer) {
@@ -95,10 +95,10 @@ int GTDecoderCallback::onBufferDone(struct v4l2_buffer* buffer) {
                     buffer->flags &= ~V4L2_BUF_FLAG_LAST;
                     if (mGTDecoder->mReconfigEventReceived) {
                         mGTDecoder->mDrcLastFlagReceived = true;
-                        VIDC_HIGH("GTDecoderCallback::onBufferDone, drc last flag received\n");
+                        VIDC_MED("GTDecoderCallback::onBufferDone, drc last flag received\n");
                     } else if (mGTDecoder->mDrainSent) {
                         mGTDecoder->mDrainLastFlagReceived = true;
-                        VIDC_HIGH("GTDecoderCallback::onBufferDone, drain last flag received\n");
+                        VIDC_MED("GTDecoderCallback::onBufferDone, drain last flag received\n");
                     }
                 }
                 if (mGTDecoder->mV4l2Codec->isOutBufFenceEnabled()) {
@@ -195,7 +195,7 @@ void GTDecoderCallback::onEventDone(struct v4l2_event* event) {
     VIDC_MED("GTDecoderCallback::onEventDone\n");
     if (event->type == V4L2_EVENT_SOURCE_CHANGE &&
         event->u.src_change.changes == V4L2_EVENT_SRC_CH_RESOLUTION) {
-        VIDC_HIGH("GTDecoderCallback::onEventDone, source change event received\n");
+        VIDC_MED("GTDecoderCallback::onEventDone, source change event received\n");
         mGTDecoder->mReconfigEventReceived = true;
         mGTDecoder->mV4l2Codec->mFirstReconfigReceived = true;
     }
@@ -203,10 +203,10 @@ void GTDecoderCallback::onEventDone(struct v4l2_event* event) {
     if (event->type == V4L2_EVENT_EOS && mGTDecoder->mLastFlagEventEnabled) {
         if (mGTDecoder->mReconfigEventReceived && !mGTDecoder->mDrcLastFlagReceived) {
             mGTDecoder->mDrcLastFlagReceived = true;
-            VIDC_HIGH("GTDecoderCallback::onEventDone Drc last flag event received\n");
+            VIDC_MED("GTDecoderCallback::onEventDone Drc last flag event received\n");
         } else if (mGTDecoder->mDrainSent && !mGTDecoder->mDrainLastFlagReceived) {
             mGTDecoder->mDrainLastFlagReceived = true;
-            VIDC_HIGH("GTDecoderCallback::onEventDone, Drain last flag event received\n");
+            VIDC_MED("GTDecoderCallback::onEventDone, Drain last flag event received\n");
         } else {
             VIDC_ERR("GTDecoderCallback::onEventDone, unexpected last flag event\n");
         }

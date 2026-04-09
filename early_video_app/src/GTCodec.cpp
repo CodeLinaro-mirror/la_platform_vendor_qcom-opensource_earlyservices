@@ -13,7 +13,7 @@ GTCodec::GTCodec(unsigned int codec, unsigned int colorFmt) :
         mColorfmt(colorFmt),
         /* 2 x max POR fps(960) */
         mMWBitrate(1920u) {
-        VIDC_HIGH("GTCodec, constructor\n");
+        VIDC_MED("GTCodec, constructor\n");
 #if !defined(ANDROID) && !defined(_LINUX_VENV_)
         g_pltfrm_ops = platform_init();
         vidc_init();
@@ -21,7 +21,7 @@ GTCodec::GTCodec(unsigned int codec, unsigned int colorFmt) :
 }
 
 GTCodec::~GTCodec() {
-        VIDC_HIGH("GTCodec, destructor\n");
+        VIDC_MED("GTCodec, destructor\n");
 #if !defined(ANDROID) && !defined(_LINUX_VENV_)
         vidc_exit();
         platform_deinit(g_pltfrm_ops);
@@ -36,7 +36,7 @@ int GTCodec::gtCodecRunSSR() {
     if (mSSRValueString == nullptr)
         return 0;
 
-    VIDC_HIGH("GTCodec::gtCodecRunSSR, mSSRValueString: %s\n", mSSRValueString);
+    VIDC_MED("GTCodec::gtCodecRunSSR, mSSRValueString: %s\n", mSSRValueString);
     /*
     * below commands need to be executed to mount debugfs
     * adb shell setprop persist.dbg.keep_debugfs_mounted true
@@ -62,7 +62,7 @@ int GTCodec::gtCodecRunStabilityCmd() {
     if(mStabilityValueString == nullptr)
         return 0;
 
-    VIDC_HIGH("GTCodec::gtCodecRunStabilityCmd, mStabilityValueString: %s\n", mStabilityValueString);
+    VIDC_MED("GTCodec::gtCodecRunStabilityCmd, mStabilityValueString: %s\n", mStabilityValueString);
     /*
     * below commands need to be executed to mount debugfs
     * adb shell setprop persist.dbg.keep_debugfs_mounted true

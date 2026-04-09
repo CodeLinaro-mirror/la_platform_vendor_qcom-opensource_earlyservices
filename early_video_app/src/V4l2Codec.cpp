@@ -18,7 +18,7 @@ using namespace early_video_app;
 #define SALIENCY_METADATA_SIZE 64
 
 V4l2Codec::V4l2Codec() {
-    VIDC_HIGH("V4l2Codec, constructor\n");
+    VIDC_MED("V4l2Codec, constructor\n");
     mV4l2Driver = std::make_shared<V4l2Driver>();
 }
 
@@ -485,8 +485,10 @@ std::shared_ptr<v4l2_buffer> V4l2Codec::allocateBuffer(int index, enum port_type
     plane[0].bytesused = 0;
     plane[0].length = bufSize * (port == INPUT_PORT ? mMultiplier : 1);
     plane[0].m.fd = mV4l2Driver->ionAlloc(plane[0].length);
-    if (plane[0].m.fd < 0)
+    if (plane[0].m.fd < 0) {
+        free(plane);
         return nullptr;
+    }
     plane[0].data_offset = 0;
     return buf;
 }
@@ -948,21 +950,27 @@ int V4l2Codec::queueBufferRequest(std::shared_ptr<v4l2_buffer> buffer, unsigned 
         }
         if (param->controlId == SPARM_FRAME_RATE) {
             ret = setFrameRate(1, param->value);
-            if (ret)
+            if (ret) {
+                free(ext_controls.controls);
                 return ret;
+            }
             itr = mDynamicParams.erase(itr);
         }
         else if (param->controlId == SPARM_OPERATING_RATE) {
             ret = setOperatingRate(1, param->value);
-            if (ret)
+            if (ret) {
+                free(ext_controls.controls);
                 return ret;
+            }
             itr = mDynamicParams.erase(itr);
         }
         else if (param->controlId == V4L2_CID_MPEG_VIDEO_FORCE_KEY_FRAME) {
             /* button controls are not supported via request api*/
             ret = setControl(param->controlId, param->value);
-            if (ret)
+            if (ret) {
+                free(ext_controls.controls);
                 return ret;
+            }
             itr = mDynamicParams.erase(itr);
         }
         else {
@@ -972,10 +980,10 @@ int V4l2Codec::queueBufferRequest(std::shared_ptr<v4l2_buffer> buffer, unsigned 
             if (ext_controls.count >= MAX_EXT_CONTROLS) {
                 VIDC_ERR("V4l2Codec::queueBufferRequest, dynamic controls count %d exceeds max allowed %d\n",
                     ext_controls.count, MAX_EXT_CONTROLS);
+                free(ext_controls.controls);
                 return -EINVAL;
             }
             itr = mDynamicParams.erase(itr);
-            itr++;
         }
     }
 
@@ -983,16 +991,11 @@ int V4l2Codec::queueBufferRequest(std::shared_ptr<v4l2_buffer> buffer, unsigned 
         goto queuebufferLabel;
 
     ret = mV4l2Driver->queueBufferRequest(buffer.get(), &ext_controls);
-    if (ret)
-        return ret;
     free(ext_controls.controls);
-
     return ret;
 
 queuebufferLabel:
     ret = mV4l2Driver->queueBufferRequest(buffer.get(), NULL);
-    if (ret)
-        return ret;
     free(ext_controls.controls);
     return ret;
 }
@@ -1183,8 +1186,7 @@ int V4l2Codec::fillMetadata(std::shared_ptr<v4l2_buffer> metaBuf) {
 		case V4L2_CID_MPEG_VIDC_METADATA_ROI_INFO:
 		{
 			uint16_t *pBuf;
-			uint8_t *pRoiInfo;
-			uint32_t lcuWidth, lcuHeight, rowSize, bufSize, numberOfMbs;
+			uint32_t lcuWidth, lcuHeight, rowSize, bufSize;
 
 			if (mCodec == V4L2_PIX_FMT_HEVC) {
 				lcuWidth = (mWidth + 31) >> 5;
@@ -1193,7 +1195,7 @@ int V4l2Codec::fillMetadata(std::shared_ptr<v4l2_buffer> metaBuf) {
 				lcuWidth = (mWidth + 15) >> 4;
 				lcuHeight = (mHeight + 15) >> 4;
 			}
-			numberOfMbs = lcuWidth * lcuHeight;
+
 			rowSize = (((lcuWidth + 7) >> 3) << 3);
 			bufSize = rowSize * lcuHeight * 2;
 
@@ -1203,12 +1205,6 @@ int V4l2Codec::fillMetadata(std::shared_ptr<v4l2_buffer> metaBuf) {
 			mphdr->version = 1 << 16;
 			mphdr->offset = ALIGN(metaPayloadOffset, (uint32_t)256);
 			mphdr->flags = METADATA_FLAGS_NONE;
-
-			pRoiInfo = (uint8_t *)malloc(numberOfMbs);
-			if (!pRoiInfo) {
-				VIDC_ERR("ROI temp buffer alloc failed. Size=%d\n", numberOfMbs);
-				return -EINVAL;
-			}
 
 			uint16_t *pExtraDataBuf = reinterpret_cast<uint16_t *>
 					((reinterpret_cast<uintptr_t>(mhdr) + mphdr->offset));
