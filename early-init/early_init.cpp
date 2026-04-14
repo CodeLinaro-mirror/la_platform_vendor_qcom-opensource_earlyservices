@@ -409,9 +409,6 @@ static void inline safe_close(int fd)
 
 static void inline write_marker(const char* name)
 {
-#if defined(__ANDROID_U__)
-  ALOGE("boot_kpi: %s ", name);
-#else
   int fd = -1;
 
   fd = open(KPI_VALUE_PATH, O_WRONLY);
@@ -422,7 +419,6 @@ static void inline write_marker(const char* name)
     printf("open bootkpi for name %s failed %s\r\n", name, strerror(errno));
   }
   safe_close(fd);
-#endif
   return;
 }
 
@@ -1122,9 +1118,6 @@ bool bc_get_lmp()
     (void)in_qemu;
     if (key == "androidboot.load_modules_parallel" && value == "\"true\"") {
       load_parallel = true;
-#if defined(__ANDROID_U__)
-       load_parallel = false;
-#endif
       found = true;
     }
     return found;
@@ -2077,6 +2070,9 @@ static int check_display_driver_ready(void)
   }
 
   LOG(ERROR) << "Function: " << __func__ << ", Line: " << __LINE__ << " check driver timeout failed------\n";
+#elif defined(PLATFORM_VOLCANO)
+  LOG(INFO) << " skip display check for volcano \n";
+  ret = 1;
 #else
 	if(access(DISP_DRM_DRIVER_CARD4_READY_PATH, F_OK) == 0 && access(DISP_DRM_DRIVER_RENDER_READY_PATH, F_OK) == 0)
 	{
@@ -2495,7 +2491,9 @@ static int load_kmod_and_nodes(const char* appname)
   // Wait for FW availability if set
   if (_eapp_info[i].wait == EAPP_WAIT_DEFAULT || _eapp_info[i].wait & EAPP_MOD_WAIT_FW) {
     wait_for_file((char*)ES_FW_CHK_PATH, WAIT_SLEEP_MSEC, max*2);
+#ifndef PLATFORM_VOLCANO
     wait_for_file((char*)ES_SOCCP_FW_CHECK_PATH, WAIT_SLEEP_MSEC, max*2);
+#endif
     if (_eapp_info[i].name[0] == 0)
       return 0;
   }
@@ -2690,102 +2688,6 @@ static int load_modules_parallel(const std::string& fl,
   return 0;
 }
 
-#if defined(__ANDROID_U__)
-static void launch_test_app(void)
-{
-  int fd;
-  pid_t pid = -1;
-  int ret = -1;
-  char pid_file[10] = {0};
-  static char marker[50];
-
-  LOG(INFO) << "Launch Test APP";
-  app_launcher_start_over();
-  app_launcher.appname = strdup(TEST_APP);
-  app_launcher.cmd = strdup(TEST_APP_CMD);
-  app_launcher.argv[app_launcher.argv_used] = strdup(TEST_APP_CMD);
-  app_launcher.argv_used++;
-  app_launcher.applog = strdup(TEST_APP_LOG);
-  app_launcher.env[app_launcher.env_used] = strdup(TEST_APP_ENV);
-  app_launcher.env_used++;
-  app_launcher.pidfile = strdup(TEST_APP_PID);
-
-  pid = fork();
-  if (pid < 0) {
-     LOG(INFO) << " early_init fork child process failed ";
-     perror("fork child process failed \r\n");
-     return;
-
-  }
-  if (0 == pid) {
-  if (app_launcher.applog) {
-    fd = open(app_launcher.applog, O_RDWR | O_CREAT, 0666);
-    if (fd > 0) {
-       dup2(fd, fileno(stdout));
-       dup2(fd, fileno(stderr));
-       safe_close(fd);
-       safe_close(fd);
-     }
-  } else {
-    fd = open("/dev/kmsg", O_WRONLY | O_CLOEXEC);
-    dup2(fd, STDOUT_FILENO);
-    dup2(fd, STDERR_FILENO);
-    close(fd);
-  }
-  if (app_launcher.pidfile) {
-    fd = open(app_launcher.pidfile, O_WRONLY | O_CREAT, 0666);
-    if (fd < 0)
-       perror("open pid file failed \r\n");
-     else {
-         snprintf(pid_file, sizeof(pid_file) , "%d" ,getpid());
-         if (-1 == write(fd, pid_file, sizeof(pid_file)))
-        printf("write pidfile %s failed: %s", app_launcher.pidfile, strerror(errno));
-    }
-    safe_close(fd);
-  }
-
-  if (app_launcher.wait) {
-    printf("app %s waiting for %s ...\r\n", app_launcher.appname, app_launcher.wait);
-    while(1) { /* TODO: find a finite value for wait */
-      if (-1 != access(app_launcher.wait, F_OK))
-        break;
-        usleep(5000);
-     }
-  }
-
-  app_launcher.env[app_launcher.env_used] = (char *)"LD_LIBRARY_PATH=/vendor_early_services/system/lib64";
-  app_launcher.env_used++;
-  app_launcher.argv[app_launcher.argv_used] = NULL;
-  app_launcher.env[app_launcher.env_used] = NULL;
-
-  if (app_launcher.username) {
-     enforce_user(app_launcher.username);
-  }
-  if (app_launcher.group) {
-    enforce_group(app_launcher.group);
-  }
-  if (app_launcher.cmd) {
-    if ((ret = access(app_launcher.cmd, F_OK)) != 0) {
-       LOG(WARNING) << "ES : App " << app_launcher.appname << " doesn't exist ret " << ret << " err " << errno;
-       return;
-  }
-  memset(marker, 0, 50);
-  snprintf(marker, 49 ,"M - Launch %s app", app_launcher.appname);
-  write_marker(marker);
-  LOG(INFO) << "ES : Launching app " << app_launcher.appname;
-  ret = execvpe(app_launcher.cmd,app_launcher.argv,app_launcher.env);
-  if(ret < 0) {
-    LOG(INFO) << "ES : App launch failed " << app_launcher.appname << " errno " << errno;
-    memset(marker, 0, 50);
-    snprintf(marker, 49 ,"M - Launch %s app failed %d", app_launcher.appname, errno);
-    write_marker(marker);
-    }
-  }
-  }
-}
-
-#endif
-
 static void launch_early_apps(void)
 {
 #if defined(__ANDROID_U__) || defined(PLATFORM_CANOE)
@@ -2959,7 +2861,11 @@ static pid_t __attribute__((unused)) fork_wait_for_child(int type, int run_if_fo
         //first check ufs is ready and send kmdone
         prepare_fw_dir(ES_MOUNT_CHECK_UFS);
         //second create fw dir
+        #ifdef PLATFORM_VOLCANO
+        prepare_fw_dir(ES_MOUNT_MODEM);
+        #else
         prepare_fw_dir(ES_MOUNT_MODEM | ES_MOUNT_SOCCP);
+        #endif
         break;
       }
       case ES_CTYPE_DEF2_MOD: {
@@ -3044,7 +2950,9 @@ int early_init(int init)
     //prepare_dir((char*)"dev");
     prepare_dir((char*)"procfs");
     prepare_dir((char*)"shm");
+#ifndef PLATFORM_VOLCANO
     prepare_dir((char*)"cgroup2");
+#endif
     mkdirs("/dev/socket/agm", 0775);
     mkdirs("/dev/socket/camera", 0775);
 
@@ -3136,6 +3044,7 @@ int early_init(int init)
 
   LOG(WARNING) << "ES : Config Audio Reach: " << _audio_reach;
   // exit status of child will be in wait_for_early_apps()
+#ifndef PLATFORM_VOLCANO
   if (fork() == 0) {
     signal(SIGTERM, SIG_IGN);
     android::earlyinit::InitKernelLogging(NULL);
@@ -3143,7 +3052,7 @@ int early_init(int init)
     usleep(50*000);
     exit(0);
   }
-
+#endif
   getSysInfo("/sys/devices/soc0/soc_id", chipId);
   getSysInfo("/sys/devices/soc0/platform_subtype_id", platformId);
   set_permissions("/dev/null", 0666, AID_ROOT, AID_ROOT, "u:object_r:null_device:s0");
@@ -3151,9 +3060,10 @@ int early_init(int init)
   load_kmod_and_nodes(EMOD_END);
   check_and_create_vendor_etc();
   check_and_create_vendor_firmware();
+#ifndef PLATFORM_VOLCANO
   check_and_create_vendor_soccp_firmware();
+#endif
 #if defined(__ANDROID_U__)
-  launch_test_app();
   launch_early_apps();
 #else
   launch_early_apps();
