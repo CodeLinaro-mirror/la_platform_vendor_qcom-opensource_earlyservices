@@ -108,6 +108,10 @@
 #define SMACK_LABEL             "System"
 #define DEFAULT_PATH    "/sbin:/usr/sbin:/bin:/usr/bin:/system/sbin:/system/bin:/system/xbin:/odm/bin:/vendor/bin:/vendor/xbin:early_services/sbin:early_services/system/sbin:early_services/system/bin:early_services/system/xbin:early_services/odm/bin:early_services/vendor/bin:early_services/vendor/xbin"
 
+#define SUBSYS_DIR "/sys/bus/msm_subsys/devices"
+#define MAX_RETRY_NUM 500
+#define FILENAME_SIZE 75
+#define MAX_PATH_LEN 255
 
 #define STR_EXPAND(tok) #tok
 #define TO_STRING(tok) STR_EXPAND(tok)
@@ -454,8 +458,12 @@ static void* prepare_audio_fw_dir(void* vargp)
      LOG(INFO) << "ES : early_init modem mount success";
   }
   set_permissions("/dev/snd", 0777, AID_ROOT, AID_AUDIO, "u:object_r:audio_device:s0");
-  set_permissions("/dev/snd/controlC0", 0666, AID_ROOT, AID_AUDIO, "u:object_r:audio_device:s0");
   insert_audio_modules();
+  set_permissions("/dev/snd/controlC0", 0666, AID_ROOT, AID_AUDIO, "u:object_r:audio_device:s0");
+  set_permissions("/early_services/dev/spidev10.0", 0666, AID_ROOT, AID_AUDIO, "u:object_r:audio_device:s0");
+  set_permissions("/dev/spidev10.0", 0666, AID_ROOT, AID_AUDIO, "u:object_r:audio_device:s0");
+  set_permissions("/early_services/dev/spidev22.0", 0666, AID_ROOT, AID_AUDIO, "u:object_r:audio_device:s0");
+  set_permissions("/dev/spidev22.0", 0666, AID_ROOT, AID_AUDIO, "u:object_r:audio_device:s0");
 
   return NULL;
 }
@@ -880,6 +888,12 @@ static void insert_audio_modules(void)
   int sret = 0, eret = 0;
   size_t image_size;
   static char marker[50];
+  DIR *subsys_bus;
+  int retry_num = 0;
+  struct dirent *de;
+  char subsys_name[FILENAME_SIZE];
+  char name_dir[MAX_PATH_LEN];
+  bool subsys_node_check = false;
   int i, ret = 0;
 
     LOG(INFO) << "ES : insert_audio_modules";
@@ -903,13 +917,71 @@ static void insert_audio_modules(void)
         }
         close(fd);
         if(i == 3){
+            // check subsys node
+            while (retry_num < MAX_RETRY_NUM && !subsys_node_check) {
+                freopen("/dev/kmsg", "w", stdout);
+                printf("check subsys node\n");
+                if ((subsys_bus = opendir(SUBSYS_DIR)) == 0) {
+                    freopen("/dev/kmsg", "w", stdout);
+                    //printf("Unable to open %s directory", SUBSYS_DIR);
+                    printf("Unable to open %s directory - %s\n", SUBSYS_DIR, strerror(errno));
+                    usleep(2000);
+                    retry_num++;
+                    continue;
+                } else {
+                    freopen("/dev/kmsg", "w", stdout);
+                    printf("open subsys directory\n");
+                    while ((de = readdir(subsys_bus))) {
+                        if (de->d_name[0] == '.')
+                            continue;
+                        snprintf(name_dir, sizeof(name_dir), "%s/%s/name", SUBSYS_DIR,
+                                de->d_name);
+                        set_permissions(name_dir, 0666, AID_ROOT, AID_SYSTEM, "u:object_r:vendor_sysfs_ssr:s0");
+                        freopen("/dev/kmsg", "w", stdout);
+                        printf("try to open name directory %s", name_dir);
+                        if ((fd = open(name_dir, O_RDONLY)) < 0) {
+                            freopen("/dev/kmsg", "w", stdout);
+                            printf("Fail to open name directory %s:%s", name_dir, strerror(errno));
+                            usleep(2000);
+                            continue;
+                        }
+
+                        memset(subsys_name, 0, FILENAME_SIZE);
+                        if (read(fd, subsys_name, FILENAME_SIZE) < 0) {
+                            freopen("/dev/kmsg", "w", stdout);
+                            printf("Fail to read subsys name %s:%s", subsys_name, strerror(errno));
+                            close(fd);
+                            usleep(2000);
+                            continue;
+                        }
+                        close(fd);
+
+                        if (!strncmp( subsys_name, "adsp\n", 5)) {
+                            subsys_node_check=true;
+                            freopen("/dev/kmsg", "w", stdout);
+                            printf("found subsys_node for adsp\n");
+                        }
+                    }
+                    closedir(subsys_bus);
+                    if (!subsys_node_check) {
+                        //freopen("/dev/kmsg", "w", stdout);
+                        //printf("Fail to find adsp subsys");
+                        usleep(2000);
+                        retry_num++;
+                    }
+                }
+            }
+            if (retry_num >= MAX_RETRY_NUM || !subsys_node_check) {
+                freopen("/dev/kmsg", "w", stdout);
+                printf("Unable to find adsp subsys node for %sms", SUBSYS_DIR, retry_num*2);
+            }
             fd = open("/sys/kernel/boot_adsp/boot", O_WRONLY);
                 if (fd < 0) {
-    		    LOG(INFO) << "ES : insert_audio_modules open sys entry failed";
-                } else if(-1 == write(fd, "1", 1)) {
-    		    LOG(INFO) << "ES : insert_audio_modules Write to sys entry failed";
+                    LOG(INFO) << "ES : insert_audio_modules open sys entry failed";
+                } else if(-1 == write(fd, "2", 1)) {
+                    LOG(INFO) << "ES : insert_audio_modules Write to sys entry failed";
                 } else {
-    		    LOG(INFO) << "ES : insert_audio_modules ADSP firmware loading triggered";
+                    LOG(INFO) << "ES : insert_audio_modules ADSP firmware loading triggered";
                 }
         close(fd);
         }
@@ -1087,7 +1159,10 @@ int early_init(const char* stage)
   LOG(INFO) << "ES : In Second Stage!";
   pthread_create(&audiofw_tid, NULL, prepare_audio_fw_dir, NULL);
 
-  while(access("/early_services/dev/dri/card3", F_OK) == -1);
+  // Tight access loop may hog CPU / disk. Added sleep to give other threads fair access of CPU / disk
+  while(access("/early_services/dev/dri/card3", F_OK) == -1) {
+      usleep(2000);
+  }
 #ifdef PLATFORM_MSMNILE
   while(access("/early_services/dev/dri/card4", F_OK) == -1);
 
@@ -1130,10 +1205,12 @@ int early_init(const char* stage)
   set_permissions("/early_services/dev/v4l-subdev15", 0660, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
   set_permissions("/early_services/dev/v4l-subdev16", 0660, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
   set_permissions("/early_services/dev/v4l-subdev0", 0660, AID_ROOT, AID_CAMERA, "u:object_r:video_device:s0");
-  set_permissions("/early_services/dev/spidev1.0", 0666, AID_ROOT, AID_SYSTEM, "u:object_r:kmsg_device:s0");
-  set_permissions("/dev/spidev1.0", 0666, AID_ROOT, AID_SYSTEM, "u:object_r:kmsg_device:s0");
-  set_permissions("/early_services/dev/spidev22.0", 0666, AID_ROOT, AID_SYSTEM, "u:object_r:kmsg_device:s0");
-  set_permissions("/dev/spidev22.0", 0666, AID_ROOT, AID_SYSTEM, "u:object_r:kmsg_device:s0");
+
+  set_permissions("/sys/bus/msm_subsys/devices/subsys0/name", 0666, AID_ROOT, AID_SYSTEM, "u:object_r:vendor_sysfs_ssr:s0");
+  set_permissions("/sys/bus/msm_subsys/devices/subsys1/name", 0666, AID_ROOT, AID_SYSTEM, "u:object_r:vendor_sysfs_ssr:s0");
+  set_permissions("/sys/bus/msm_subsys/devices/subsys2/name", 0666, AID_ROOT, AID_SYSTEM, "u:object_r:vendor_sysfs_ssr:s0");
+  set_permissions("/sys/bus/msm_subsys/devices/subsys3/name", 0666, AID_ROOT, AID_SYSTEM, "u:object_r:vendor_sysfs_ssr:s0");
+  set_permissions("/sys/bus/msm_subsys/devices/subsys4/name", 0666, AID_ROOT, AID_SYSTEM, "u:object_r:vendor_sysfs_ssr:s0");
 
   f = fopen("/early_services/etc/early_init.conf", "re");
   if (f == NULL) {

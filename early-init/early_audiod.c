@@ -177,6 +177,8 @@ int32_t auto_audio_ext_enable_hostless()
         /* Wait till device is created before opening */
         snprintf(fn, sizeof(fn), "/dev/snd/pcmC0D%uc", pcm_id[k]);
 again:
+        freopen("/early_services/dev/kmsg", "w", stdout);
+        printf("try pcm open device %s - %d\n",fn, sleepRetry );
         fd = open(fn, O_RDONLY);
         if ((fd < 0) && (sleepRetry < MAX_SLEEP_RETRY)){
             freopen("/early_services/dev/kmsg", "w", stdout);
@@ -184,6 +186,9 @@ again:
             AUDIO_CHIME_SLEEP(AUDIO_CHIME_WAIT_TIME * 1000);
             sleepRetry++;
             goto again;
+        } else if (sleepRetry >= MAX_SLEEP_RETRY) {
+            freopen("/early_services/dev/kmsg", "w", stdout);
+            printf("pcm device %d timeout for early chime - \n", pcm_id[k]);
         } else {
             freopen("/early_services/dev/kmsg", "w", stdout);
             printf("pcm device %d online for early chime - \n", pcm_id[k]);
@@ -205,6 +210,27 @@ again:
             printf("Opened pcm_tx %d %d\n", info->snd_card, pcm_id[k]);
         }
 
+        /* Wait till device is created before opening */
+        snprintf(fn, sizeof(fn), "/dev/snd/pcmC0D%up", pcm_id[k+1]);
+again_for_rx:
+        freopen("/early_services/dev/kmsg", "w", stdout);
+        printf("try pcm open device %s - %d\n",fn, sleepRetry );
+        fd = open(fn, O_RDONLY);
+        if ((fd < 0) && (sleepRetry < MAX_SLEEP_RETRY)) {
+            freopen("/early_services/dev/kmsg", "w", stdout);
+            printf("pcm open device %d failed %d\n",pcm_id[k+1],sleepRetry );
+            AUDIO_CHIME_SLEEP(AUDIO_CHIME_WAIT_TIME * 1000);
+            sleepRetry++;
+            goto again_for_rx;
+        } else if (sleepRetry >= MAX_SLEEP_RETRY) {
+            freopen("/early_services/dev/kmsg", "w", stdout);
+            printf("pcm device %d timeout for early chime - \n", pcm_id[k+1]);
+        } else {
+            freopen("/early_services/dev/kmsg", "w", stdout);
+            printf("pcm device %d online for early chime - \n", pcm_id[k+1]);
+            sleepRetry = 0;
+            close(fd);
+        }
         info->hostless[i].pcm_rx = pcm_open(info->snd_card,
                                         pcm_id[k+1],
                                         PCM_OUT, &pcm_config);
@@ -238,7 +264,7 @@ again:
 
     place_marker("Completed ES hostless configuration");
     freopen("early_services/dev/kmsg", "w", stdout);
-    printf("Completed ES hostless configuration ");
+    printf("Completed ES hostless configuration \n");
     pthread_mutex_unlock(&info->lock);
     return ret;
 
