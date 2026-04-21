@@ -19,10 +19,6 @@ using namespace early_video_app;
 
 class V4l2Decoder : public V4l2Codec {
 public:
-    ~V4l2Decoder() {
-        VIDC_MED("V4l2Decoder, destructor\n");
-    };
-
     int init(unsigned int codec);
     void deinit();
     int configureInput();
@@ -36,9 +32,10 @@ public:
     int setFrameRate(unsigned int numer, unsigned int denom);
     int setDSResolution(unsigned int width, unsigned int height);
     int getOperatingRate();
-    int getFrameRate();
+    float getFrameRate();
     int drain();
     int resume();
+    struct v4l2_format* getOutputFormat();
     int getFenceFds(struct V4L2OutputFenceInfo* fenceInfo);
     int getFenceFd(int fence_id);
 };

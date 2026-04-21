@@ -13,7 +13,6 @@ using namespace early_video_app;
 #define MAX_COLOR_FMTS 7
 
 int V4l2Decoder::init(unsigned int codec) {
-    struct v4l2_format fmt;
     struct v4l2_control ctrl;
     struct v4l2_selection sel;
     struct v4l2_capability caps;
@@ -63,39 +62,39 @@ int V4l2Decoder::init(unsigned int codec) {
         mV4l2Driver->enableOutputMetaPort(1);
     }
 
-    memset(&fmt, 0, sizeof(fmt));
-    fmt.type = INPUT_MPLANE;
+    memset(&mOutputFormat, 0, sizeof(mOutputFormat));
+    mOutputFormat.type = INPUT_MPLANE;
     VIDC_MED("V4l2Decoder::init, get input format\n");
-    if (mV4l2Driver->getFormat(&fmt)) {
+    if (mV4l2Driver->getFormat(&mOutputFormat)) {
         VIDC_ERR("V4l2Decoder::init, get input format failed\n");
         return -EINVAL;
     }
-    fmt.fmt.pix_mp.pixelformat = mCodec;
+    mOutputFormat.fmt.pix_mp.pixelformat = mCodec;
     VIDC_MED("V4l2Decoder::init, set input format\n");
-    if (mV4l2Driver->setFormat(&fmt)) {
+    if (mV4l2Driver->setFormat(&mOutputFormat)) {
         VIDC_ERR("V4l2Decoder::init, set input format failed\n");
         return -EINVAL;
     }
 
-    mWidth = fmt.fmt.pix_mp.width;
-    mHeight = fmt.fmt.pix_mp.height;
-    mStride = fmt.fmt.pix_mp.plane_fmt[0].bytesperline;
-    mScanline = fmt.fmt.pix_mp.height;
-    mInputSize = fmt.fmt.pix_mp.plane_fmt[0].sizeimage;
+    mWidth = mOutputFormat.fmt.pix_mp.width;
+    mHeight = mOutputFormat.fmt.pix_mp.height;
+    mStride = mOutputFormat.fmt.pix_mp.plane_fmt[0].bytesperline;
+    mScanline = mOutputFormat.fmt.pix_mp.height;
+    mInputSize = mOutputFormat.fmt.pix_mp.plane_fmt[0].sizeimage;
 
-    memset(&fmt, 0, sizeof(fmt));
-    fmt.type = OUTPUT_MPLANE;
+    memset(&mOutputFormat, 0, sizeof(mOutputFormat));
+    mOutputFormat.type = OUTPUT_MPLANE;
     VIDC_MED("V4l2Decoder::init, get output format\n");
-    if (mV4l2Driver->getFormat(&fmt)) {
+    if (mV4l2Driver->getFormat(&mOutputFormat)) {
         VIDC_ERR("V4l2Decoder::init, get output format failed\n");
         return -EINVAL;
     }
-    mColorFormat = fmt.fmt.pix_mp.pixelformat;
-    mOutputColorPrimaries = fmt.fmt.pix_mp.colorspace;
-    mOutputMatrixCoeff = fmt.fmt.pix_mp.ycbcr_enc;
-    mOutputTransferChar = fmt.fmt.pix_mp.xfer_func;
-    mOutputVideoRange = fmt.fmt.pix_mp.quantization;
-    mOutputSize = fmt.fmt.pix_mp.plane_fmt[0].sizeimage;
+    mColorFormat = mOutputFormat.fmt.pix_mp.pixelformat;
+    mOutputColorPrimaries = mOutputFormat.fmt.pix_mp.colorspace;
+    mOutputMatrixCoeff = mOutputFormat.fmt.pix_mp.ycbcr_enc;
+    mOutputTransferChar = mOutputFormat.fmt.pix_mp.xfer_func;
+    mOutputVideoRange = mOutputFormat.fmt.pix_mp.quantization;
+    mOutputSize = mOutputFormat.fmt.pix_mp.plane_fmt[0].sizeimage;
 
     memset(&sel, 0, sizeof(sel));
     sel.type = OUTPUT_MPLANE;
@@ -137,6 +136,8 @@ void V4l2Decoder::deinit() {
     mV4l2Driver->unsubscribeEvent(V4L2_EVENT_SOURCE_CHANGE);
     mV4l2Driver->Close();
     mV4l2Driver->closeMediaDevice();
+    memset(&mOutputFormat, 0, sizeof(mOutputFormat));
+    mFrameRate = 0;
 }
 
 int V4l2Decoder::setOperatingRate(unsigned int numer, unsigned int denom) {
@@ -193,7 +194,10 @@ int V4l2Decoder::setDSResolution(unsigned int width, unsigned int height) {
     return mV4l2Driver->setSelection(&sel);
 }
 
-int V4l2Decoder::getFrameRate() {
+float V4l2Decoder::getFrameRate() {
+    if (mFrameRate > 0) {
+        return mFrameRate;
+    }
     struct v4l2_control control;
     memset(&control, 0, sizeof(control));
 
@@ -202,8 +206,8 @@ int V4l2Decoder::getFrameRate() {
         VIDC_ERR("V4l2Decoder::getFrameRate, get control failed\n");
         return -EINVAL;
     }
-
-    return 0;
+    mFrameRate = control.value / (float)65536;
+    return mFrameRate;
 }
 
 int V4l2Decoder::configureInput() {
@@ -298,15 +302,14 @@ int V4l2Decoder::configureOutput() {
     uint32_t numNotification = 0;
     uint32_t lineCount = 0;
 
-    memset(&fmt, 0, sizeof(fmt));
-    fmt.type = OUTPUT_MPLANE;
-    if (mV4l2Driver->getFormat(&fmt))
+    memset(&mOutputFormat, 0, sizeof(mOutputFormat));
+    mOutputFormat.type = OUTPUT_MPLANE;
+    if (mV4l2Driver->getFormat(&mOutputFormat))
         return -EINVAL;
-
-    mOutputColorPrimaries = fmt.fmt.pix_mp.colorspace;
-    mOutputMatrixCoeff = fmt.fmt.pix_mp.ycbcr_enc;
-    mOutputTransferChar = fmt.fmt.pix_mp.xfer_func;
-    mOutputVideoRange = fmt.fmt.pix_mp.quantization;
+    mOutputColorPrimaries = mOutputFormat.fmt.pix_mp.colorspace;
+    mOutputMatrixCoeff = mOutputFormat.fmt.pix_mp.ycbcr_enc;
+    mOutputTransferChar = mOutputFormat.fmt.pix_mp.xfer_func;
+    mOutputVideoRange = mOutputFormat.fmt.pix_mp.quantization;
 
 
     auto isEarlyNotifyEnabled = [this] () -> bool {
@@ -372,12 +375,12 @@ int V4l2Decoder::configureOutput() {
         return -ENOTSUP;
     }
 
-    fmt.fmt.pix_mp.pixelformat = mColorFormat;
-    if (mV4l2Driver->setFormat(&fmt))
+    mOutputFormat.fmt.pix_mp.pixelformat = mColorFormat;
+    if (mV4l2Driver->setFormat(&mOutputFormat))
         return -EINVAL;
-    mStride = fmt.fmt.pix_mp.plane_fmt[0].bytesperline;
-    mScanline = fmt.fmt.pix_mp.height;
-    mOutputSize = fmt.fmt.pix_mp.plane_fmt[0].sizeimage;
+    mStride = mOutputFormat.fmt.pix_mp.plane_fmt[0].bytesperline;
+    mScanline = mOutputFormat.fmt.pix_mp.height;
+    mOutputSize = mOutputFormat.fmt.pix_mp.plane_fmt[0].sizeimage;
 
     /* query driver recommended framesizes */
     memset(&fsize, 0, sizeof(fsize));
@@ -408,11 +411,11 @@ int V4l2Decoder::configureOutput() {
      * reqbufs call updates output buffer size and buffer counts.
      * query driver to obtain latest values.
      */
-    memset(&fmt, 0, sizeof(fmt));
-    fmt.type = OUTPUT_MPLANE;
-    if (mV4l2Driver->getFormat(&fmt))
+    memset(&mOutputFormat, 0, sizeof(mOutputFormat));
+    mOutputFormat.type = OUTPUT_MPLANE;
+    if (mV4l2Driver->getFormat(&mOutputFormat))
         return -EINVAL;
-    mOutputSize = fmt.fmt.pix_mp.plane_fmt[0].sizeimage;
+    mOutputSize = mOutputFormat.fmt.pix_mp.plane_fmt[0].sizeimage;
 
     ctrl.id = V4L2_CID_MIN_BUFFERS_FOR_CAPTURE;
     if (mV4l2Driver->getControl(&ctrl))
@@ -449,6 +452,10 @@ int V4l2Decoder::configureOutput() {
     }
 
     return 0;
+}
+
+struct v4l2_format* V4l2Decoder::getOutputFormat() {
+    return &mOutputFormat;
 }
 
 static inline bool isLinearColorFmt(unsigned int colorformat)

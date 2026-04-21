@@ -13,7 +13,6 @@ GTCodec::GTCodec(unsigned int codec, unsigned int colorFmt) :
         mColorfmt(colorFmt),
         /* 2 x max POR fps(960) */
         mMWBitrate(1920u) {
-        VIDC_MED("GTCodec, constructor\n");
 #if !defined(ANDROID) && !defined(_LINUX_VENV_)
         g_pltfrm_ops = platform_init();
         vidc_init();
@@ -21,7 +20,6 @@ GTCodec::GTCodec(unsigned int codec, unsigned int colorFmt) :
 }
 
 GTCodec::~GTCodec() {
-        VIDC_MED("GTCodec, destructor\n");
 #if !defined(ANDROID) && !defined(_LINUX_VENV_)
         vidc_exit();
         platform_deinit(g_pltfrm_ops);
@@ -123,7 +121,7 @@ int GTCodec::gtGetOperatingRate() {
     return mV4l2Codec->getOperatingRate();
 }
 
-int GTCodec::gtGetFrameRate() {
+float GTCodec::gtGetFrameRate() {
     return mV4l2Codec->getFrameRate();
 }
 
@@ -137,6 +135,13 @@ int GTCodec::gtCodecConfigOutput() {
 
 int GTCodec::gtCodecStartOutput() {
     return mV4l2Codec->startOutput();
+}
+
+struct v4l2_format* GTCodec::getOutputFormat() {
+    if (mV4l2Codec != nullptr) {
+        return mV4l2Codec->getOutputFormat();
+    }
+    return nullptr;
 }
 
 int GTCodec::gtCodecStartInput() {

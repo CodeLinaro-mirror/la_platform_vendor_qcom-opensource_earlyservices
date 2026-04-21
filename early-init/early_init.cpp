@@ -170,6 +170,7 @@ using android::base::boot_clock;
 //#define DISP_DRM_DPU0_READY_PATH     "/sys/devices/platform/soc/ae00000.qcom,mdss_mdp/init_complete"
 #define DISP_DRM_DRIVER_CARD3_READY_PATH  "/sys/class/drm/card3/uevent"
 #define DISP_DRM_DRIVER_CARD4_READY_PATH  "/sys/class/drm/card4/uevent"
+#define DISP_DRM_DRIVER_CARD5_READY_PATH  "/sys/class/drm/card5/uevent"
 #define DISP_DRM_DRIVER_RENDER_READY_PATH  "/sys/class/drm/renderD128/uevent"
 
 #ifdef PLATFORM_GEN4
@@ -352,6 +353,7 @@ enum drm_udev_cards {
   renderD128,
   card3,
   card4,
+  card5,
 #endif
   cards_max
 };
@@ -375,6 +377,7 @@ struct drm_cards_info {
   {"/sys/class/drm/renderD128/uevent", "renderD128", "/dev/dri", "/dev/dri/renderD128", false},
   {"/sys/class/drm/card3/uevent", "card3", "/dev/dri", "/dev/dri/card3", false},
   {"/sys/class/drm/card4/uevent", "card4", "/dev/dri", "/dev/dri/card4", false},
+  {"/sys/class/drm/card5/uevent", "card5", "/dev/dri", "/dev/dri/card5", false},
 #endif
 };
 
@@ -2149,7 +2152,8 @@ static int check_display_driver_ready(void)
 {
 	int ret = 0;
 
-	if(access(DISP_DRM_DRIVER_CARD4_READY_PATH, F_OK) == 0 && access(DISP_DRM_DRIVER_RENDER_READY_PATH, F_OK) == 0)
+	if(access(DISP_DRM_DRIVER_CARD4_READY_PATH, F_OK) == 0 && access(DISP_DRM_DRIVER_RENDER_READY_PATH, F_OK) == 0
+     && access(DISP_DRM_DRIVER_CARD5_READY_PATH, F_OK) == 0)
 	{
 		LOG(INFO) << "Function: " << __func__ << ", Line: " << __LINE__ << " check driver sucess------\n";
 		ret = 1;

@@ -15,7 +15,8 @@ LOCAL_SHARED_LIBRARIES          := \
                                 libutils \
                                 libion \
                                 liblog \
-                                libdmabufheap
+                                libdmabufheap \
+                                libdrm
 
 LOCAL_SRC_FILES                 := \
                                 main.cpp \
@@ -29,5 +30,6 @@ LOCAL_SRC_FILES                 := \
                                 src/GTCodec.cpp \
                                 src/GTDecoderCallback.cpp \
                                 src/VidcLog.cpp \
-                                src/Utils.cpp
+                                src/Utils.cpp \
+                                render/DisplayAdaptor.cpp
 include $(BUILD_EXECUTABLE)

@@ -9,11 +9,9 @@ SPDX-License-Identifier: BSD-3-Clause-Clear
 using namespace early_video_app;
 
 V4l2Callback::V4l2Callback(V4l2Decoder* dec) : mV4l2Codec(dec) {
-    VIDC_MED("V4l2Callback, constructor\n");
 }
 
 V4l2Callback::~V4l2Callback() {
-    VIDC_MED("V4l2Callback, destructor\n");
 }
 
 int V4l2Callback::onV4l2BufferDone(struct v4l2_buffer* buffer) {

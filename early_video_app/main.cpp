@@ -11,7 +11,6 @@ using namespace early_video_app;
 
 int main(int argc, char **argv) {
     vidcUpdateLogLevel();
-    VIDC_HIGH("main, enter\n");
     printKPILog("%s%s%s", LogKPITag, LogAPPTag, "run decoder");
     VIDC_HIGH("main, run decoder\n");
     int result = GTDecoder::runDecoder();

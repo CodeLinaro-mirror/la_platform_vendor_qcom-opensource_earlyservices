@@ -196,35 +196,29 @@ int GTDecoder::runDecoder() {
     decoder->freeBuffers(OUTPUT_PORT);
     decoder->freeBuffers(INPUT_PORT);
 
-    decoder->gtCodecDeInit();
-
-    result= eventHandler->stopEventThread();
-    if (result != 0) {
-        VIDC_ERR("GTDecoder::runDecoder, stop event thread failed!, result = %d\n", result);
-        return result;
-    }
-    else {
-        VIDC_MED("GTDecoder::runDecoder, stop event thread successfully\n");
-    }
-
     return result;
 }
 
 GTDecoder::GTDecoder(unsigned int codec, unsigned int colorFmt) :
     GTCodec(codec, colorFmt) {
-    VIDC_HIGH("GTDecoder, Constructor\n");
     mV4l2Codec = std::make_shared<V4l2Decoder>();
     mEventHandler = std::make_shared<EventHandler>(mV4l2Codec);
     mCb = std::make_shared<GTDecoderCallback>(this);
 }
 
 GTDecoder::~GTDecoder() {
-    VIDC_HIGH("GTDecoder, Destructor");
     if (mGTDecoderIOAdapter != NULL) {
         mGTDecoderIOAdapter->close();
+        mGTDecoderIOAdapter = NULL;
     }
-    mEventHandler->stopEventThread();
-    mV4l2Codec->deinit();
+    if (mEventHandler != NULL) {
+        mEventHandler->stopEventThread();
+        mEventHandler = NULL;
+    }
+    if (mV4l2Codec != NULL) {
+        mV4l2Codec->deinit();
+        mV4l2Codec = NULL;
+    }
 }
 
 std::shared_ptr<EventHandler> GTDecoder::getEventHandler() {
@@ -322,8 +316,6 @@ void GTDecoder::handleSeek(int seekTo) {
 }
 
 int GTDecoder::queueBuffers() {
-    VIDC_HIGH("GTDecoder::queueBuffers: enter\n");
-
     int ret = 0;
     bool eos = false;
     int frameCounter = 0;

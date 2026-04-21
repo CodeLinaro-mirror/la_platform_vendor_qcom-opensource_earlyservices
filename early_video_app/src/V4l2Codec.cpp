@@ -18,7 +18,6 @@ using namespace early_video_app;
 #define SALIENCY_METADATA_SIZE 64
 
 V4l2Codec::V4l2Codec() {
-    VIDC_MED("V4l2Codec, constructor\n");
     mV4l2Driver = std::make_shared<V4l2Driver>();
 }
 
@@ -347,112 +346,112 @@ int V4l2Codec::getCrop(struct v4l2_rect* crop) {
 }
 
 bool V4l2Codec::isInputMetadata(unsigned int controlId) {
-	if (mDomain == V4L2_CODEC_TYPE_DECODER) {
-		if (controlId == V4L2_CID_MPEG_VIDC_METADATA_BUFFER_TAG ||
-			controlId == V4L2_CID_MPEG_VIDC_METADATA_OUTBUF_FENCE ||
-			controlId == V4L2_CID_MPEG_VIDC_METADATA_PICTURE_TYPE) {
-			mV4l2Driver->enableInputMetadata(1);
-			return true;
-		}
-	} else if (mDomain == V4L2_CODEC_TYPE_ENCODER) {
-		if (controlId == V4L2_CID_MPEG_VIDC_METADATA_SEQ_HEADER_NAL ||
-			controlId == V4L2_CID_MPEG_VIDC_METADATA_EVA_STATS ||
-			controlId == V4L2_CID_MPEG_VIDC_METADATA_BUFFER_TAG ||
-			controlId == V4L2_CID_MPEG_VIDC_METADATA_SALIENCY_INFO ||
-			controlId == V4L2_CID_MPEG_VIDC_METADATA_ROI_INFO) {
-			mV4l2Driver->enableInputMetadata(1);
-			return true;
-		}
-	}
-	return false;
+    if (mDomain == V4L2_CODEC_TYPE_DECODER) {
+        if (controlId == V4L2_CID_MPEG_VIDC_METADATA_BUFFER_TAG ||
+            controlId == V4L2_CID_MPEG_VIDC_METADATA_OUTBUF_FENCE ||
+            controlId == V4L2_CID_MPEG_VIDC_METADATA_PICTURE_TYPE) {
+            mV4l2Driver->enableInputMetadata(1);
+            return true;
+        }
+    } else if (mDomain == V4L2_CODEC_TYPE_ENCODER) {
+        if (controlId == V4L2_CID_MPEG_VIDC_METADATA_SEQ_HEADER_NAL ||
+            controlId == V4L2_CID_MPEG_VIDC_METADATA_EVA_STATS ||
+            controlId == V4L2_CID_MPEG_VIDC_METADATA_BUFFER_TAG ||
+            controlId == V4L2_CID_MPEG_VIDC_METADATA_SALIENCY_INFO ||
+            controlId == V4L2_CID_MPEG_VIDC_METADATA_ROI_INFO) {
+            mV4l2Driver->enableInputMetadata(1);
+            return true;
+        }
+    }
+    return false;
 }
 
 bool V4l2Codec::isOutputMetadata(unsigned int controlId) {
-	if (mDomain == V4L2_CODEC_TYPE_DECODER) {
-		if ((controlId == V4L2_CID_MPEG_VIDC_METADATA_BITSTREAM_RESOLUTION ||
-			controlId == V4L2_CID_MPEG_VIDC_METADATA_CROP_OFFSETS ||
-			controlId == V4L2_CID_MPEG_VIDC_METADATA_DPB_LUMA_CHROMA_MISR ||
-			controlId == V4L2_CID_MPEG_VIDC_METADATA_OPB_LUMA_CHROMA_MISR ||
-			controlId == V4L2_CID_MPEG_VIDC_METADATA_INTERLACE ||
-			controlId == V4L2_CID_MPEG_VIDC_METADATA_CONCEALED_MB_COUNT ||
-			controlId == V4L2_CID_MPEG_VIDC_METADATA_HISTOGRAM_INFO ||
-			controlId == V4L2_CID_MPEG_VIDC_METADATA_SEI_MASTERING_DISPLAY_COLOUR ||
-			controlId == V4L2_CID_MPEG_VIDC_METADATA_SEI_CONTENT_LIGHT_LEVEL ||
-			controlId == V4L2_CID_MPEG_VIDC_METADATA_BUFFER_TAG ||
-			controlId == V4L2_CID_MPEG_VIDC_METADATA_DPB_TAG_LIST ||
-			controlId == V4L2_CID_MPEG_VIDC_METADATA_SUBFRAME_OUTPUT ||
-			controlId == V4L2_CID_MPEG_VIDC_METADATA_MAX_NUM_REORDER_FRAMES)) {
-			mV4l2Driver->enableOutputMetadata(1);
-			return true;
-		}
-	} else if (mDomain == V4L2_CODEC_TYPE_ENCODER) {
-		if (controlId == V4L2_CID_MPEG_VIDC_METADATA_LTR_MARK_USE_DETAILS ||
-			controlId == V4L2_CID_MPEG_VIDC_METADATA_BUFFER_TAG) {
-			mV4l2Driver->enableOutputMetadata(1);
-			return true;
-		}
-	}
-	return false;
+    if (mDomain == V4L2_CODEC_TYPE_DECODER) {
+        if ((controlId == V4L2_CID_MPEG_VIDC_METADATA_BITSTREAM_RESOLUTION ||
+            controlId == V4L2_CID_MPEG_VIDC_METADATA_CROP_OFFSETS ||
+            controlId == V4L2_CID_MPEG_VIDC_METADATA_DPB_LUMA_CHROMA_MISR ||
+            controlId == V4L2_CID_MPEG_VIDC_METADATA_OPB_LUMA_CHROMA_MISR ||
+            controlId == V4L2_CID_MPEG_VIDC_METADATA_INTERLACE ||
+            controlId == V4L2_CID_MPEG_VIDC_METADATA_CONCEALED_MB_COUNT ||
+            controlId == V4L2_CID_MPEG_VIDC_METADATA_HISTOGRAM_INFO ||
+            controlId == V4L2_CID_MPEG_VIDC_METADATA_SEI_MASTERING_DISPLAY_COLOUR ||
+            controlId == V4L2_CID_MPEG_VIDC_METADATA_SEI_CONTENT_LIGHT_LEVEL ||
+            controlId == V4L2_CID_MPEG_VIDC_METADATA_BUFFER_TAG ||
+            controlId == V4L2_CID_MPEG_VIDC_METADATA_DPB_TAG_LIST ||
+            controlId == V4L2_CID_MPEG_VIDC_METADATA_SUBFRAME_OUTPUT ||
+            controlId == V4L2_CID_MPEG_VIDC_METADATA_MAX_NUM_REORDER_FRAMES)) {
+            mV4l2Driver->enableOutputMetadata(1);
+            return true;
+        }
+    } else if (mDomain == V4L2_CODEC_TYPE_ENCODER) {
+        if (controlId == V4L2_CID_MPEG_VIDC_METADATA_LTR_MARK_USE_DETAILS ||
+            controlId == V4L2_CID_MPEG_VIDC_METADATA_BUFFER_TAG) {
+            mV4l2Driver->enableOutputMetadata(1);
+            return true;
+        }
+    }
+    return false;
 }
 
 int V4l2Codec::setV4l2Controls() {
-	int ret = 0;
-	struct v4l2_control control;
+    int ret = 0;
+    struct v4l2_control control;
 
-	std::list<std::shared_ptr<V4L2ControlInfo>>::iterator it;
-	for (std::list<std::shared_ptr<V4L2ControlInfo>>::iterator it =
-			mControls.begin(); it != mControls.end(); ++it) {
-		isOutputMetadata((*it)->id);
-		if (isInputMetadata((*it)->id) || isOutputMetadata((*it)->id)) {
-			auto ctrlInfo = std::make_shared<V4L2ControlInfo>();
-			ctrlInfo->id = (*it)->id;
-			ctrlInfo->value = (*it)->value;
-			/* add control to mMetaControls list to use it in fillMetadata */
-			mMetaControls.push_back(ctrlInfo);
-		}
-	}
+    std::list<std::shared_ptr<V4L2ControlInfo>>::iterator it;
+    for (std::list<std::shared_ptr<V4L2ControlInfo>>::iterator it =
+            mControls.begin(); it != mControls.end(); ++it) {
+        isOutputMetadata((*it)->id);
+        if (isInputMetadata((*it)->id) || isOutputMetadata((*it)->id)) {
+            auto ctrlInfo = std::make_shared<V4L2ControlInfo>();
+            ctrlInfo->id = (*it)->id;
+            ctrlInfo->value = (*it)->value;
+            /* add control to mMetaControls list to use it in fillMetadata */
+            mMetaControls.push_back(ctrlInfo);
+        }
+    }
 
-	/*
-	 * enable queuing input metadata via request if both
-	 * isInputRequestEnabled is true and isInputMetadataEnabled is true
-	 */
-	if (mV4l2Driver->isInputRequestEnabled() && mV4l2Driver->isInputMetadataEnabled() &&
-		!mV4l2Driver->isInputMetaPortEnabled()) {
-		memset(&control, 0, sizeof(control));
-		control.id = V4L2_CID_MPEG_VIDC_INPUT_METADATA_VIA_REQUEST_ENABLE;
-		control.value = 1;
-		ret = mV4l2Driver->setControl(&control);
-		if (ret)
-			return ret;
-	}
+    /*
+     * enable queuing input metadata via request if both
+     * isInputRequestEnabled is true and isInputMetadataEnabled is true
+     */
+    if (mV4l2Driver->isInputRequestEnabled() && mV4l2Driver->isInputMetadataEnabled() &&
+        !mV4l2Driver->isInputMetaPortEnabled()) {
+        memset(&control, 0, sizeof(control));
+        control.id = V4L2_CID_MPEG_VIDC_INPUT_METADATA_VIA_REQUEST_ENABLE;
+        control.value = 1;
+        ret = mV4l2Driver->setControl(&control);
+        if (ret)
+            return ret;
+    }
 
-	while(!mControls.empty()) {
-		auto ctrl = mControls.front();
-		VIDC_HIGH("%s: id: %#x, value: %d\n", __FUNCTION__, ctrl->id, ctrl->value);
+    while(!mControls.empty()) {
+        auto ctrl = mControls.front();
+        VIDC_MED("%s: id: %#x, value: %d\n", __FUNCTION__, ctrl->id, ctrl->value);
 
-		memset(&control, 0, sizeof(control));
-		control.id = ctrl->id;
-		control.value = ctrl->value;
-		ret = mV4l2Driver->setControl(&control);
-		if (ret)
-			return ret;
+        memset(&control, 0, sizeof(control));
+        control.id = ctrl->id;
+        control.value = ctrl->value;
+        ret = mV4l2Driver->setControl(&control);
+        if (ret)
+            return ret;
 
-		// check for fence enablement
-		if (ctrl->id == V4L2_CID_MPEG_VIDC_METADATA_OUTBUF_FENCE) {
-			if (ctrl->value & V4L2_MPEG_VIDC_META_ENABLE &&
-				ctrl->value & V4L2_MPEG_VIDC_META_RX_INPUT) {
-				mV4l2Driver->enableOutBufFence(1);
-				VIDC_HIGH("%s: fence is enabled\n", __FUNCTION__);
-			} else {
-				mV4l2Driver->enableOutBufFence(0);
-				VIDC_HIGH("%s: fence is disabled\n", __FUNCTION__);
-			}
-		}
+        // check for fence enablement
+        if (ctrl->id == V4L2_CID_MPEG_VIDC_METADATA_OUTBUF_FENCE) {
+            if (ctrl->value & V4L2_MPEG_VIDC_META_ENABLE &&
+                ctrl->value & V4L2_MPEG_VIDC_META_RX_INPUT) {
+                mV4l2Driver->enableOutBufFence(1);
+                VIDC_MED("%s: fence is enabled\n", __FUNCTION__);
+            } else {
+                mV4l2Driver->enableOutBufFence(0);
+                VIDC_MED("%s: fence is disabled\n", __FUNCTION__);
+            }
+        }
 
-		mControls.pop_front();
-	}
+        mControls.pop_front();
+    }
 
-	return 0;
+    return 0;
 }
 
 std::shared_ptr<v4l2_buffer> V4l2Codec::allocateBuffer(int index, enum port_type port, int bufSize) {
@@ -804,130 +803,130 @@ void V4l2Codec::setEarlyNotifyIntrptCount(uint32_t count) {
 }
 
 int V4l2Codec::extractMetadata(struct v4l2_buffer* metaBuf, struct V4L2OutputFenceInfo* fenceInfo) {
-	if (metaBuf == nullptr)
-		return -EINVAL;
-	if (metaBuf->m.fd < 0)
-		return -ENOMEM;
-	struct msm_vidc_metabuf_header* mhdr;
+    if (metaBuf == nullptr)
+        return -EINVAL;
+    if (metaBuf->m.fd < 0)
+        return -ENOMEM;
+    struct msm_vidc_metabuf_header* mhdr;
 #if defined (ANDROID) || defined (_LINUX_VENV_)
-	mhdr = reinterpret_cast<struct msm_vidc_metabuf_header*>(mmap
-		(0, metaBuf->length, PROT_READ| PROT_WRITE, MAP_SHARED, metaBuf->m.fd, 0));
-	if (mhdr == MAP_FAILED) {
-		VIDC_ERR("%s mmap failed\n", __func__);
-		return -EINVAL;
-	}
+    mhdr = reinterpret_cast<struct msm_vidc_metabuf_header*>(mmap
+        (0, metaBuf->length, PROT_READ| PROT_WRITE, MAP_SHARED, metaBuf->m.fd, 0));
+    if (mhdr == MAP_FAILED) {
+        VIDC_ERR("%s mmap failed\n", __func__);
+        return -EINVAL;
+    }
 #else
-	return 0;
+    return 0;
 #endif
-	if (mhdr == nullptr) {
-		VIDC_ERR("invalid meta hdeader\n");
-		return EINVAL;
-	}
-	uint32_t pldcnt = 0;
-	struct msm_vidc_metapayload_header* mphdr = reinterpret_cast<struct msm_vidc_metapayload_header*>(mhdr + 1);
+    if (mhdr == nullptr) {
+        VIDC_ERR("invalid meta hdeader\n");
+        return EINVAL;
+    }
+    uint32_t pldcnt = 0;
+    struct msm_vidc_metapayload_header* mphdr = reinterpret_cast<struct msm_vidc_metapayload_header*>(mhdr + 1);
 
-	while (pldcnt != mhdr->count) {
-		if (mphdr == nullptr) {
-			VIDC_ERR("extractMetadata: invalid meta payload hdeader\n");
-			return -EINVAL;
-		}
-		switch (mphdr->type) {
-		case METADATA_BUFFER_TAG:
-		{
-			uint64_t *tagptr = reinterpret_cast<uint64_t *>
-				((reinterpret_cast<uintptr_t>(mhdr) + mphdr->offset));
-			if (!tagptr) {
-				VIDC_ERR("extractMetadata: invalid tagdata");
-				return -EINVAL;
-			}
-			if (metaBuf->type == INPUT_META_PLANE && mV4l2Driver->isOutBufFenceEnabled() &&
-				fenceInfo != nullptr) {
-				fenceInfo->outputBufTag = *tagptr;
-			}
-			VIDC_LOW("extractMetadata: index %u %s %llu\n", metaBuf->index,
-				metaBuf->type == INPUT_META_PLANE ? "Input buffer's Output tag" :
-				metaBuf->type == OUTPUT_META_PLANE ? "Output buffer's Input tag" :
-				"UNKNOWN tag", *tagptr);
-			break;
-		}
-		case METADATA_SUBFRAME_OUTPUT:
-		{
-			uint32_t *subframe = reinterpret_cast<uint32_t *>
-				((reinterpret_cast<uintptr_t>(mhdr) + mphdr->offset));
-			if (!subframe) {
-				VIDC_ERR("invalid subframe data");
-				return -EINVAL;
-			}
-			setCompleteFrame(*subframe ? false : true);
-			VIDC_LOW("Subframe flag %s\n", *subframe ? "Set" : "Not-Set");
-			break;
-		}
-		case METADATA_DPB_LUMA_CHROMA_MISR:
-		{
-			uint32_t *base = reinterpret_cast<uint32_t *>
-				((reinterpret_cast<uintptr_t>(mhdr) + mphdr->offset));
-			if (!base) {
-				VIDC_ERR("invalid MISR info \n");
-				return -EINVAL;
-			}
+    while (pldcnt != mhdr->count) {
+        if (mphdr == nullptr) {
+            VIDC_ERR("extractMetadata: invalid meta payload hdeader\n");
+            return -EINVAL;
+        }
+        switch (mphdr->type) {
+        case METADATA_BUFFER_TAG:
+        {
+            uint64_t *tagptr = reinterpret_cast<uint64_t *>
+                ((reinterpret_cast<uintptr_t>(mhdr) + mphdr->offset));
+            if (!tagptr) {
+                VIDC_ERR("extractMetadata: invalid tagdata");
+                return -EINVAL;
+            }
+            if (metaBuf->type == INPUT_META_PLANE && mV4l2Driver->isOutBufFenceEnabled() &&
+                fenceInfo != nullptr) {
+                fenceInfo->outputBufTag = *tagptr;
+            }
+            VIDC_LOW("extractMetadata: index %u %s %llu\n", metaBuf->index,
+                metaBuf->type == INPUT_META_PLANE ? "Input buffer's Output tag" :
+                metaBuf->type == OUTPUT_META_PLANE ? "Output buffer's Input tag" :
+                "UNKNOWN tag", *tagptr);
+            break;
+        }
+        case METADATA_SUBFRAME_OUTPUT:
+        {
+            uint32_t *subframe = reinterpret_cast<uint32_t *>
+                ((reinterpret_cast<uintptr_t>(mhdr) + mphdr->offset));
+            if (!subframe) {
+                VIDC_ERR("invalid subframe data");
+                return -EINVAL;
+            }
+            setCompleteFrame(*subframe ? false : true);
+            VIDC_LOW("Subframe flag %s\n", *subframe ? "Set" : "Not-Set");
+            break;
+        }
+        case METADATA_DPB_LUMA_CHROMA_MISR:
+        {
+            uint32_t *base = reinterpret_cast<uint32_t *>
+                ((reinterpret_cast<uintptr_t>(mhdr) + mphdr->offset));
+            if (!base) {
+                VIDC_ERR("invalid MISR info \n");
+                return -EINVAL;
+            }
 
-			//TODO: Check MISR based on interlace type
-			for (int i = 0; i < kNumPipes && mMisrFrame < MAX_FRAMES; i++) {
-				if (base[i * 2] != kMisrArr[mMisrFrame][i * 2]) {
-					VIDC_LOW("Luma DPB MISR mismatch at %d frame %d \n", i * 2, mMisrFrame);
-					break;
-				}
-				if (base[i * 2 + 1] != kMisrArr[mMisrFrame][i * 2 + 1]) {
-					VIDC_LOW("Chroma DPB MISR mismatch at %d frame %d \n", i * 2 + 1, mMisrFrame);
-					break;
-				}
-			}
-			mMisrFrame++;
-			break;
-		}
-		case METADATA_OPB_LUMA_CHROMA_MISR:
-		{
-			//TODO: Check MISR based on interlace type
-			break;
-		}
-		case METADATA_INTERLACE:
-		{
-			enum meta_interlace_info *base = reinterpret_cast<enum meta_interlace_info *>
-				((reinterpret_cast<uintptr_t>(mhdr) + mphdr->offset));
+            //TODO: Check MISR based on interlace type
+            for (int i = 0; i < kNumPipes && mMisrFrame < MAX_FRAMES; i++) {
+                if (base[i * 2] != kMisrArr[mMisrFrame][i * 2]) {
+                    VIDC_LOW("Luma DPB MISR mismatch at %d frame %d \n", i * 2, mMisrFrame);
+                    break;
+                }
+                if (base[i * 2 + 1] != kMisrArr[mMisrFrame][i * 2 + 1]) {
+                    VIDC_LOW("Chroma DPB MISR mismatch at %d frame %d \n", i * 2 + 1, mMisrFrame);
+                    break;
+                }
+            }
+            mMisrFrame++;
+            break;
+        }
+        case METADATA_OPB_LUMA_CHROMA_MISR:
+        {
+            //TODO: Check MISR based on interlace type
+            break;
+        }
+        case METADATA_INTERLACE:
+        {
+            enum meta_interlace_info *base = reinterpret_cast<enum meta_interlace_info *>
+                ((reinterpret_cast<uintptr_t>(mhdr) + mphdr->offset));
 
-			if (!base) {
-				VIDC_ERR("invalid interlace info \n");
-				return -EINVAL;
-			}
-			VIDC_ERR("interlace type: %d\n", *base);
-			break;
-		}
-		case METADATA_FENCE:
-		{
-			uint32_t *fence = reinterpret_cast<uint32_t *>
-				((reinterpret_cast<uintptr_t>(mhdr) + mphdr->offset));
-			if (!fence) {
-				VIDC_ERR("invalid fence data");
-				return -EINVAL;
-			}
-			if (metaBuf->type == INPUT_META_PLANE && mV4l2Driver->isOutBufFenceEnabled() &&
-				fenceInfo != nullptr)
-				fenceInfo->fenceIds.push_back(*fence);
-			VIDC_LOW("Fence id %u\n", *fence);
-			break;
-		}
-		default:
-		{
-			VIDC_ERR("Received metadata: 0x%x\n", mphdr->type);
-		}
-		}
-		pldcnt++;
-		mphdr++;
-	}
+            if (!base) {
+                VIDC_ERR("invalid interlace info \n");
+                return -EINVAL;
+            }
+            VIDC_ERR("interlace type: %d\n", *base);
+            break;
+        }
+        case METADATA_FENCE:
+        {
+            uint32_t *fence = reinterpret_cast<uint32_t *>
+                ((reinterpret_cast<uintptr_t>(mhdr) + mphdr->offset));
+            if (!fence) {
+                VIDC_ERR("invalid fence data");
+                return -EINVAL;
+            }
+            if (metaBuf->type == INPUT_META_PLANE && mV4l2Driver->isOutBufFenceEnabled() &&
+                fenceInfo != nullptr)
+                fenceInfo->fenceIds.push_back(*fence);
+            VIDC_LOW("Fence id %u\n", *fence);
+            break;
+        }
+        default:
+        {
+            VIDC_ERR("Received metadata: 0x%x\n", mphdr->type);
+        }
+        }
+        pldcnt++;
+        mphdr++;
+    }
 #if defined (ANDROID) || defined (_LINUX_VENV_)
-	munmap((void *)mhdr, metaBuf->length);
+    munmap((void *)mhdr, metaBuf->length);
 #endif
-	return 0;
+    return 0;
 }
 
 int V4l2Codec::queueBufferRequest(std::shared_ptr<v4l2_buffer> buffer, unsigned int currentFrameNum) {
@@ -1063,182 +1062,182 @@ queuebufferLabel:
 }
 
 int V4l2Codec::fillMetadata(std::shared_ptr<v4l2_buffer> metaBuf) {
-	if (metaBuf == nullptr)
-		return -EINVAL;
-	if (metaBuf->m.fd < 0)
-		return -ENOMEM;
+    if (metaBuf == nullptr)
+        return -EINVAL;
+    if (metaBuf->m.fd < 0)
+        return -ENOMEM;
 
-	if (metaBuf->type != INPUT_META_PLANE && metaBuf->type != OUTPUT_META_PLANE) {
-		VIDC_ERR("fillMetadata: invalid buffer type %u", metaBuf->type);
-		return -EINVAL;
-	}
-	struct msm_vidc_metabuf_header* mhdr;
+    if (metaBuf->type != INPUT_META_PLANE && metaBuf->type != OUTPUT_META_PLANE) {
+        VIDC_ERR("fillMetadata: invalid buffer type %u", metaBuf->type);
+        return -EINVAL;
+    }
+    struct msm_vidc_metabuf_header* mhdr;
 #if defined (ANDROID) || defined (_LINUX_VENV_)
-	mhdr = reinterpret_cast<struct msm_vidc_metabuf_header*>(mmap
-		(0, metaBuf->length, PROT_READ| PROT_WRITE, MAP_SHARED, metaBuf->m.fd, 0));
-	if (mhdr == MAP_FAILED) {
-		VIDC_ERR("%s mmap failed\n", __func__);
-		return -EINVAL;
-	}
+    mhdr = reinterpret_cast<struct msm_vidc_metabuf_header*>(mmap
+        (0, metaBuf->length, PROT_READ| PROT_WRITE, MAP_SHARED, metaBuf->m.fd, 0));
+    if (mhdr == MAP_FAILED) {
+        VIDC_ERR("%s mmap failed\n", __func__);
+        return -EINVAL;
+    }
 #else
-	mhdr = reinterpret_cast<struct msm_vidc_metabuf_header*>(metaBuf->m.fd);
+    mhdr = reinterpret_cast<struct msm_vidc_metabuf_header*>(metaBuf->m.fd);
 #endif
-	memset(mhdr, 0, sizeof(struct msm_vidc_metabuf_header));
-	mhdr->size = sizeof(struct msm_vidc_metabuf_header);
-	mhdr->version = 1 << 16;
+    memset(mhdr, 0, sizeof(struct msm_vidc_metabuf_header));
+    mhdr->size = sizeof(struct msm_vidc_metabuf_header);
+    mhdr->version = 1 << 16;
 
-	struct msm_vidc_metapayload_header* mphdr = reinterpret_cast<struct msm_vidc_metapayload_header*>(mhdr + 1);
-	uint32_t metaPayloadOffset = sizeof(struct msm_vidc_metabuf_header) +
-					sizeof(struct msm_vidc_metapayload_header) * MAX_META_DELIVERY_PAYLOADS;
+    struct msm_vidc_metapayload_header* mphdr = reinterpret_cast<struct msm_vidc_metapayload_header*>(mhdr + 1);
+    uint32_t metaPayloadOffset = sizeof(struct msm_vidc_metabuf_header) +
+                    sizeof(struct msm_vidc_metapayload_header) * MAX_META_DELIVERY_PAYLOADS;
 
-	for (auto ctrl = mMetaControls.begin(); ctrl != mMetaControls.end(); ++ctrl) {
-		auto control = *ctrl;
-		if (!control->value)
-			continue;
+    for (auto ctrl = mMetaControls.begin(); ctrl != mMetaControls.end(); ++ctrl) {
+        auto control = *ctrl;
+        if (!control->value)
+            continue;
 
-		switch (control->id) {
-		case V4L2_CID_MPEG_VIDC_METADATA_BUFFER_TAG:
-		{
-			memset(mphdr, 0, sizeof(struct msm_vidc_metapayload_header));
-			mphdr->type = METADATA_BUFFER_TAG;
-			mphdr->size = sizeof(uint64_t);
-			mphdr->version = 1 << 16;
-			mphdr->offset = metaPayloadOffset;
-			mphdr->flags = METADATA_FLAGS_NONE;
+        switch (control->id) {
+        case V4L2_CID_MPEG_VIDC_METADATA_BUFFER_TAG:
+        {
+            memset(mphdr, 0, sizeof(struct msm_vidc_metapayload_header));
+            mphdr->type = METADATA_BUFFER_TAG;
+            mphdr->size = sizeof(uint64_t);
+            mphdr->version = 1 << 16;
+            mphdr->offset = metaPayloadOffset;
+            mphdr->flags = METADATA_FLAGS_NONE;
 
-			uint64_t* tagptr = reinterpret_cast<uint64_t *>
-				((reinterpret_cast<uintptr_t>(mhdr) + mphdr->offset));
-			if (!tagptr) {
-				VIDC_ERR("fillMetadata: tagptr is null");
-				return -ENOMEM;
-			}
+            uint64_t* tagptr = reinterpret_cast<uint64_t *>
+                ((reinterpret_cast<uintptr_t>(mhdr) + mphdr->offset));
+            if (!tagptr) {
+                VIDC_ERR("fillMetadata: tagptr is null");
+                return -ENOMEM;
+            }
 
-			if (metaBuf->type == INPUT_META_PLANE) {
-				*tagptr = InputTag::fromId(metaBuf->index);
-				VIDC_LOW("fillMetadata: Input Tag %llu\n", *tagptr);
-			} else {
-				*tagptr = OutputTag::fromId(metaBuf->index);
-				VIDC_LOW("fillMetadata: Output Tag %llu\n", *tagptr);
-			}
+            if (metaBuf->type == INPUT_META_PLANE) {
+                *tagptr = InputTag::fromId(metaBuf->index);
+                VIDC_LOW("fillMetadata: Input Tag %llu\n", *tagptr);
+            } else {
+                *tagptr = OutputTag::fromId(metaBuf->index);
+                VIDC_LOW("fillMetadata: Output Tag %llu\n", *tagptr);
+            }
 
-			metaPayloadOffset += mphdr->size;
-			mhdr->size += sizeof(struct msm_vidc_metapayload_header) + mphdr->size;
-			mhdr->count++;
-			mphdr++;
-			break;
-		}
-		case V4L2_CID_MPEG_VIDC_METADATA_EVA_STATS:
-		{
-			memset(mphdr, 0, sizeof(struct msm_vidc_metapayload_header));
-			mphdr->type = METADATA_EVA_STATS;
-			mphdr->size = CVP_METADATA_SIZE;
-			mphdr->version = 1 << 16;
-			mphdr->offset = metaPayloadOffset;
-			mphdr->flags = METADATA_FLAGS_NONE;
-			uint8_t *cvpMeta = reinterpret_cast<uint8_t *>
-				((reinterpret_cast<uintptr_t>(mhdr) + mphdr->offset));
+            metaPayloadOffset += mphdr->size;
+            mhdr->size += sizeof(struct msm_vidc_metapayload_header) + mphdr->size;
+            mhdr->count++;
+            mphdr++;
+            break;
+        }
+        case V4L2_CID_MPEG_VIDC_METADATA_EVA_STATS:
+        {
+            memset(mphdr, 0, sizeof(struct msm_vidc_metapayload_header));
+            mphdr->type = METADATA_EVA_STATS;
+            mphdr->size = CVP_METADATA_SIZE;
+            mphdr->version = 1 << 16;
+            mphdr->offset = metaPayloadOffset;
+            mphdr->flags = METADATA_FLAGS_NONE;
+            uint8_t *cvpMeta = reinterpret_cast<uint8_t *>
+                ((reinterpret_cast<uintptr_t>(mhdr) + mphdr->offset));
 
-			if (!mCvpMetaFile) {
-				VIDC_ERR("Missing CVP Meta File \n");
-				return -EINVAL;
-			}
-			if (fread(cvpMeta, 1024, 1, mCvpMetaFile) != 1) {
-				VIDC_ERR("Failed to read CVP Meta File \n");
-				return -EINVAL;
-			}
+            if (!mCvpMetaFile) {
+                VIDC_ERR("Missing CVP Meta File \n");
+                return -EINVAL;
+            }
+            if (fread(cvpMeta, 1024, 1, mCvpMetaFile) != 1) {
+                VIDC_ERR("Failed to read CVP Meta File \n");
+                return -EINVAL;
+            }
 
-			uint32_t *captureFrameRate = reinterpret_cast<uint32_t *>(&cvpMeta[1024]);
-			uint32_t *evaFrameRate = captureFrameRate + 1;
-			uint32_t *evaMetaFlags = evaFrameRate + 1;
-			/* Use the default 30 fps (Q16 format) */
-			*captureFrameRate = 1966080;
-			*evaFrameRate = 1966080;
-			*evaMetaFlags = 0;
+            uint32_t *captureFrameRate = reinterpret_cast<uint32_t *>(&cvpMeta[1024]);
+            uint32_t *evaFrameRate = captureFrameRate + 1;
+            uint32_t *evaMetaFlags = evaFrameRate + 1;
+            /* Use the default 30 fps (Q16 format) */
+            *captureFrameRate = 1966080;
+            *evaFrameRate = 1966080;
+            *evaMetaFlags = 0;
 
-			metaPayloadOffset += mphdr->size;
-			mhdr->size += sizeof(struct msm_vidc_metapayload_header) + mphdr->size;
-			mhdr->count++;
-			mphdr++;
-			break;
-		}
-		case V4L2_CID_MPEG_VIDC_METADATA_SALIENCY_INFO:
-		{
-			memset(mphdr, 0, sizeof(struct msm_vidc_metapayload_header));
-			mphdr->type = METADATA_SALIENCY_INFO;
-			mphdr->size = SALIENCY_METADATA_SIZE;
-			mphdr->version = 1 << 16;
-			mphdr->offset = metaPayloadOffset;
-			mphdr->flags = METADATA_FLAGS_NONE;
+            metaPayloadOffset += mphdr->size;
+            mhdr->size += sizeof(struct msm_vidc_metapayload_header) + mphdr->size;
+            mhdr->count++;
+            mphdr++;
+            break;
+        }
+        case V4L2_CID_MPEG_VIDC_METADATA_SALIENCY_INFO:
+        {
+            memset(mphdr, 0, sizeof(struct msm_vidc_metapayload_header));
+            mphdr->type = METADATA_SALIENCY_INFO;
+            mphdr->size = SALIENCY_METADATA_SIZE;
+            mphdr->version = 1 << 16;
+            mphdr->offset = metaPayloadOffset;
+            mphdr->flags = METADATA_FLAGS_NONE;
 
-			uint32_t *saliencyROI = reinterpret_cast<uint32_t *>
-				((reinterpret_cast<uintptr_t>(mhdr) + mphdr->offset));
-			saliencyROI[0] = METADATA_SALIENCY_TYPE0;
-			saliencyROI[1] = (mWidth) << 16 | (mHeight);
-			saliencyROI[2] = (mWidth) << 16 | (mHeight);
-			saliencyROI[3] = (mWidth) << 16 | (mHeight);
+            uint32_t *saliencyROI = reinterpret_cast<uint32_t *>
+                ((reinterpret_cast<uintptr_t>(mhdr) + mphdr->offset));
+            saliencyROI[0] = METADATA_SALIENCY_TYPE0;
+            saliencyROI[1] = (mWidth) << 16 | (mHeight);
+            saliencyROI[2] = (mWidth) << 16 | (mHeight);
+            saliencyROI[3] = (mWidth) << 16 | (mHeight);
 
-			metaPayloadOffset += mphdr->size;
-			mhdr->size += sizeof(struct msm_vidc_metapayload_header) + mphdr->size;
-			mhdr->count++;
-			mphdr++;
-			break;
-		}
-		case V4L2_CID_MPEG_VIDC_METADATA_ROI_INFO:
-		{
-			uint16_t *pBuf;
-			uint32_t lcuWidth, lcuHeight, rowSize, bufSize;
+            metaPayloadOffset += mphdr->size;
+            mhdr->size += sizeof(struct msm_vidc_metapayload_header) + mphdr->size;
+            mhdr->count++;
+            mphdr++;
+            break;
+        }
+        case V4L2_CID_MPEG_VIDC_METADATA_ROI_INFO:
+        {
+            uint16_t *pBuf;
+            uint32_t lcuWidth, lcuHeight, rowSize, bufSize;
 
-			if (mCodec == V4L2_PIX_FMT_HEVC) {
-				lcuWidth = (mWidth + 31) >> 5;
-				lcuHeight = (mHeight + 31) >> 5;
-			} else {
-				lcuWidth = (mWidth + 15) >> 4;
-				lcuHeight = (mHeight + 15) >> 4;
-			}
+            if (mCodec == V4L2_PIX_FMT_HEVC) {
+                lcuWidth = (mWidth + 31) >> 5;
+                lcuHeight = (mHeight + 31) >> 5;
+            } else {
+                lcuWidth = (mWidth + 15) >> 4;
+                lcuHeight = (mHeight + 15) >> 4;
+            }
 
-			rowSize = (((lcuWidth + 7) >> 3) << 3);
-			bufSize = rowSize * lcuHeight * 2;
+            rowSize = (((lcuWidth + 7) >> 3) << 3);
+            bufSize = rowSize * lcuHeight * 2;
 
-			memset(mphdr, 0, sizeof(struct msm_vidc_metapayload_header));
-			mphdr->type = METADATA_ROI_INFO;
-			mphdr->size = bufSize;
-			mphdr->version = 1 << 16;
-			mphdr->offset = ALIGN(metaPayloadOffset, (uint32_t)256);
-			mphdr->flags = METADATA_FLAGS_NONE;
+            memset(mphdr, 0, sizeof(struct msm_vidc_metapayload_header));
+            mphdr->type = METADATA_ROI_INFO;
+            mphdr->size = bufSize;
+            mphdr->version = 1 << 16;
+            mphdr->offset = ALIGN(metaPayloadOffset, (uint32_t)256);
+            mphdr->flags = METADATA_FLAGS_NONE;
 
-			uint16_t *pExtraDataBuf = reinterpret_cast<uint16_t *>
-					((reinterpret_cast<uintptr_t>(mhdr) + mphdr->offset));
+            uint16_t *pExtraDataBuf = reinterpret_cast<uint16_t *>
+                    ((reinterpret_cast<uintptr_t>(mhdr) + mphdr->offset));
 
-			for (int j = 0; j < lcuHeight; j++) {
-				pBuf = pExtraDataBuf + j * rowSize;
-				for (int i = 0; i < lcuWidth/2; i++) {
-					uint8_t temp = 6;
-					*pBuf++ = (1 << 11) | ((temp & 0x3F) << 4);
-				}
-				for (int i = lcuWidth/2; i < lcuWidth; i++) {
-					uint8_t temp = -6;
-					*pBuf++ = (1 << 11) | ((temp & 0x3F) << 4);
-				}
-			}
+            for (int j = 0; j < lcuHeight; j++) {
+                pBuf = pExtraDataBuf + j * rowSize;
+                for (int i = 0; i < lcuWidth/2; i++) {
+                    uint8_t temp = 6;
+                    *pBuf++ = (1 << 11) | ((temp & 0x3F) << 4);
+                }
+                for (int i = lcuWidth/2; i < lcuWidth; i++) {
+                    uint8_t temp = -6;
+                    *pBuf++ = (1 << 11) | ((temp & 0x3F) << 4);
+                }
+            }
 
-			uint32_t payloadOffset = ALIGN(metaPayloadOffset, (uint32_t)256) - metaPayloadOffset;
-			metaPayloadOffset += ALIGN(mphdr->size + payloadOffset, (uint32_t)4);
-			mhdr->size += sizeof(struct msm_vidc_metapayload_header) + ALIGN(mphdr->size + payloadOffset, (uint32_t)4);
-			mhdr->count++;
-			mphdr++;
-			break;
-		}
-		default:
-		{
-			break;
-		}
-		}
-	}
-	metaBuf->bytesused = metaPayloadOffset;
+            uint32_t payloadOffset = ALIGN(metaPayloadOffset, (uint32_t)256) - metaPayloadOffset;
+            metaPayloadOffset += ALIGN(mphdr->size + payloadOffset, (uint32_t)4);
+            mhdr->size += sizeof(struct msm_vidc_metapayload_header) + ALIGN(mphdr->size + payloadOffset, (uint32_t)4);
+            mhdr->count++;
+            mphdr++;
+            break;
+        }
+        default:
+        {
+            break;
+        }
+        }
+    }
+    metaBuf->bytesused = metaPayloadOffset;
 #if defined (ANDROID) || defined (_LINUX_VENV_)
-	munmap((void *)mhdr, metaBuf->length);
+    munmap((void *)mhdr, metaBuf->length);
 #endif
 
-	return 0;
+    return 0;
 }
 

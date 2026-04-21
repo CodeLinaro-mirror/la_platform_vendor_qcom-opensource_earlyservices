@@ -30,6 +30,7 @@ namespace early_video_app {
     FILE* mInnerLogFile = NULL;
     std::mutex mLogMutex;
     uint32_t gVidcLogLevel;
+    bool mInitialized = false;
 
     const char* KPILogPath = "/sys/kernel/boot_kpi/kpi_values";
     const char* KernelMsgPath = "/dev/kmsg";
@@ -155,14 +156,23 @@ namespace early_video_app {
         if (logFormat == NULL || *logFormat == '\0') {
             return;
         }
-        
+
         // First format using vsnprintf
         char buffer[1024];
         vsnprintf(buffer, sizeof(buffer), logFormat, args);
-        
+
+        mLogMutex.lock();
         // Then output to kernel log
-        freopen(KernelMsgPath, "w", stdout);
+        if (!mInitialized) {
+            FILE *fp = freopen(KernelMsgPath, "w", stdout);
+            if (fp == NULL) {
+                mLogMutex.unlock();
+                return;
+            }
+            mInitialized = true;
+        }
         std::cout << LogAPPTag << buffer << std::endl;
+        mLogMutex.unlock();
     }
 
     bool createDirectoryRecursive(const char* path) {

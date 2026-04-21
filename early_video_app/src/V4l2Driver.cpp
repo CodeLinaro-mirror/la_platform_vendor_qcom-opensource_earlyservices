@@ -263,8 +263,6 @@ int IOCTL(int fd, unsigned int cmd, void* arg) {
 }
 
 int V4l2Driver::Open(unsigned int type) {
-    VIDC_HIGH("V4l2Driver::Open, enter\n");
-
     std::string devPath;
     if (type == V4L2_CODEC_TYPE_DECODER) {
         devPath = "/dev/video32";
@@ -278,13 +276,13 @@ int V4l2Driver::Open(unsigned int type) {
     scanDevDirectory("/dev");
 
 #ifdef ANDROID
-    VIDC_HIGH("V4l2Driver::Open, android env\n");
+    VIDC_MED("V4l2Driver::Open, android env\n");
     mFd = open(devPath.c_str(), O_RDWR);
 #elif _LINUX_VENV_
-    VIDC_HIGH("V4l2Driver::Open, linux env\n");
+    VIDC_MED("V4l2Driver::Open, linux env\n");
     mFd = open(devPath.c_str(), O_RDWR);
 #else
-    VIDC_HIGH("V4l2Driver::Open, not linux env\n");
+    VIDC_MED("V4l2Driver::Open, not linux env\n");
     mFd = vidc_open(devPath.c_str(), O_RDWR);
 #endif
     if (mFd < 0) {
@@ -294,7 +292,7 @@ int V4l2Driver::Open(unsigned int type) {
     }
     std::string openMsg = "open " + devPath;
     printKPILog("%s%s%s", LogKPITag, LogAPPTag, openMsg.c_str());
-    VIDC_HIGH("V4l2Driver::Open, open %s, driver fd %d\n",  devPath.c_str(), mFd);
+    VIDC_MED("V4l2Driver::Open, open %s, driver fd %d\n",  devPath.c_str(), mFd);
 
     return 0;
 }
@@ -361,6 +359,9 @@ int V4l2Driver::openMediaDevice(unsigned int type) {
 }
 
 void V4l2Driver::Close() {
+    if (mFd < 0) {
+        return;
+    }
     VIDC_MED("V4l2Driver::Close, close driver fd %d\n", mFd);
 #ifdef ANDROID
     close(mFd);
@@ -373,6 +374,9 @@ void V4l2Driver::Close() {
 }
 
 void V4l2Driver::closeMediaDevice() {
+    if (mMediaFd < 0) {
+        return;
+    }
     VIDC_MED("V4l2Driver::closeMediaDevice, close media driver fd %d\n", mMediaFd);
 #ifdef ANDROID
     close(mMediaFd);
