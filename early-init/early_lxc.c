@@ -37,15 +37,15 @@ static void inline write_marker(const char* name)
     return;
 }
 
-static inline void print_log(const char* fmt, ...)
-{
+static void inline print_log(const char* fmt, ...) __attribute__((format(printf, 1, 2)));
+
+static void inline print_log(const char* fmt, ...) {
     if (fmt == NULL) return;
     freopen("/dev/kmsg", "w", stdout);
 
     va_list args;
     va_start(args, fmt);
-
-    printf("ES: ");
+    printf("ES early-lxc: ");
     vprintf(fmt, args);
     printf("\r\n");
 
@@ -104,7 +104,7 @@ static inline int start_lxc_container() {
         char *const argv[] = {
             "lxc-start",
             "-n", "lv",
-            "-l", "debug",
+            "-l", "TRACE",
             "-o", "/vendor_early_services/run/lxc.log",
             "--logfile=/vendor_early_services/run/lxc.log",
             NULL
@@ -112,21 +112,7 @@ static inline int start_lxc_container() {
 
         //Create new private ns before exec LXC
         create_private_ns();
-        pid_t pid_monitor = fork();
-        if (pid_monitor == 0) {
-            char *const argv_m[] = {
-                "lxc-monitor",
-                "-n", "lv",
-                "-W",
-                "-l", "debug",
-                "-o", "/vendor_early_services/run/lxc_monitor.log",
-                NULL
-            };
-            execv(monitor_path, argv_m);
-        } else if (pid_monitor > 0) {
             execv(lxc_path, argv);
-            _exit(127);
-        } else
             _exit(127);
     } else if (pid_start > 0) {
         int status;
@@ -143,6 +129,51 @@ static inline int start_lxc_container() {
         return -1;
     }
     return 0;
+}
+
+static inline int start_lxc_daemon() {
+    const char *dir = "/vendor_early_services/vendor/vm-system/lxc/bin";
+    const char *lxc_path = "/vendor_early_services/vendor/vm-system/lxc/bin/lxc-daemon";
+
+    int retries = 10;
+    print_log("====== start_lxc_daemon");
+    while (access(dir, X_OK) != 0 && retries-- > 0) {
+        print_log("wait the lxc contatiner partion");
+        usleep(100000); // 100ms
+    }
+
+
+    pid_t pid = fork();
+    //lxc-daemon lv
+    if (pid == 0)
+    {
+        char *const argv[] = {
+            "lxc-daemon",
+            "lv",
+            "-l", "TRACE",
+            "-o", "/vendor_early_services/run/lxc_daemon.log",
+            "--logfile=/vendor_early_services/run/lxc_daemon.log",
+            NULL
+        };
+
+        //Create new private ns before exec LXC
+        create_private_ns();
+        execv(lxc_path, argv);
+        _exit(127);
+    } else if (pid > 0) {
+        int status;
+        waitpid(pid, &status, 0);
+        if (WIFEXITED(status) && WEXITSTATUS(status) == 0) {
+            print_log("execv lxc-daemon success!");
+            return 0;
+        } else {
+            print_log("exec lxc-daemon failed");
+            return -1;
+        }
+    } else {
+        print_log("fork failed %s\n", strerror(errno));
+        return -1;
+    }
 }
 
 int main(int argc, char *argv[]){
@@ -164,6 +195,13 @@ int main(int argc, char *argv[]){
     } else {
         print_log("Success to start LXC container!");
         write_marker("M - ES lxc start -- done");
+    }
+    status = start_lxc_daemon();
+    if (status != 0) {
+        print_log("Failed to start lxc-daemon !");
+    } else {
+        print_log("Success to start lxc-daemon!");
+        write_marker("M - ES lxc-daemon -- done");
     }
 
     return 0;
