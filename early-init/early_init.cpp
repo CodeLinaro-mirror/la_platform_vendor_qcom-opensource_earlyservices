@@ -186,7 +186,7 @@ using android::base::boot_clock;
 #define VIDEO_SYS_DMA_HEAP_PATH "/dev/dma_heap/qcom,system"
 
 #define ES_FW_CHK_PATH          "/vendor_early_services/vendor/firmware_mnt/image"
-#define ES_KMOD_DONE            "/dev/kmdone"
+#define ES_KMOD_DONE            "/vendor_early_services/notify/kmdone"
 
 #define ECHIME_APP              "early_chime"
 #define EAUDIO_APP              "early_audio"
@@ -237,6 +237,11 @@ using android::base::boot_clock;
 #define ES_CTYPE_DEF2_MOD   2
 #define ES_CTYPE_DI_MOD     3
 #define ES_CTYPE_LOAD_SE    4
+
+#define ES_MOUNT_CHECK_UFS      (0)
+#define ES_MOUNT_MODEM          (1)
+#define ES_MOUNT_LXC            (1 << 1)
+#define ES_MOUNT_SOCCP          (1 << 2)
 
 #define PIPE_RD 0
 #define PIPE_WR 1
@@ -2345,18 +2350,33 @@ static void set_camera_v4l_permission(void)
   return;
 }
 
+static int try_mount(const char* __source, const char* __target,
+                     const char*  __fs_type, unsigned long __flags, const void* __data)
+{
+  int retry_t = 0, mount_failed = true;
+  while (retry_t < 200) {
+      if (mount(__source, __target, __fs_type, __flags, __data)) {
+          retry_t ++;
+          usleep(5 * 1000);
+      } else {
+          mount_failed = false;
+          break;
+      }
+  }
+  return mount_failed;
+}
+
 // Check uvent and
 // 1. set_km: initiate dev enumerations
 // 2. !set_km: mount fw partition.
-static int prepare_fw_dir(bool set_km)
+static int prepare_fw_dir(int mount_flag)
 {
   // FW mount partition
   std::string modemStr("/dev/block/by-name/modem");
   std::string lxcrootfsStr("/dev/block/by-name/vm-bootsys");
   unsigned int count = 0, max = (WAIT_SET_PERM_SECS * 1000) / WAIT_SLEEP_MSEC;
   boot_clock::time_point module_start_time = boot_clock::now();
-  bool mounted = false;
-  bool lxcmounted = false;
+  int current_mount = 0;
   if (_use_min_wait) {
     max = (WAIT_SET_PERM_MSECS) / WAIT_SLEEP_MSEC;
   }
@@ -2366,61 +2386,61 @@ static int prepare_fw_dir(bool set_km)
       break;
     usleep(WAIT_SLEEP_MSEC * 1000);
   }
-  if (set_km) {
+  if (mount_flag == ES_MOUNT_CHECK_UFS) {
     // Enumerate dev nodes - fw
-    mknod("/dev/kmdone", S_IFREG | 0400, makedev(0,0));
+    mknod("/vendor_early_services/notify/kmdone", S_IFREG | 0400, makedev(0,0));
 
     return 0;
   }
+  if (mount_flag & ES_MOUNT_MODEM) {
+    if (access(AUDIO_FW_PATH, F_OK) == -1) {
+      LOG(WARNING) << "ES : AUDIO_FW_PATH doesn't exist";
+      mkdirs(AUDIO_FW_PATH, 0755);
+    }
 
-  if (access(AUDIO_FW_PATH, F_OK) == -1) {
-    LOG(WARNING) << "ES : AUDIO_FW_PATH doesn't exist";
-    mkdirs(AUDIO_FW_PATH, 0755);
+    modemStr += _boot_slot;
+    // wait for node creation
+    if (wait_for_file(modemStr.c_str(), WAIT_SLEEP_MSEC, max*2) == 0) {
+      // mount partition
+      if (try_mount(modemStr.c_str(), AUDIO_FW_PATH, "vfat",
+          MS_RDONLY, "uid=1000,gid=1000,dmask=227,fmask=337,context=u:object_r:firmware_file:s0") < 0) {
+          LOG(WARNING) << "ES : modemstr mount failed, err " << errno;
+        } else {
+          LOG(INFO) << "ES : modemstr mount success.";
+          current_mount |= ES_MOUNT_MODEM;
+          print_log("modemstr mount success");
+        }
+    } else {
+      LOG(WARNING) << "ES : modemstr Not Found!";
+    }
   }
 
-  modemStr += _boot_slot;
-  // wait for node creation
-  if (wait_for_file(modemStr.c_str(), WAIT_SLEEP_MSEC, max*2) == 0) {
-    // mount partition
-    if (mount(modemStr.c_str(), AUDIO_FW_PATH, "vfat",
-      MS_RDONLY, "uid=1000,gid=1000,dmask=227,fmask=337,context=u:object_r:firmware_file:s0") < 0) {
-      LOG(WARNING) << "ES : modemstr mount failed, err " << errno;
-    } else {
-      LOG(INFO) << "ES : modemstr mount success.";
-      mounted = true;
-      print_log("modemstr mount success");
-    }
-  } else {
-    LOG(WARNING) << "ES : modemstr Not Found!";
-  }
-
-  lxcrootfsStr += _boot_slot;
-  const char *lxc_start_file = "/vendor_early_services/vendor/vm-system/lxc/bin/lxc-start";
-
-  // wait for node creation
-  if (wait_for_file(lxcrootfsStr.c_str(), WAIT_SLEEP_MSEC, max*2) == 0) {
-    // mount partition
-    //if (mount(lxcrootfsStr.c_str(), LXC_ROOTFS_PATH, "ext4",
-    //  MS_RDONLY, NULL) < 0) {
-      if (wait_for_file(lxc_start_file, WAIT_SLEEP_MSEC, max*2)) {
-      LOG(WARNING) << "ES : lxc rootfs mount failed, err " << errno;
-    } else {
-      LOG(INFO) << "ES : lxc rootfs mount success.";
-      lxcmounted = true;
-      print_log("lxc rootfs mount success");
-    }
-  } else {
-    LOG(WARNING) << "ES : lxc rootfs Not Found!";
+  if (mount_flag & ES_MOUNT_LXC) {
+      lxcrootfsStr += _boot_slot;
+      const char *lxc_start_file = "/vendor_early_services/vendor/vm-system/lxc/bin/lxc-start";
+      // wait for node creation
+      if (wait_for_file(lxcrootfsStr.c_str(), WAIT_SLEEP_MSEC, max*2) == 0) {
+              // mount partition
+              if (wait_for_file(lxc_start_file, WAIT_SLEEP_MSEC, max*2)) {
+                  LOG(WARNING) << "ES : lxc rootfs mount failed, err " << errno;
+              } else {
+                  LOG(INFO) << "ES : lxc rootfs mount success.";
+                  current_mount |= ES_MOUNT_LXC;
+                  print_log("lxc rootfs mount success");
+              }
+      } else {
+          LOG(WARNING) << "ES : lxc rootfs Not Found!";
+      }
   }
 
   char str[SHORT_STRING_MAX] = {0};
   auto module_elapse_time = std::chrono::duration_cast<std::chrono::milliseconds>(
                 boot_clock::now() - module_start_time);
-  if (mounted && lxcmounted) {
-    snprintf(str, SHORT_STRING_MAX, "%s%d%s", "M - ES fw-load took ",
+  if (current_mount == mount_flag) {
+    snprintf(str, SHORT_STRING_MAX, "%s%d%s%d%s", "M - ES fw-load flag ", mount_flag, " took ",
            (int)module_elapse_time.count(), "ms");
   } else {
-    snprintf(str, SHORT_STRING_MAX, "%s%d%s", "M - ES fw-load FAILED, waited ",
+    snprintf(str, SHORT_STRING_MAX, "%s%d%s%d%s", "M - ES fw-load FAILED flag ", mount_flag, " waited ",
            (int)module_elapse_time.count(), "ms");
   }
   write_marker(str);
@@ -3005,7 +3025,10 @@ static pid_t __attribute__((unused)) fork_wait_for_child(int type, int run_if_fo
     switch (type) {
       case ES_CTYPE_FW: {
         android::earlyinit::InitKernelLogging(NULL);
-        prepare_fw_dir(true);
+        //first check ufs is ready and send kmdone
+        prepare_fw_dir(ES_MOUNT_CHECK_UFS);
+        //second create fw dir
+        prepare_fw_dir(ES_MOUNT_MODEM);
         break;
       }
       case ES_CTYPE_DEF2_MOD: {
@@ -3075,7 +3098,7 @@ int early_init(int init)
     ret = mount("/vendor_early_services", "/vendor_early_services", NULL,
                 MS_BIND | MS_REC, NULL);
     if (ret < 0) {
-      mknod("/dev/sedone", S_IFREG | 0400, makedev(0,0));
+      mknod("/vendor_early_services/notify/sedone", S_IFREG | 0400, makedev(0,0));
       LOG(WARNING) << "ES : mount failed! " << "errno " << errno;
       return -1;
     }
@@ -3094,7 +3117,7 @@ int early_init(int init)
 
 #if defined( __ANDROID_U__)
      load_default_modules();
-     prepare_fw_dir(true);
+     prepare_fw_dir(ES_MOUNT_CHECK_UFS);
      load_precompiled_sepolicy();
 #else
     bool load_parallel = bc_get_lmp();
@@ -3130,7 +3153,7 @@ int early_init(int init)
     check_and_create_linker64();
 
     // Send a kedone flag to let the init process continue to boot the system
-    mknod("/dev/kedone", S_IFREG | 0400, makedev(0,0));
+    mknod("/vendor_early_services/notify/kedone", S_IFREG | 0400, makedev(0,0));
 
 #endif // ! __ANDROID_U__
 
@@ -3166,7 +3189,7 @@ int early_init(int init)
   if (fork() == 0) {
     signal(SIGTERM, SIG_IGN);
     android::earlyinit::InitKernelLogging(NULL);
-    prepare_fw_dir(false);
+    prepare_fw_dir(ES_MOUNT_LXC);
     usleep(50*000);
     exit(0);
   }
@@ -3188,7 +3211,7 @@ int early_init(int init)
   usleep(2000*1000);
   wait_for_early_apps();
 
-  mknod("/dev/sedone", S_IFREG | 0400, makedev(0,0));
+  mknod("/vendor_early_services/notify/sedone", S_IFREG | 0400, makedev(0,0));
 
   char str[SHORT_STRING_MAX] = {0};
   auto module_elapse_time = std::chrono::duration_cast<std::chrono::milliseconds>(
