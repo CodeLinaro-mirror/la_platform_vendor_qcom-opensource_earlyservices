@@ -7,6 +7,7 @@ LOCAL_CPPFLAGS                  += -fexceptions
 LOCAL_LDFLAGS                   := -Wl,-rpath,'/vendor_early_services/system/lib64' -Wl,--dynamic-linker,/vendor_early_services/system/bin/bootstrap/linker64
 LOCAL_MODULE_PATH		        := $(TARGET_VENDOR_RAMDISK_OUT)/vendor_early_services/bin
 LOCAL_C_INCLUDES                += $(LOCAL_PATH)/inc
+LOCAL_C_INCLUDES                += $(TOP)/external/libdrm
 
 LOCAL_SHARED_LIBRARIES          := \
                                 libcutils \

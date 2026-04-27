@@ -15,8 +15,8 @@ SPDX-License-Identifier: BSD-3-Clause-Clear
 #include "xf86drm.h"
 #include "xf86drmMode.h"
 #include "../../../display-drivers/include/uapi/display/drm/sde_drm.h"
-#include "../../../display/libdrm/include/drm/drm_fourcc.h"
-#include "../../../display/libdrm/libdrm_macros.h"
+#include "include/drm/drm_fourcc.h"
+#include "libdrm_macros.h"
 
 #define MAX_BUFFER                      1
 
