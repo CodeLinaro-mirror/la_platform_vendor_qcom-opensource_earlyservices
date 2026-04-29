@@ -90,7 +90,7 @@ class DisplayAdaptor {
         bool isInitialized();
         bool initAdaptor(uint32_t frameWidth, uint32_t frameHeight, uint32_t dataSize);
         bool commitData(std::uint8_t* pBuffer, uint32_t length, uint32_t offset);
-        bool deinitAdaptor(void);
+        int deinitAdaptor(void);
 
     private:
         int parseDisplay();
@@ -105,6 +105,10 @@ class DisplayAdaptor {
         int destroyBuff();
 
     private:
+        static std::mutex initMutex;
+        static std::mutex planeMutex;
+        static std::atomic<bool> isAdaptorInitialized;
+
         drmModeAtomicReqPtr mDRMModeReqPtr;
         std::vector<plane_config> mPlaneCfgVector;
         std::vector<connector_config> mConnectorCfgVector;

@@ -47,9 +47,9 @@ const uint64_t PixelFormat = DRM_FORMAT_NV12;
 //0(when not DRM_FORMAT_MOD_QCOM_COMPRESSED), DRM_FORMAT_MOD_QCOM_COMPRESSED
 const uint64_t FrameBufferModifier = DRM_FORMAT_MOD_QCOM_COMPRESSED;
 
-std::mutex initMutex;
-std::mutex planeMutex;
-std::atomic<bool> isAdaptorInitialized{false};
+std::mutex DisplayAdaptor::initMutex;
+std::mutex DisplayAdaptor::planeMutex;
+std::atomic<bool> DisplayAdaptor::isAdaptorInitialized{false};
 
 using namespace early_video_app;
 
@@ -67,7 +67,7 @@ bool DisplayAdaptor::isInitialized() {
 
 bool DisplayAdaptor::initAdaptor(uint32_t frameWidth, uint32_t frameHeight, uint32_t dataSize) {
    initMutex.lock();
-   if (isAdaptorInitialized.load()) {
+   if (isInitialized()) {
       bool result = (frameWidth == mSourceFrameWidth && frameHeight == mSourceFrameHeight);
       initMutex.unlock();
       return result;
@@ -139,7 +139,7 @@ bool DisplayAdaptor::initAdaptor(uint32_t frameWidth, uint32_t frameHeight, uint
 }
 
 bool DisplayAdaptor::commitData(std::uint8_t* pBuffer, uint32_t length, uint32_t offset) {
-   if (!isAdaptorInitialized.load()) {
+   if (!isInitialized()) {
       VIDC_MED("DisplayAdaptor::commitData, adaptor not initialized\n");
       return false;
    }
@@ -173,12 +173,13 @@ bool DisplayAdaptor::commitData(std::uint8_t* pBuffer, uint32_t length, uint32_t
    return true;
 }
 
-bool DisplayAdaptor::deinitAdaptor() {
-   if (!isAdaptorInitialized.load()) {
+int DisplayAdaptor::deinitAdaptor() {
+   if (!isInitialized()) {
       return 0;
    }
    if (mDRMModeReqPtr != NULL) {
       drmModeAtomicFree(mDRMModeReqPtr);
+      mDRMModeReqPtr = NULL;
    }
 
    /* destroy buffer */
@@ -205,7 +206,6 @@ int DisplayAdaptor::parseDisplay(void) {
    int crtcIndex = 0;
    int planeIndex = 0;
    connector_config connectorCfgArray[MAX_COUNT] = {};
-   plane_config planeCfg = {};
    drmModePlaneRes* planeRes = NULL;
    drmModeRes* displayRes = NULL;
 
@@ -372,10 +372,18 @@ int DisplayAdaptor::parseDisplay(void) {
    }
 
    for (int i = 0; i < (int)planeRes->count_planes; i++) {
-      int handoff;
+      plane_config planeCfg = {};
+      int handoff = 0;
       drmModePlanePtr planePtr = drmModeGetPlane(mDisplayCardFD, planeRes->planes[i]);
       if (planePtr == NULL || displayRes->connectors == NULL) {
          VIDC_ERR("DisplayAdaptor::parseDisplay, plane %d ptr is NULL or displayRes->connectors is NULL\n", i);
+         goto out;
+      }
+
+      if (i >= displayRes->count_connectors) {
+         VIDC_ERR("DisplayAdaptor::parseDisplay, plane index %d out of connector range %d\n",
+                  i, displayRes->count_connectors);
+         drmModeFreePlane(planePtr);
          goto out;
       }
 
@@ -481,6 +489,15 @@ int DisplayAdaptor::parseDisplay(void) {
       if (planeCfg.handoff_pid) {
          VIDC_MED("DisplayAdaptor::parseDisplay, handoff = %d possible_crtcs = 0x%x\n", handoff, planePtr->possible_crtcs);
       }
+
+      if (planeIndex >= (int)mConnectorCfgVector.size()) {
+         VIDC_ERR("DisplayAdaptor::parseDisplay, planeIndex %d out of range, connector vector size %zu\n",
+            planeIndex, mConnectorCfgVector.size());
+         drmModeFreePlane(planePtr);
+         drmModeFreeConnector(connectorPtr);
+         drmModeFreeObjectProperties(propertiesPtr);
+         goto out;
+      }
       planeCfg.x = planePtr->x;
       planeCfg.y = planePtr->y;
       planeCfg.h = mConnectorCfgVector[planeIndex].mode.vdisplay;
@@ -512,137 +529,228 @@ out:
 }
 
 int DisplayAdaptor::createFrameBufferForNV12(uint32_t frameWidth, uint32_t frameHeight) {
-   VIDC_MED("DisplayAdaptor::createFrameBufferForNV12, frameWidth = %d, frameHeight = %d\n", frameWidth, frameHeight);
-   int result = 0;
-   /* create framebuffer */
-   mDMAHeapDeviceFD = open(DMADevicePath, O_RDWR);
-   if (mDMAHeapDeviceFD < 0) {
-      result = -1;
-      VIDC_ERR("DisplayAdaptor::createFrameBufferForNV12, failed to open DMA: errno: %d, %s\n", errno, strerror(errno));
-      return result;
-   }
-   for (int j = 0; j < MAX_BUFFER; j++) {
-      int stride = ALIGN(frameWidth, 128);
-      int ySize = stride * frameHeight;
-      int uvSize = stride * frameHeight / 2;
-      int totalSize = ySize + uvSize;
+    VIDC_MED("DisplayAdaptor::createFrameBufferForNV12, frameWidth = %d, frameHeight = %d\n",
+             frameWidth, frameHeight);
+    int result = 0;
 
-      struct dma_heap_allocation_data allocationData;
-      memset(&allocationData, 0, sizeof(allocationData));
-      allocationData.len = totalSize;
-      allocationData.fd_flags = O_RDWR | O_CLOEXEC;
-      allocationData.heap_flags = 0;
-      result = ioctl(mDMAHeapDeviceFD, DMA_HEAP_IOCTL_ALLOC, &allocationData);
-      if (result < 0) {
-         VIDC_ERR("DisplayAdaptor::createFrameBufferForNV12, failed to alloc buffer: errno: %d, %s\n", errno, strerror(errno));
-         return result;
-      }
+    /* create framebuffer */
+    mDMAHeapDeviceFD = open(DMADevicePath, O_RDWR);
+    if (mDMAHeapDeviceFD < 0) {
+        result = -1;
+        VIDC_ERR("DisplayAdaptor::createFrameBufferForNV12, failed to open DMA: errno: %d, %s\n",
+                 errno, strerror(errno));
+        return result;
+    }
 
-      int allocatedDMAFD = allocationData.fd;
-      uint32_t gemHandle;
-      result = drmPrimeFDToHandle(mDisplayCardFD, allocatedDMAFD, &gemHandle);
-      if (result < 0) {
-         VIDC_ERR("DisplayAdaptor::createFrameBufferForNV12, failed to transfer dma buffer: errno: %d, %s\n", errno, strerror(errno));
-         return result;
-      }
+    for (int j = 0; j < MAX_BUFFER; j++) {
+        int stride = ALIGN(frameWidth, 128);
+        int ySize = stride * frameHeight;
+        int uvSize = stride * frameHeight / 2;
+        int totalSize = ySize + uvSize;
 
-      struct drm_mode_fb_cmd2 frameBufferCmd2[MAX_BUFFER]{};
-      frameBufferCmd2[j].width = frameWidth;
-      frameBufferCmd2[j].height = frameHeight;
-      frameBufferCmd2[j].pixel_format = PixelFormat;
-      frameBufferCmd2[j].flags = DRM_MODE_FB_MODIFIERS;
+        struct dma_heap_allocation_data allocationData;
+        memset(&allocationData, 0, sizeof(allocationData));
+        allocationData.len = totalSize;
+        allocationData.fd_flags = O_RDWR | O_CLOEXEC;
+        allocationData.heap_flags = 0;
 
-      frameBufferCmd2[j].handles[0] = gemHandle;
-      frameBufferCmd2[j].pitches[0] = stride;
-      frameBufferCmd2[j].offsets[0] = 0;
+        result = ioctl(mDMAHeapDeviceFD, DMA_HEAP_IOCTL_ALLOC, &allocationData);
+        if (result < 0) {
+            VIDC_ERR("DisplayAdaptor::createFrameBufferForNV12, failed to alloc buffer: errno: %d, %s\n",
+                     errno, strerror(errno));
+            return result;
+        }
 
-      frameBufferCmd2[j].handles[1] = gemHandle;
-      frameBufferCmd2[j].pitches[1] = stride;
-      frameBufferCmd2[j].offsets[1] = ySize;
+        int allocatedDMAFD = allocationData.fd;
+        uint32_t gemHandle;
+        result = drmPrimeFDToHandle(mDisplayCardFD, allocatedDMAFD, &gemHandle);
+        if (result < 0) {
+            VIDC_ERR("DisplayAdaptor::createFrameBufferForNV12, failed to transfer dma buffer: errno: %d, %s\n",
+                     errno, strerror(errno));
+            close(allocatedDMAFD);
+            return result;
+        }
 
-      frameBufferCmd2[j].modifier[0] = FrameBufferModifier;
-      frameBufferCmd2[j].modifier[1] = FrameBufferModifier;
+        struct drm_mode_fb_cmd2 frameBufferCmd2{};
+        frameBufferCmd2.width = frameWidth;
+        frameBufferCmd2.height = frameHeight;
+        frameBufferCmd2.pixel_format = PixelFormat;
+        frameBufferCmd2.flags = DRM_MODE_FB_MODIFIERS;
+        frameBufferCmd2.handles[0] = gemHandle;
+        frameBufferCmd2.pitches[0] = stride;
+        frameBufferCmd2.offsets[0] = 0;
+        frameBufferCmd2.handles[1] = gemHandle;
+        frameBufferCmd2.pitches[1] = stride;
+        frameBufferCmd2.offsets[1] = ySize;
+        frameBufferCmd2.modifier[0] = FrameBufferModifier;
+        frameBufferCmd2.modifier[1] = FrameBufferModifier;
 
-      result = drmIoctl(mDisplayCardFD, DRM_IOCTL_MODE_ADDFB2, &frameBufferCmd2[j]);
-      if (result != 0) {
-         VIDC_ERR("DisplayAdaptor::createFrameBufferForNV12, failed to addfb2: result: %d, errno %d, %s\n",
-            result, errno, strerror(errno));
-         return result;
-      }
-      for (int i = 0; i < (int)mPlaneCfgVector.size(); i++) {
-         mPlaneCfgVector[i].fb[j].ptr = mmap(NULL, totalSize, PROT_READ | PROT_WRITE, MAP_SHARED, allocatedDMAFD, 0);
-         mPlaneCfgVector[i].fb[j].size = totalSize; 
-         mPlaneCfgVector[i].fb[j].fb_id = frameBufferCmd2[j].fb_id;
-      }
-   }
-   /* first run flag */
-   for (int i = 0; i < (int)mPlaneCfgVector.size(); i++) {
-      mPlaneCfgVector[i].first_run = true;
-   }
+        result = drmIoctl(mDisplayCardFD, DRM_IOCTL_MODE_ADDFB2, &frameBufferCmd2);
+        if (result != 0) {
+            VIDC_ERR("DisplayAdaptor::createFrameBufferForNV12, failed to addfb2: result: %d, errno %d, %s\n",
+                     result, errno, strerror(errno));
+            struct drm_gem_close gemClose{};
+            gemClose.handle = gemHandle;
+            ioctl(mDisplayCardFD, DRM_IOCTL_GEM_CLOSE, &gemClose);
+            close(allocatedDMAFD);
+            return result;
+        }
 
-   return result;
+        for (int i = 0; i < (int)mPlaneCfgVector.size(); i++) {
+            void *mappedPtr =
+                mmap(NULL, totalSize, PROT_READ | PROT_WRITE, MAP_SHARED, allocatedDMAFD, 0);
+            if (mappedPtr == MAP_FAILED) {
+                VIDC_ERR("DisplayAdaptor::createFrameBufferForNV12, failed to map buffer: j: %d, plane: %d, errno %d, %s\n",
+                         j, i, errno, strerror(errno));
+
+                // rollback already-mapped planes for this buffer
+                for (int k = 0; k < i; k++) {
+                    if (mPlaneCfgVector[k].fb[j].ptr != NULL &&
+                        mPlaneCfgVector[k].fb[j].size > 0) {
+                        munmap(mPlaneCfgVector[k].fb[j].ptr, mPlaneCfgVector[k].fb[j].size);
+                    }
+                    mPlaneCfgVector[k].fb[j].ptr = NULL;
+                    mPlaneCfgVector[k].fb[j].plane[0] = NULL;
+                    mPlaneCfgVector[k].fb[j].plane[1] = NULL;
+                    mPlaneCfgVector[k].fb[j].size = 0;
+                    mPlaneCfgVector[k].fb[j].fb_id = 0;
+                    mPlaneCfgVector[k].fb[j].handle = 0;
+                    mPlaneCfgVector[k].fb[j].ion_fd = -1;
+                }
+
+                drmModeRmFB(mDisplayCardFD, frameBufferCmd2.fb_id);
+
+                struct drm_gem_close gemClose{};
+                gemClose.handle = gemHandle;
+                ioctl(mDisplayCardFD, DRM_IOCTL_GEM_CLOSE, &gemClose);
+                close(allocatedDMAFD);
+                return -EINVAL;
+            }
+
+            mPlaneCfgVector[i].fb[j].ptr = mappedPtr;
+            mPlaneCfgVector[i].fb[j].size = totalSize;
+            mPlaneCfgVector[i].fb[j].pitch = stride;
+            mPlaneCfgVector[i].fb[j].offset = ySize;
+            mPlaneCfgVector[i].fb[j].fb_id = frameBufferCmd2.fb_id;
+            mPlaneCfgVector[i].fb[j].handle = gemHandle;
+            mPlaneCfgVector[i].fb[j].ion_fd = allocatedDMAFD;
+            mPlaneCfgVector[i].fb[j].plane[0] = mappedPtr;
+            mPlaneCfgVector[i].fb[j].plane[1] =
+                static_cast<uint8_t*>(mappedPtr) + ySize;
+        }
+    }
+
+    /* first run flag */
+    for (int i = 0; i < (int)mPlaneCfgVector.size(); i++) {
+        mPlaneCfgVector[i].first_run = true;
+    }
+
+    return result;
 }
 
 int DisplayAdaptor::createFrameBufferForNV12UBWC(uint32_t frameWidth, uint32_t frameHeight, uint32_t dataSize) {
-   VIDC_MED("DisplayAdaptor::createFrameBufferForNV12UBWC, frameWidth = %d, frameHeight = %d, dataSize = %d\n",
-      frameWidth, frameHeight, dataSize);
-   int result = 0;
-   /* create framebuffer */
-   mDMAHeapDeviceFD = open(DMADevicePath, O_RDWR);
-   if (mDMAHeapDeviceFD < 0) {
-      result = -1;
-      VIDC_ERR("DisplayAdaptor::createFrameBufferForNV12UBWC, failed to open DMA: errno: %d, %s\n", errno, strerror(errno));
-      return result;
-   }
+    VIDC_MED("DisplayAdaptor::createFrameBufferForNV12UBWC, frameWidth = %d, frameHeight = %d, dataSize = %d\n",
+             frameWidth, frameHeight, dataSize);
+    int result = 0;
+    /* create framebuffer */
+    mDMAHeapDeviceFD = open(DMADevicePath, O_RDWR);
+    if (mDMAHeapDeviceFD < 0) {
+        result = -1;
+        VIDC_ERR("DisplayAdaptor::createFrameBufferForNV12UBWC, failed to open DMA: errno: %d, %s\n",
+                 errno, strerror(errno));
+        return result;
+    }
 
-   for (int j = 0; j < MAX_BUFFER; j++) {
-      struct dma_heap_allocation_data allocationData;
-      memset(&allocationData, 0, sizeof(allocationData));
-      allocationData.len = dataSize;
-      allocationData.fd_flags = O_RDWR | O_CLOEXEC;
-      allocationData.heap_flags = 0;
-      result = ioctl(mDMAHeapDeviceFD, DMA_HEAP_IOCTL_ALLOC, &allocationData);
-      if (result < 0) {
-         VIDC_ERR("DisplayAdaptor::createFrameBufferForNV12UBWC, failed to alloc buffer: errno: %d, %s\n", errno, strerror(errno));
-         return result;
-      }
+    for (int j = 0; j < MAX_BUFFER; j++) {
+        struct dma_heap_allocation_data allocationData;
+        memset(&allocationData, 0, sizeof(allocationData));
+        allocationData.len = dataSize;
+        allocationData.fd_flags = O_RDWR | O_CLOEXEC;
+        allocationData.heap_flags = 0;
 
-      int allocatedDMAFD = allocationData.fd;
-      uint32_t gemHandle;
-      result = drmPrimeFDToHandle(mDisplayCardFD, allocatedDMAFD, &gemHandle);
-      if (result < 0) {
-         VIDC_ERR("DisplayAdaptor::createFrameBufferForNV12UBWC, failed to transfer dma buffer: errno: %d, %s\n", errno, strerror(errno));
-         return result;
-      }
+        result = ioctl(mDMAHeapDeviceFD, DMA_HEAP_IOCTL_ALLOC, &allocationData);
+        if (result < 0) {
+            VIDC_ERR("DisplayAdaptor::createFrameBufferForNV12UBWC, failed to alloc buffer: errno: %d, %s\n",
+                     errno, strerror(errno));
+            return result;
+        }
 
-      uint32_t handles[4] = {gemHandle, gemHandle, 0, 0};
-      uint32_t strides[4] = {frameWidth, frameWidth, 0, 0};//stride parameters will be configured by drm for UBWC format.
-      uint32_t offsets[4] = {0, 0, 0, 0};//offset parameters will be configured by drm for UBWC format.
-      uint64_t modifiers[4] = {FrameBufferModifier, FrameBufferModifier, 0, 0};
-      uint32_t frameBufferID = 0;
-      result = drmModeAddFB2WithModifiers(mDisplayCardFD, frameWidth, frameHeight, PixelFormat,
-            handles, strides, offsets, modifiers, &frameBufferID, DRM_MODE_FB_MODIFIERS);
-      if (result < 0) {
-         VIDC_ERR("DisplayAdaptor::createFrameBufferForNV12UBWC, failed to addFB2: result: %d, errno %d, %s\n",
-            result, errno, strerror(errno));
-         return result;
-      }
+        int allocatedDMAFD = allocationData.fd;
+        uint32_t gemHandle;
+        result = drmPrimeFDToHandle(mDisplayCardFD, allocatedDMAFD, &gemHandle);
+        if (result < 0) {
+            VIDC_ERR("DisplayAdaptor::createFrameBufferForNV12UBWC, failed to transfer dma buffer: errno: %d, %s\n",
+                     errno, strerror(errno));
+            close(allocatedDMAFD);
+            return result;
+        }
 
-      for (int i = 0; i < (int)mPlaneCfgVector.size(); i++) {
-         mPlaneCfgVector[i].fb[j].ptr = mmap(NULL, dataSize, PROT_READ | PROT_WRITE, MAP_SHARED, allocatedDMAFD, 0);
-         if (mPlaneCfgVector[i].fb[j].ptr == NULL) {
-            VIDC_ERR("DisplayAdaptor::createFrameBufferForNV12UBWC, failed to map buffer: j: %d, errno %d, %s\n", j, errno, strerror(errno));
-         }
-         mPlaneCfgVector[i].fb[j].size = dataSize;
-         mPlaneCfgVector[i].fb[j].fb_id = frameBufferID;
-      }
-   }
-   /* first run flag */
-   for (int i = 0; i < (int)mPlaneCfgVector.size(); i++) {
-      mPlaneCfgVector[i].first_run = true;
-   }
+        uint32_t handles[4] = {gemHandle, gemHandle, 0, 0};
+        uint32_t strides[4] = {frameWidth, frameWidth, 0, 0};
+        uint32_t offsets[4] = {0, 0, 0, 0};
+        uint64_t modifiers[4] = {FrameBufferModifier, FrameBufferModifier, 0, 0};
+        uint32_t frameBufferID = 0;
+        result = drmModeAddFB2WithModifiers(mDisplayCardFD, frameWidth, frameHeight, PixelFormat,
+                                            handles, strides, offsets, modifiers, &frameBufferID, DRM_MODE_FB_MODIFIERS);
+        if (result < 0) {
+            VIDC_ERR("DisplayAdaptor::createFrameBufferForNV12UBWC, failed to addFB2: result: %d, errno %d, %s\n",
+                     result, errno, strerror(errno));
+            struct drm_gem_close gemClose{};
+            gemClose.handle = gemHandle;
+            ioctl(mDisplayCardFD, DRM_IOCTL_GEM_CLOSE, &gemClose);
+            close(allocatedDMAFD);
+            return result;
+        }
 
-   return result;
+        for (int i = 0; i < (int)mPlaneCfgVector.size(); i++) {
+            void *mappedPtr =
+                mmap(NULL, dataSize, PROT_READ | PROT_WRITE, MAP_SHARED, allocatedDMAFD, 0);
+            if (mappedPtr == MAP_FAILED) {
+                VIDC_ERR("DisplayAdaptor::createFrameBufferForNV12UBWC, failed to map buffer: j: %d, plane: %d, errno %d, %s\n",
+                         j, i, errno, strerror(errno));
+
+                // rollback already-mapped planes for this buffer
+                for (int k = 0; k < i; k++) {
+                    if (mPlaneCfgVector[k].fb[j].ptr != NULL &&
+                        mPlaneCfgVector[k].fb[j].size > 0) {
+                        munmap(mPlaneCfgVector[k].fb[j].ptr, mPlaneCfgVector[k].fb[j].size);
+                    }
+                    mPlaneCfgVector[k].fb[j].ptr = NULL;
+                    mPlaneCfgVector[k].fb[j].plane[0] = NULL;
+                    mPlaneCfgVector[k].fb[j].plane[1] = NULL;
+                    mPlaneCfgVector[k].fb[j].size = 0;
+                    mPlaneCfgVector[k].fb[j].fb_id = 0;
+                    mPlaneCfgVector[k].fb[j].handle = 0;
+                    mPlaneCfgVector[k].fb[j].ion_fd = -1;
+                }
+
+                drmModeRmFB(mDisplayCardFD, frameBufferID);
+
+                struct drm_gem_close gemClose{};
+                gemClose.handle = gemHandle;
+                ioctl(mDisplayCardFD, DRM_IOCTL_GEM_CLOSE, &gemClose);
+                close(allocatedDMAFD);
+                return -EINVAL;
+            }
+
+            mPlaneCfgVector[i].fb[j].ptr = mappedPtr;
+            mPlaneCfgVector[i].fb[j].size = dataSize;
+            mPlaneCfgVector[i].fb[j].pitch = frameWidth;
+            mPlaneCfgVector[i].fb[j].offset = 0;
+            mPlaneCfgVector[i].fb[j].fb_id = frameBufferID;
+            mPlaneCfgVector[i].fb[j].handle = gemHandle;
+            mPlaneCfgVector[i].fb[j].ion_fd = allocatedDMAFD;
+            mPlaneCfgVector[i].fb[j].plane[0] = mappedPtr;
+            mPlaneCfgVector[i].fb[j].plane[1] = NULL;
+        }
+    }
+
+    /* first run flag */
+    for (int i = 0; i < (int)mPlaneCfgVector.size(); i++) {
+        mPlaneCfgVector[i].first_run = true;
+    }
+
+    return result;
 }
 
 bool DisplayAdaptor::updateFrameBuffer(int connectorCfgIndex, int bufIndex) {
@@ -851,25 +959,63 @@ void DisplayAdaptor::updatePossibleCrtcs(void) {
 }
 
 int DisplayAdaptor::destroyBuff() {
-   int result = 0;
+    int result = 0;
 
-   for (int planeIdx = 0; planeIdx < (int)mPlaneCfgVector.size(); planeIdx++) {
-      for (int bufIdx = 0; bufIdx < MAX_BUFFER; bufIdx++) {
+    for (int planeIdx = 0; planeIdx < (int)mPlaneCfgVector.size(); planeIdx++) {
+        for (int bufIdx = 0; bufIdx < MAX_BUFFER; bufIdx++) {
+            fb_obj &fb = mPlaneCfgVector[planeIdx].fb[bufIdx];
 
-         if (mPlaneCfgVector[planeIdx].fb[bufIdx].ptr != nullptr && 
-             mPlaneCfgVector[planeIdx].fb[bufIdx].size > 0) {
-            if (munmap(mPlaneCfgVector[planeIdx].fb[bufIdx].ptr, 
-                      mPlaneCfgVector[planeIdx].fb[bufIdx].size) != 0) {
-               VIDC_ERR("DisplayAdaptor::destroyBuff, munmap failed for plane %d, buffer %d: errno %d, %s\n",
-                       planeIdx, bufIdx, errno, strerror(errno));
-               result = -1;
+            if (fb.ptr != NULL && fb.size > 0) {
+                if (munmap(fb.ptr, fb.size) != 0) {
+                    VIDC_ERR("destroyBuff: munmap failed, plane=%d buf=%d errno=%d, %s\n",
+                             planeIdx, bufIdx, errno, strerror(errno));
+                    result = -EINVAL;
+                }
+                fb.ptr = NULL;
+                fb.plane[0] = NULL;
+                fb.plane[1] = NULL;
+                fb.size = 0;
             }
 
-            mPlaneCfgVector[planeIdx].fb[bufIdx].ptr = nullptr;
-            mPlaneCfgVector[planeIdx].fb[bufIdx].size = 0;
-         }
-      }
-   }
+            // fb_id, handle, and ion_fd are shared across all plane entries for
+            // the same buffer index (set identically in createFrameBuffer*).
+            // Release them only once, on the first plane entry.
+            if (planeIdx == 0) {
+                if (fb.fb_id != 0) {
+                    if (drmModeRmFB(mDisplayCardFD, fb.fb_id) != 0) {
+                        VIDC_ERR("destroyBuff: drmModeRmFB failed, plane=%d buf=%d fb_id=%u errno=%d, %s\n",
+                                 planeIdx, bufIdx, fb.fb_id, errno, strerror(errno));
+                        result = -EINVAL;
+                    }
+                    fb.fb_id = 0;
+                }
 
-   return result;
+                if (fb.handle != 0) {
+                    struct drm_gem_close gemClose{};
+                    gemClose.handle = fb.handle;
+                    if (ioctl(mDisplayCardFD, DRM_IOCTL_GEM_CLOSE, &gemClose) != 0) {
+                        VIDC_ERR("destroyBuff: GEM_CLOSE failed, plane=%d buf=%d handle=%u errno=%d, %s\n",
+                                 planeIdx, bufIdx, fb.handle, errno, strerror(errno));
+                        result = -EINVAL;
+                    }
+                    fb.handle = 0;
+                }
+
+                if (fb.ion_fd >= 0) {
+                    if (close(fb.ion_fd) != 0) {
+                        VIDC_ERR("destroyBuff: close dma_fd failed, plane=%d buf=%d fd=%d errno=%d, %s\n",
+                                 planeIdx, bufIdx, fb.ion_fd, errno, strerror(errno));
+                        result = -EINVAL;
+                    }
+                    fb.ion_fd = -1;
+                }
+            } else {
+                fb.fb_id = 0;
+                fb.handle = 0;
+                fb.ion_fd = -1;
+            }
+        }
+    }
+
+    return result;
 }
