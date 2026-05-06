@@ -1,6 +1,9 @@
 LOCAL_PATH:= $(call my-dir)
 include $(CLEAR_VARS)
-
+ifneq ($(filter volcano, $(TARGET_BOARD_PLATFORM)),)
+# Disable this modules temp to volcano BU
+        LOCAL_CFLAGS := -DPLATFORM_VOLCANO
+else
 LOCAL_MODULE                    := early_video_app
 LOCAL_CPPFLAGS                  := -std=c++17
 LOCAL_CPPFLAGS                  += -fexceptions
@@ -33,3 +36,4 @@ LOCAL_SRC_FILES                 := \
                                 src/Utils.cpp \
                                 render/DisplayAdaptor.cpp
 include $(BUILD_EXECUTABLE)
+endif

@@ -27,6 +27,11 @@ ifneq ($(filter canoe, $(TARGET_BOARD_PLATFORM)),)
         LOCAL_CFLAGS := -DPLATFORM_CANOE
 endif
 
+ifneq ($(filter volcano, $(TARGET_BOARD_PLATFORM)),)
+        LOCAL_CFLAGS := -DPLATFORM_VOLCANO
+        LOCAL_CFLAGS += -D__ANDROID_U__
+endif
+
 LOCAL_CFLAGS += -Wall -Werror
 LOCAL_NOSANITIZE := cfi
 LOCAL_MODULE := early_services_init
@@ -138,7 +143,11 @@ include $(BUILD_PREBUILT)
 include $(CLEAR_VARS)
 LOCAL_MODULE_TAGS := optional
 LOCAL_MODULE := early_init_u.conf
+ifneq ($(filter volcano, $(TARGET_BOARD_PLATFORM)),)
+LOCAL_SRC_FILES := early_init_volcano.conf
+else
 LOCAL_SRC_FILES := $(LOCAL_MODULE)
+endif
 LOCAL_MODULE_CLASS = ETC
 LOCAL_MODULE_PATH := $(TARGET_VENDOR_RAMDISK_OUT)/vendor_early_services/etc
 include $(BUILD_PREBUILT)
