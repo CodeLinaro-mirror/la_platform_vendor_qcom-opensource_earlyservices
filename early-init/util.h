@@ -36,6 +36,14 @@ namespace earlyinit {
 void import_kernel_cmdline(bool in_qemu,
                            const std::function<bool(const std::string&, const std::string&, bool)>&);
 bool load_kernel_modules(int& loaded_count, bool is_parallel);
+
+#ifdef __MODPROBE_V2__
+bool es_load_modules_parallel(const std::string& m_dir, int& loaded_count,
+                              const std::string& m_load_fl, bool is_parallel);
+bool insert_system_module(const std::string& mod);
+bool insert_vendor_module(const std::string& mod);
+#endif
+
 bool insert_kernel_module(const std::string& mod);
 
 int get_kernel_module_param(const std::string &mod_name, std::string& params,

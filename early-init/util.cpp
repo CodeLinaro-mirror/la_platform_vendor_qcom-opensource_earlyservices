@@ -49,12 +49,21 @@
 #define MODULES_DIR "/lib/modules"
 #define MODULES_LOAD_FILE "modules.load"
 
+#ifdef __MODPROBE_V2__
+#define VND_MODULES_DIR "/vendor/lib/modules"
+#define SYS_MODULES_DIR "/system/lib/modules"
+#endif
+
 using namespace std::literals::string_literals;
 
 namespace android {
 namespace earlyinit {
 
 Modprobe _modprobe({MODULES_DIR}, MODULES_LOAD_FILE);
+#ifdef __MODPROBE_V2__
+Modprobe _vnd_modprobe({VND_MODULES_DIR}, MODULES_LOAD_FILE);
+Modprobe _sys_modprobe({SYS_MODULES_DIR}, MODULES_LOAD_FILE);
+#endif
 
 void import_kernel_cmdline(bool in_qemu,
                            const std::function<bool(const std::string&, const std::string&, bool)>& fn) {
@@ -78,6 +87,28 @@ bool load_kernel_modules(int& loaded_count, bool is_parallel) {
 
     return true;
 }
+
+#ifdef __MODPROBE_V2__
+bool es_load_modules_parallel(const std::string& m_dir, int& loaded_count,
+    const std::string& m_load_fl, bool is_parallel) {
+    Modprobe m({m_dir}, m_load_fl);
+    bool ret = (is_parallel) ? m.LoadModulesParallel(std::thread::hardware_concurrency())
+                   : m.LoadListedModules(false);
+    loaded_count = m.GetModuleCount();
+    if (loaded_count > 0) {
+        return ret;
+    }
+    return true;
+}
+
+bool insert_system_module(const std::string& mod) {
+    return _sys_modprobe.LoadWithAliases(mod, true);
+}
+
+bool insert_vendor_module(const std::string& mod) {
+    return _vnd_modprobe.LoadWithAliases(mod, true);
+}
+#endif
 
 bool insert_kernel_module(const std::string& mod) {
     return _modprobe.LoadWithAliases(mod, true);

@@ -95,8 +95,9 @@
 // for file copy
 #include <filesystem>
 
-#ifdef EARLYINIT_DEBUG
+#ifdef __MODPROBE_V2__
 #include <dirent.h>
+#include <sys/sendfile.h>
 #endif
 
 #define DEFAULT_CONF            "/vendor_early_services/etc/early_init.conf"
@@ -239,11 +240,23 @@ using android::base::boot_clock;
 #define LMP_DIRECT         1
 #define LMP_DIRECT_CHK_AUD 3
 
+#ifdef __MODPROBE_V2__
+#define LMP_V2_GKI          10000
+#define LMP_V2_SYS          10001
+#define LMP_V2_VND          10002
+#define LMP_V2_GKI_P          10003
+#define LMP_V2_SYS_P          10004
+#define LMP_V2_VND_P          10005
+#endif
+
 #define ES_CTYPE_FW         1
 #define ES_CTYPE_DEF2_MOD   2
 #define ES_CTYPE_DI_MOD     3
 #define ES_CTYPE_LOAD_SE    4
 #define ES_CTYPE_DEF_MOD    5
+#ifdef __MODPROBE_V2__
+#define ES_CTYPE_KO_COPY    6
+#endif
 
 #define ES_MOUNT_CHECK_UFS      (0)
 #define ES_MOUNT_MODEM          (1)
@@ -2688,6 +2701,125 @@ static int load_modules_parallel(const std::string& fl,
   return 0;
 }
 
+#ifdef __MODPROBE_V2__
+static void __get_load_filename_from_order(const std::string& order_path,
+                                           std::string& load_filename)
+{
+  // Extract the filename (basename) from the full path
+  std::string filename = android::base::Basename(order_path);
+
+  // Replace ".order" suffix with ".load"
+  const std::string order_suffix = ".order";
+  const std::string load_suffix  = ".load";
+  if (android::base::EndsWith(filename, order_suffix)) {
+    filename.replace(filename.size() - order_suffix.size(),
+                     order_suffix.size(), load_suffix);
+  }
+
+  load_filename = filename;
+}
+
+static int __load_modules_parallel_v2(const std::string& fl,
+                   const std::string& mod_path, const int th_count,
+                   const std::string& logtag, int flag)
+{
+  //Recoder entry time
+  boot_clock::time_point module_start_time = boot_clock::now();
+  std::string load_fl;
+  int load_count = 0;
+  bool failed_load = false;
+  bool es_load_done = false;
+
+  //Choose an load fucntion as flag requset
+  using InsertModulesFn = bool (*)(const std::string&);
+  InsertModulesFn Insert_fn;
+  switch (flag) {
+    case LMP_V2_GKI:
+      Insert_fn = &android::earlyinit::insert_kernel_module;
+      break;
+    case LMP_V2_SYS:
+      LOG(WARNING) << "ES: Please confirm!!!"
+            << "we should only load modules in system side if they are depended by vendor";
+      Insert_fn = &android::earlyinit::insert_system_module;
+      break;
+    case LMP_V2_VND:
+      Insert_fn = &android::earlyinit::insert_vendor_module;
+      break;
+    case LMP_V2_GKI_P:
+      __get_load_filename_from_order(fl,load_fl);
+      failed_load = !android::earlyinit::es_load_modules_parallel("/lib/modules", load_count,
+                          load_fl, (th_count > 0));
+      es_load_done = true;
+      break;
+    case LMP_V2_SYS_P:
+      LOG(WARNING) << "ES: Please confirm!!!"
+            << "we should only load modules in system side if they are depended by vendor";
+      __get_load_filename_from_order(fl,load_fl);
+      failed_load = !android::earlyinit::es_load_modules_parallel("/system/lib/modules", load_count,
+                          load_fl, (th_count > 0));
+      es_load_done = true;
+      break;
+    case LMP_V2_VND_P:
+      __get_load_filename_from_order(fl,load_fl);
+      failed_load = !android::earlyinit::es_load_modules_parallel("/vendor/lib/modules", load_count,
+                          load_fl, (th_count > 0));
+      LOG(INFO) << "ES : Load modules in " << load_fl ;
+      es_load_done = true;
+      break;
+    default:
+      LOG(ERROR) << "ES: Unkonw load flag !!!";
+      return -1;
+  }
+  // load file as order list
+  if (!es_load_done) {
+    //parser order file
+    static constexpr const char* kWhitespaceDelims = " \t\r\n\v\f";
+    std::string mlist;
+    if (!android::base::ReadFileToString(fl, &mlist, false)) {
+      LOG(ERROR) << "ES: Read Order file failed! file path: " << fl;
+      return -1;
+    }
+    std::vector<std::string> modules_load_list = android::base::Tokenize(mlist, kWhitespaceDelims);
+
+    //load modules parallel start
+    std::vector<std::thread> mod_threads;
+    std::mutex list_lock;
+    auto load_module_fn = [&] {
+      std::unique_lock lk(list_lock);
+      while (!modules_load_list.empty()) {
+              auto load_module = std::move(modules_load_list.back());
+              modules_load_list.pop_back();
+              lk.unlock();
+              bool is_loaded = Insert_fn(load_module);
+              lk.lock();
+              failed_load |= (!is_loaded);
+      }
+    };
+
+    std::generate_n(std::back_inserter(mod_threads), th_count,
+                      [&] { return std::thread(load_module_fn); });
+
+    // Wait for the threads.
+    for (auto& mod_thread : mod_threads) {
+      mod_thread.join();
+    }
+  }
+  // Write boot kpi
+  char str[SHORT_STRING_MAX] = {0};
+  auto module_elapse_time = std::chrono::duration_cast<std::chrono::milliseconds>(
+                     boot_clock::now() - module_start_time);
+  if (failed_load) {
+    snprintf(str, SHORT_STRING_MAX, "M - ES2 %s-mod failed took %d%s loaded %d", logtag.c_str(),
+               (int)module_elapse_time.count(), "ms", load_count);
+  } else {
+    snprintf(str, SHORT_STRING_MAX, "M - ES2 %s-mod took %d%s loaded %d", logtag.c_str(),
+               (int)module_elapse_time.count(), "ms", load_count);
+  }
+  write_marker(str);
+  return 0;
+}
+#endif
+
 static void launch_early_apps(void)
 {
 #if defined(__ANDROID_U__) || defined(PLATFORM_CANOE)
@@ -2745,6 +2877,135 @@ static int load_default_modules()
   return 0;
 }
 #endif // __ANDROID_U__ || PLATFORM_CANOE
+
+#ifdef __MODPROBE_V2__
+/*
+ * Copy a single .ko file using sendfile() for an efficient kernel-level
+ * transfer (no userspace buffer copies).  Returns true on success.
+ */
+static bool copy_ko_file(const char* src, const char* dst) {
+    int src_fd = open(src, O_RDONLY | O_CLOEXEC);
+    if (src_fd < 0) {
+        LOG(WARNING) << "ES: copy_ko_file: open src failed " << src
+                     << " errno " << errno;
+        return false;
+    }
+
+    struct stat st;
+    if (fstat(src_fd, &st) < 0) {
+        close(src_fd);
+        return false;
+    }
+
+    int dst_fd = open(dst, O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, 0644);
+    if (dst_fd < 0) {
+        LOG(WARNING) << "ES: copy_ko_file: open dst failed " << dst
+                     << " errno " << errno;
+        close(src_fd);
+        return false;
+    }
+
+    bool ok = true;
+    off_t offset = 0;
+    ssize_t remaining = st.st_size;
+
+    while (remaining > 0) {
+        ssize_t n = sendfile(dst_fd, src_fd, &offset, (size_t)remaining);
+        if (n <= 0) {
+            LOG(WARNING) << "ES: copy_ko_file: sendfile failed " << src
+                         << " errno " << errno;
+            ok = false;
+            break;
+        }
+        remaining -= n;
+    }
+
+    close(src_fd);
+    close(dst_fd);
+    if (!ok) unlink(dst);
+    return ok;
+}
+
+/*
+ * Copy all .ko files from src_dir to dst_dir in parallel (one thread per
+ * hardware CPU) using sendfile() for maximum throughput.
+ * Files that already exist in dst_dir are skipped.
+ */
+static void copy_ko_all(const char* src_dir, const char* dst_dir) {
+    DIR* dir = opendir(src_dir);
+    if (!dir) {
+        LOG(WARNING) << "ES: copy_ko_all: cannot open src_dir "
+                     << src_dir << " errno " << errno;
+        return;
+    }
+
+    // Collect the list of .ko filenames up front so threads can work
+    // without holding the directory handle open.
+    std::vector<std::string> ko_files;
+    struct dirent* entry;
+    while ((entry = readdir(dir)) != nullptr) {
+        if (strstr(entry->d_name, ".ko")) {
+            ko_files.push_back(entry->d_name);
+        }
+    }
+    closedir(dir);
+
+    if (ko_files.empty()) {
+        LOG(INFO) << "ES: copy_ko_all: no .ko files found in " << src_dir;
+        return;
+    }
+
+    // Use as many threads as there are hardware CPUs, capped by file count.
+    int num_threads = (int)std::thread::hardware_concurrency();
+    if (num_threads < 1) num_threads = 1;
+    if (num_threads > (int)ko_files.size())
+        num_threads = (int)ko_files.size();
+
+    std::mutex mtx;
+    int next_idx = 0;
+    std::atomic<int> n_copied{0}, n_skipped{0}, n_failed{0};
+
+    auto copy_fn = [&]() {
+        while (true) {
+            std::unique_lock<std::mutex> lk(mtx);
+            if (next_idx >= (int)ko_files.size()) break;
+            std::string fname = ko_files[next_idx++];
+            lk.unlock();
+
+            char src[PATH_MAX], dst[PATH_MAX];
+            snprintf(src, sizeof(src), "%s/%s", src_dir, fname.c_str());
+            snprintf(dst, sizeof(dst), "%s/%s", dst_dir, fname.c_str());
+
+            // Skip files that are already present in the destination.
+            if (access(dst, F_OK) == 0) {
+                n_skipped++;
+                continue;
+            }
+
+            if (copy_ko_file(src, dst)) {
+                n_copied++;
+            } else {
+                n_failed++;
+            }
+        }
+    };
+
+    std::vector<std::thread> threads;
+    threads.reserve(num_threads);
+    for (int i = 0; i < num_threads; i++) {
+        threads.emplace_back(copy_fn);
+    }
+    for (auto& t : threads) {
+        t.join();
+    }
+
+    LOG(INFO) << "ES: copy_ko_all: copied=" << n_copied.load()
+              << " skipped=" << n_skipped.load()
+              << " failed=" << n_failed.load()
+              << " threads=" << num_threads
+              << " src=" << src_dir << " dst=" << dst_dir;
+}
+#endif
 
 static int wait_for_early_apps(void)
 {
@@ -2814,9 +3075,14 @@ int early_init_kmod(const char *idx)
     num_threads = bc_get_lmp()?std::thread::hardware_concurrency():1;
 
     snprintf(str, SHORT_STRING_MAX, "%s%s", ES_VMOD_PATH, _eapp_info[i].kfile);
+#ifdef __MODPROBE_V2__
+    __load_modules_parallel_v2(str, ES_DFLMOD_PATH, num_threads,
+        _eapp_info[i].tag, LMP_V2_VND_P);
+#else
     load_modules_parallel(str, ES_DFLMOD_PATH, num_threads,
         _eapp_info[i].tag, flag);
      return 0;
+#endif
   }
   LOG(WARNING) << "ES : Init Kernel Mod failed for app idx " << i;
 
@@ -2870,16 +3136,28 @@ static pid_t __attribute__((unused)) fork_wait_for_child(int type, int run_if_fo
       }
       case ES_CTYPE_DEF2_MOD: {
         bool load_parallel = bc_get_lmp();
+#ifdef __MODPROBE_V2__
+        __load_modules_parallel_v2(ES_DFLMOD_ORDER_2, ES_DFLMOD_PATH,
+          load_parallel?std::thread::hardware_concurrency():1,
+          EMOD_DEF_TAG_2, LMP_V2_VND_P);
+#else
         load_modules_parallel(ES_DFLMOD_ORDER_2, ES_DFLMOD_PATH,
           load_parallel?std::thread::hardware_concurrency():1,
           EMOD_DEF_TAG_2, LMP_MODPROBE);
+#endif
         break;
       }
       case ES_CTYPE_DI_MOD: {
         bool load_parallel = bc_get_lmp();
+#ifdef __MODPROBE_V2__
+        __load_modules_parallel_v2(ES_DFLMOD_ORDER_DI, ES_DFLMOD_PATH,
+          load_parallel?std::thread::hardware_concurrency():1,
+          EMOD_DI_TAG, LMP_V2_VND_P);
+#else
         load_modules_parallel(ES_DFLMOD_ORDER_DI, ES_DFLMOD_PATH,
           load_parallel?std::thread::hardware_concurrency():1,
           EMOD_DI_TAG, LMP_MODPROBE);
+#endif
         break;
       }
       case ES_CTYPE_LOAD_SE: {
@@ -2890,6 +3168,12 @@ static pid_t __attribute__((unused)) fork_wait_for_child(int type, int run_if_fo
         load_default_modules();
         break;
       }
+#ifdef __MODPROBE_V2__
+      case ES_CTYPE_KO_COPY: {
+        copy_ko_all("/lib/modules", "/vendor/lib/modules");
+        break;
+      }
+#endif
       default:
       break;
     }
@@ -2943,7 +3227,9 @@ int early_init(int init)
       LOG(WARNING) << "ES : mount failed! " << "errno " << errno;
       return -1;
     }
-
+#ifdef __MODPROBE_V2__
+    pid_t pid_copy = fork_wait_for_child(ES_CTYPE_KO_COPY, 1);
+#endif
     mount("sysfs", "/sys", "sysfs", 0, NULL);
 
     // Reminder, Android host will crash if mount devtmpfs to /dev once early-init exit.
@@ -2965,7 +3251,9 @@ int early_init(int init)
      load_default_modules();
      pid_t pid_fw = fork_wait_for_child(ES_CTYPE_FW, 1);
      pid_t pid_se = fork_wait_for_child(ES_CTYPE_LOAD_SE, 1);
-
+#ifdef __MODPROBE_V2__
+     wait_for_pid(pid_copy, WAIT_SLEEP_USECS, max);
+#endif
      // Load Display modules in parallel
      pid_t pid_di = fork_wait_for_child(ES_CTYPE_DI_MOD, 1);
 
@@ -2981,16 +3269,25 @@ int early_init(int init)
     bool load_parallel = bc_get_lmp();
     pid_t pid_se;
 
-
+#ifdef __MODPROBE_V2__
+    __load_modules_parallel_v2(ES_DFLMOD_ORDER_1, ES_DFLMOD_PATH,
+         load_parallel?std::thread::hardware_concurrency():1,
+         EMOD_DEF_TAG_1, LMP_V2_GKI_P);
+#else
     load_modules_parallel(ES_DFLMOD_ORDER_1, ES_DFLMOD_PATH,
          load_parallel?std::thread::hardware_concurrency():1,
          EMOD_DEF_TAG_1, LMP_MODPROBE);
+#endif
 
     // Check for driver storage enumerations
     pid_t pid_fw = fork_wait_for_child(ES_CTYPE_FW, 1);
 #ifndef PLATFORM_GEN4
     // Load second set of def-modules in parallel
     pid_t pid_def2 = fork_wait_for_child(ES_CTYPE_DEF2_MOD, 1);
+#endif
+
+#ifdef __MODPROBE_V2__
+    wait_for_pid(pid_copy, WAIT_SLEEP_USECS, max);
 #endif
     // Load Display modules in parallel
     pid_t pid_di = fork_wait_for_child(ES_CTYPE_DI_MOD, 1);

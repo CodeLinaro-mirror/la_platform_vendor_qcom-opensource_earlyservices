@@ -30,6 +30,7 @@ endif
 ifneq ($(filter volcano, $(TARGET_BOARD_PLATFORM)),)
         LOCAL_CFLAGS := -DPLATFORM_VOLCANO
         LOCAL_CFLAGS += -D__ANDROID_U__
+        LOCAL_CFLAGS += -D__MODPROBE_V2__
 endif
 
 LOCAL_CFLAGS += -Wall -Werror
