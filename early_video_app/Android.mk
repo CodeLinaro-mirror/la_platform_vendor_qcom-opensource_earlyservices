@@ -8,7 +8,6 @@ LOCAL_LDFLAGS                   := -Wl,-rpath,'/vendor_early_services/system/lib
 LOCAL_MODULE_PATH               := $(TARGET_VENDOR_RAMDISK_OUT)/vendor_early_services/vendor/bin
 LOCAL_C_INCLUDES                += $(LOCAL_PATH)/inc
 LOCAL_C_INCLUDES                += $(LOCAL_PATH)/driver/stub_driver/linux/inc/uapi
-LOCAL_C_INCLUDES                += $(TOP)/vendor/qcom/opensource/display-drivers/include/uapi
 
 LOCAL_SHARED_LIBRARIES          := \
                                 libcutils \
@@ -18,6 +17,8 @@ LOCAL_SHARED_LIBRARIES          := \
                                 liblog \
                                 libdmabufheap \
                                 libdrm
+
+LOCAL_HEADER_LIBRARIES          += qti_display_kernel_headers
 
 LOCAL_SRC_FILES                 := \
                                 main.cpp \
