@@ -1722,6 +1722,30 @@ static int check_video_device_ready(void)
   return video_device_created;
 }
 
+static int check_audio_ar_adsp_loader_ready(char * flag) {
+    static int adsp_loader_ready = 0;
+    if (adsp_loader_ready == 0) {
+        if (access("/sys/kernel/boot_adsp/boot", F_OK) == 0) {
+	    int fd = open("/sys/kernel/boot_adsp/boot", O_WRONLY);
+	    if (fd < 0) {
+		LOG(WARNING) << "ES : trigger ADSP open sys entry failed";
+	    } else if(-1 == write(fd, flag, 1)) {
+		LOG(WARNING) << "ES : trigger ADSP Write to sys entry failed";
+	    } else {
+		adsp_loader_ready = 1;
+		write_marker("M - ES Start ADSP");
+		LOG(INFO) << "ES : trigger ADSP firmware loading triggered";
+	    }
+	    if (fd > 0)
+		close(fd);
+        } else {
+            LOG(WARNING) << "ES : /sys/kernel/boot_adsp/boot not exist";
+        }
+    }
+    return adsp_loader_ready;
+
+}
+
 static int check_audio_ar_pkt_ready(void)
 {
   static int audio_pkt_device_created = 0;
@@ -1822,6 +1846,7 @@ static int check_audio_ar_snd_device_ready(void)
 
   if (!audio_snd_device_created) {
     if (access("/sys/kernel/snd_card/card_state", F_OK) == 0) {
+      lchown("/sys/kernel/snd_card/card_state", AID_MEDIA, AID_AUDIO);
       LOG(INFO) << "ES Audio snd node ready";
       write_marker("AR - Audio snd node ready");
       audio_snd_device_created = 1;
@@ -2087,14 +2112,18 @@ static int check_and_create_vendor_soccp_firmware (void) {
 
 static int check_audio_ar_ready(void)
 {
-    return (int)(check_audio_ar_pkt_ready() &&
-                 check_audio_ar_ion_ready() &&
-                 check_audio_ar_ion_cma_ready() &&
-                 check_audio_ar_system_device_ready() &&
-                 check_audio_ar_snd_device_ready() &&
-                 check_audio_ar_pcm_device_ready() &&
-                 check_audio_ar_id_device_ready() &&
-                 check_audio_ar_device_ready());
+  return (int)(
+#ifdef PLATFORM_VOLCANO
+               check_audio_ar_adsp_loader_ready("1") &&
+#endif
+               check_audio_ar_pkt_ready() &&
+               check_audio_ar_ion_ready() &&
+               check_audio_ar_ion_cma_ready() &&
+               check_audio_ar_system_device_ready() &&
+               check_audio_ar_snd_device_ready() &&
+               check_audio_ar_pcm_device_ready() &&
+               check_audio_ar_id_device_ready() &&
+               check_audio_ar_device_ready());
 }
 
 static void create_drm_udev_cards(void)
