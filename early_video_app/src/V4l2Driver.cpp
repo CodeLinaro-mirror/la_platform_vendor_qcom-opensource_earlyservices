@@ -470,7 +470,7 @@ int V4l2Driver::enumFrameInterval(struct v4l2_frmivalenum *fival) {
     VIDC_MED("V4l2Driver::enumFrameInterval\n");
     int rc = IOCTL(mFd, VIDIOC_ENUM_FRAMEINTERVALS, fival);
     if (rc) {
-        VIDC_ERR("V4l2Driver::enumFrameInterval, failed for pixel_format %#x, resoltion [%u x %u]\n",
+        VIDC_ERR("V4l2Driver::enumFrameInterval, failed for pixel_format %#x, resolution [%u x %u]\n",
             fival->pixel_format, fival->width, fival->height);
         rc = -EINVAL;
         return rc;
@@ -480,7 +480,7 @@ int V4l2Driver::enumFrameInterval(struct v4l2_frmivalenum *fival) {
         rc = -EINVAL;
     }
     else {
-        VIDC_MED("V4l2Driver::enumFrameInterval, resoltion [%u x %u], interval [%u / %u] to [%u / %u]\n",
+        VIDC_MED("V4l2Driver::enumFrameInterval, resolution [%u x %u], interval [%u / %u] to [%u / %u]\n",
             fival->width, fival->height,
             fival->stepwise.min.numerator, fival->stepwise.min.denominator,
             fival->stepwise.max.numerator, fival->stepwise.max.denominator);
