@@ -55,9 +55,9 @@ class EventHandler {
 	private:
 		std::shared_ptr<V4l2Codec> mV4l2Codec;
 		std::shared_ptr<std::thread> mEventThread;
-		bool mEventThreadRunning = false;
-		bool mEventThreadExit = false;
-		bool mEventWaitNotified = false;
+		std::atomic<bool> mEventThreadRunning{false};
+		std::atomic<bool> mEventThreadExit{false};
+		std::atomic<bool> mEventWaitNotified{false};
 };
 
 #endif

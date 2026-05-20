@@ -1,4 +1,4 @@
-LOCAL_PATH:= $(call my-dir)
+LOCAL_PATH                      := $(call my-dir)
 include $(CLEAR_VARS)
 ifneq ($(filter volcano, $(TARGET_BOARD_PLATFORM)),)
 # Disable this modules temp to volcano BU
@@ -37,4 +37,37 @@ LOCAL_SRC_FILES                 := \
                                 src/Utils.cpp \
                                 render/DisplayAdaptor.cpp
 include $(BUILD_EXECUTABLE)
+
+include $(CLEAR_VARS)
+LOCAL_MODULE                    := early_video_res_primary
+LOCAL_SRC_FILES                 := resource/primary.h264
+LOCAL_MODULE_CLASS              := ETC
+LOCAL_MODULE_PATH               := $(TARGET_VENDOR_RAMDISK_OUT)/vendor_early_services/vendor/data/early_video
+LOCAL_INSTALLED_MODULE_STEM     := primary.h264
+include $(BUILD_PREBUILT)
+
+include $(CLEAR_VARS)
+LOCAL_MODULE                    := early_video_res_primary_config
+LOCAL_SRC_FILES                 := resource/primary.config
+LOCAL_MODULE_CLASS              := ETC
+LOCAL_MODULE_PATH               := $(TARGET_VENDOR_RAMDISK_OUT)/vendor_early_services/vendor/data/early_video
+LOCAL_INSTALLED_MODULE_STEM     := primary.config
+include $(BUILD_PREBUILT)
+
+include $(CLEAR_VARS)
+LOCAL_MODULE                    := early_video_res_secondary
+LOCAL_SRC_FILES                 := resource/secondary.h264
+LOCAL_MODULE_CLASS              := ETC
+LOCAL_MODULE_PATH               := $(TARGET_VENDOR_RAMDISK_OUT)/vendor_early_services/vendor/data/early_video
+LOCAL_INSTALLED_MODULE_STEM     := secondary.h264
+include $(BUILD_PREBUILT)
+
+include $(CLEAR_VARS)
+LOCAL_MODULE                    := early_video_res_secondary_config
+LOCAL_SRC_FILES                 := resource/secondary.config
+LOCAL_MODULE_CLASS              := ETC
+LOCAL_MODULE_PATH               := $(TARGET_VENDOR_RAMDISK_OUT)/vendor_early_services/vendor/data/early_video
+LOCAL_INSTALLED_MODULE_STEM     := secondary.config
+include $(BUILD_PREBUILT)
+
 endif

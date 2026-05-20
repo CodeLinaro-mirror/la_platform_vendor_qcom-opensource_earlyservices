@@ -26,17 +26,17 @@ void EventHandler::threadLoop() {
 	int rc = 0;
 
 	VIDC_MED("EventHandler::threadLoop, enter\n");
-	mEventThreadRunning = true;
+	mEventThreadRunning.store(true);
 
-	while (!mEventThreadExit) {
+	while (!mEventThreadExit.load()) {
 		std::shared_ptr<Event> event = nullptr;
 		{
 			std::unique_lock<std::mutex> lock(mEventQueueLock);
 			if (mEvents.size() == 0) {
 				std::cv_status ret = mEventQueueCondition.wait_for(lock, std::chrono::seconds(2));
-				if (ret == std::cv_status::timeout)
+				if (ret == std::cv_status::timeout || mEventThreadExit.load())
 					continue;
-				}
+			}
 			if (mEvents.size() == 0) {
 				VIDC_MED("EventHandler::threadLoop, No events available to process\n");
 				continue;
@@ -131,7 +131,7 @@ void EventHandler::threadLoop() {
 
 		if (!rc) {
 			std::unique_lock<std::mutex> lock(mEventWaitLock);
-			mEventWaitNotified = true;
+			mEventWaitNotified.store(true);
 			mEventWaitCondition.notify_one();
 		}
 	}
@@ -144,8 +144,8 @@ void ThreadFunc(EventHandler& handler) {
 }
 
 int EventHandler::createEventThread() {
-	mEventThreadExit = false;
-	mEventThreadRunning = false;
+	mEventThreadExit.store(false);
+	mEventThreadRunning.store(false);
 	mEventThread = std::make_shared<std::thread>(ThreadFunc, std::ref(*this));
 	if (!mEventThread) {
 		VIDC_ERR("EventHandler::createEventThread, thread create failed\n");
@@ -153,14 +153,14 @@ int EventHandler::createEventThread() {
 	}
 	else {
 		int count = 0;
-		while (!mEventThreadRunning) {
+		while (!mEventThreadRunning.load()) {
 			VIDC_MED("EventHandler::createEventThread, wait for thread running\n");
 			usleep(5 * 1000);
 			count++;
 			if (count >= 100)
 				break;
 		}
-		if (!mEventThreadRunning) {
+		if (!mEventThreadRunning.load()) {
 			VIDC_ERR("EventHandler::createEventThread, thread not running\n");
 			return -EINVAL;
 		}
@@ -170,13 +170,13 @@ int EventHandler::createEventThread() {
 }
 
 int EventHandler::stopEventThread() {
-	if (!mEventThread  || mEventThreadExit) {
-		VIDC_MED("EventHandler::stopEventThread, invalid event thread. exit %d\n",
-			mEventThreadExit);
+	if (!mEventThread  || mEventThreadExit.load()) {
+		VIDC_MED("EventHandler::stopEventThread, invalid event thread. exit %d\n", mEventThreadExit.load());
 		return -EINVAL;
 	}
 
-	mEventThreadExit = true;
+	mEventThreadExit.store(true);
+	mEventQueueCondition.notify_one();
 	VIDC_MED("EventHandler::stopEventThread, join thread\n");
 	if (mEventThread != nullptr and mEventThread->joinable()) {
 		mEventThread->join();
@@ -202,7 +202,7 @@ int EventHandler::queueEvent(enum event_id eventId, bool blocking) {
 	{
 		if (blocking) {
 			std::unique_lock<std::mutex> lock(mEventWaitLock);
-			if (mEventWaitNotified == false) {
+			if (!mEventWaitNotified.load()) {
 				std::cv_status wait_ret = mEventWaitCondition.wait_for(lock,
 					std::chrono::seconds(15));
 				if (wait_ret == std::cv_status::timeout) {
@@ -210,7 +210,7 @@ int EventHandler::queueEvent(enum event_id eventId, bool blocking) {
 					return -EINVAL;
 				}
 			}
-			mEventWaitNotified = false;
+			mEventWaitNotified.store(false);
 		}
 	}
 	return 0;
@@ -231,7 +231,7 @@ int EventHandler::queueBuffer(enum event_id eventId, std::shared_ptr<v4l2_buffer
 	}
 	{
 		std::unique_lock<std::mutex> lock(mEventWaitLock);
-		if (mEventWaitNotified == false) {
+		if (!mEventWaitNotified.load()) {
 			std::cv_status wait_ret = mEventWaitCondition.wait_for(lock,
 				std::chrono::seconds(15));
 			if (wait_ret == std::cv_status::timeout) {
@@ -239,7 +239,7 @@ int EventHandler::queueBuffer(enum event_id eventId, std::shared_ptr<v4l2_buffer
 				return -EINVAL;
 			}
 		}
-		mEventWaitNotified = false;
+		mEventWaitNotified.store(false);
 	}
 	return 0;
 }

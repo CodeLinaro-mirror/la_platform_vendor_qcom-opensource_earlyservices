@@ -24,10 +24,8 @@ void scanDevDirectory(const std::string& devPath) {
                 const std::string filename = entry.path().filename().string();
 				struct stat statbuf;
 				if (stat(devPath.c_str(), &statbuf) == 0) {
-					if (S_ISCHR(statbuf.st_mode)) {
-						VIDC_MED("Utils::scanDevDirectory, device: %s, Major: %d, Minor: %d, Permissions: %d\n",
-                            filename.c_str(), major(statbuf.st_rdev), minor(statbuf.st_rdev), statbuf.st_mode & 0777);
-					}
+                    VIDC_MED("Utils::scanDevDirectory, device: %s, Major: %d, Minor: %d, Permissions: %d\n",
+                        filename.c_str(), major(statbuf.st_rdev), minor(statbuf.st_rdev), statbuf.st_mode & 0777);
 				}
             }
         }

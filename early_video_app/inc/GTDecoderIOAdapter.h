@@ -21,25 +21,30 @@ SPDX-License-Identifier: BSD-3-Clause-Clear
 
 class GTDecoderIOAdapter {
 	public:
+		GTDecoderIOAdapter(const char* sourceFilePath, const char* sourceConfigFilePath, const char* displayCard);
 		bool isInputAvailabe();
         bool isInputEOS();
-		bool getInput(InputData* dstData);
+		int getInput(InputData* dstData);
 		void releaseInput(InputData* sourceData);
-		void setOutputFormat(struct v4l2_format* outputForma);
+		void setOutputFormat(struct v4l2_format* outputFormat);
+		void setOutputImgResolution(int imgWidth, int imgHeight);
 		void setOutputFrameRate(float frameRate);
 		bool onOutput(std::uint8_t* pBuffer, uint32_t length, uint32_t offset, bool isKeyFrame);
         void close();
 	private:
-        static void str2bytes(const std::string& source, InputData* data);
-		static unsigned char hexStrToByte(const std::string& sourceHexStr);
-
 		struct v4l2_format* mOutputFormat = NULL;
+		int mOutputImgWidth = 0;
+		int mOutputImgHeight = 0;
 		float mOutputFrameRate = 30; //default 30fps.
 
+		FILE* mSourceInputFile = NULL;
+		FILE* mSourceInputConfigFile = NULL;
+		const char* mDisplayCard = NULL;
 		FILE* mOutputFile = NULL;
 		std::shared_ptr<DisplayAdaptor> mDisplayAdaptor = NULL;
-		int mCurrentInputDataIndex = 0;
+		std::vector<uint64_t> mSourceFrameLengthVector;
         bool mIsInputEOS = false;
+		int mCurrentInputDataIndex = 0;
 };
 
 #endif

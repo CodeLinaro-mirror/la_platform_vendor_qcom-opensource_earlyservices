@@ -18,8 +18,6 @@ SPDX-License-Identifier: BSD-3-Clause-Clear
 #include <drm/drm_fourcc.h>
 #include <libdrm_macros.h>
 
-#define MAX_BUFFER                      1
-
 struct fb_obj {
     uint32_t fb_id;
     size_t size;
@@ -52,11 +50,11 @@ struct plane_config {
     uint32_t crtc_id;
     uint32_t connector_id;
 
-    fb_obj fb[MAX_BUFFER];
+    fb_obj fb;
 
     int x_offset;
     int x_increment;
-    bool first_run;
+    bool first_run = true;
     bool handoff_init;
     uint32_t possible_crtcs;
 
@@ -86,36 +84,51 @@ struct plane_config {
     uint32_t handoff_pid;
 };
 
+struct drm_buffer_context {
+    int dma_heap_fd = -1;
+    uint32_t gem_handle;
+    uint32_t fb_id;
+    std::vector<fb_obj> fb_objs;
+    std::vector<int> drm_fence_fds;
+};
+
 class DisplayAdaptor {
     public:
         DisplayAdaptor(void);
         bool isInitialized();
-        bool initAdaptor(uint32_t frameWidth, uint32_t frameHeight, uint32_t dataSize);
+        bool initAdaptor(uint32_t imgWidth, uint32_t imgHeight,
+            uint32_t dataFrameWidth, uint32_t dataFrameHeight, uint32_t dataFrameSize,
+            const char* displayCard);
         bool commitData(std::uint8_t* pBuffer, uint32_t length, uint32_t offset);
         bool deinitAdaptor(void);
 
     private:
         int parseDisplay();
-        int createFrameBufferForNV12(uint32_t frameWidth, uint32_t frameHeight);
-        int createFrameBufferForNV12UBWC(uint32_t frameWidth, uint32_t frameHeight, uint32_t dataSize);
-        bool updateFrameBuffer(int connectorCfgIndex, int bufIndex);
+        int createFrameBuffer(uint32_t dataFrameWidth, uint32_t dataFrameHeight, uint32_t dataFrameSize);
+        bool updateFrameBuffer(int connectorCfgIndex, int& drmOutFenceFD);
         int setupConnector();
-        bool atomicCommit(bool isAsync);
+        bool atomicCommit();
         void updatePossibleCrtcs(void);
         int getPropId(uint32_t objId, uint32_t objType, const char *name, uint32_t *propIdOut);
+        void waitDRMOutFenceAndReset(int& fenceFD, int timeoutMS);
 
-        int destroyBuff();
+        void destroyBuff(int keepLatestItemCount);
 
     private:
         drmModeAtomicReqPtr mDRMModeReqPtr;
         std::vector<plane_config> mPlaneCfgVector;
         std::vector<connector_config> mConnectorCfgVector;
+        std::vector<drm_buffer_context> mLastDRMBufferContextVector;
 
+        char* mDisplayCard;
         int mDisplayCardFD;
         int mDMAHeapDeaviceFD;
-        int mSourceFrameWidth;
-        int mSourceFrameHeight;
-        int mCurrentFrameBufferIndex;
+        uint32_t mDRMOutFencePtrPropID;
+        drm_buffer_context* mLastDrmBufferContext;
+        int mSourceImgWidth;
+        int mSourceImgHeight;
+        int mSourceDataFrameWidth;
+        int mSourceDataFrameHeight;
 };
 
 #endif

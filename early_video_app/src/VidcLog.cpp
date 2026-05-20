@@ -31,6 +31,7 @@ namespace early_video_app {
 
     FILE* mInnerLogFile = NULL;
     std::mutex mLogMutex;
+    char* LogAPPTag = "Early_Video_APP: ";
     uint32_t gVidcLogLevel;
 
     const char* KPILogPath = "/sys/kernel/boot_kpi/kpi_values";
@@ -40,17 +41,24 @@ namespace early_video_app {
     const int OneTimeLogCacheBufferSize = 256 * 1;
     char OneTimeLogCacheBuffer[OneTimeLogCacheBufferSize];
 
-    void vidcUpdateLogLevel() {
+    void vidcUpdateLogTag(const char* logTag) {
+        if (logTag == NULL) {
+            return;
+        }
+
+        LogAPPTag = (char*)logTag;
+    }
+
+    void vidcUpdateLogLevel(int logLevel) {
         char debugLevel[PROPERTY_VALUE_MAX] = { 0 };
         // default value(0x3): VIDC_MSGLEVEL_ERROR | VIDC_MSGLEVEL_HIGH
         #ifndef _LINUX_VENV_
         property_get(kDebugLogsLevelProperty, debugLevel, "0x3");
         #endif
         gVidcLogLevel = static_cast<uint32_t>(strtoul(debugLevel, nullptr, 16));
-        #ifdef _LINUX_VENV_
-        gVidcLogLevel = 0x3;
-        #endif
-        gVidcLogLevel = VIDC_MSGLEVEL_HIGH;
+        if (logLevel >= VIDC_MSGLEVEL_ERROR) {
+            gVidcLogLevel = logLevel;
+        }
     }
 
     void VIDC_ERR(const char* format, ...) {
@@ -123,6 +131,7 @@ namespace early_video_app {
             va_end(args);
             write(KPILogFD, KPILogCacheBuffer, length);
             close(KPILogFD);
+            printLogToKMsg("%s, length = %d\n", KPILogCacheBuffer, length);
         }
     }
 
@@ -180,6 +189,7 @@ namespace early_video_app {
                         else {
                             std::cout << '%' << logFormat[i];
                         }
+                        break;
                     }
                     case 'u':
                         std::cout << va_arg(args, unsigned int);
@@ -227,7 +237,6 @@ namespace early_video_app {
         }
 
         mLogMutex.lock();
-
         //print log to local file in case of stdout not flush to disk in time.
         if (mInnerLogFile == NULL) {
             std::filesystem::path logCacheDir = LogLocalOutputDir;
@@ -238,13 +247,40 @@ namespace early_video_app {
             if (fileCheckResult) {
                 mInnerLogFile = fopen(LogLocalOutputPath, "w+b");
             }
+            else {
+                std::cout << "local log cache dir create failed!" << std::endl;
+            }
         }
         if (mInnerLogFile != NULL) {
-            int length = vsnprintf(OneTimeLogCacheBuffer, OneTimeLogCacheBufferSize, logFormat, args);
-            int wroteLength = fwrite(OneTimeLogCacheBuffer, sizeof(char), length, mInnerLogFile);
-            int result = fflush(mInnerLogFile);
-        }
+            //write log tag;
+            char* buffer = OneTimeLogCacheBuffer;
+            int maxLength = OneTimeLogCacheBufferSize;
+            int length = snprintf(buffer, maxLength, "%s", LogAPPTag);
+            if (length >= OneTimeLogCacheBufferSize) {
+                maxLength = length + 1;
+                buffer = new char[maxLength];
+                length = snprintf(buffer, maxLength - 1, "%s", LogAPPTag);
+            }
+            fwrite(buffer, sizeof(char), length, mInnerLogFile);
+            if (buffer != OneTimeLogCacheBuffer) {
+                delete[] buffer;
+            }
+            //write log content
+            buffer = OneTimeLogCacheBuffer;
+            maxLength = OneTimeLogCacheBufferSize;
+            length = vsnprintf(buffer, maxLength, logFormat, args);
+            if (length >= OneTimeLogCacheBufferSize) {
+                maxLength = length + 1;
+                buffer = new char[maxLength];
+                length = vsnprintf(buffer, maxLength, logFormat, args);
+            }
+            fwrite(buffer, sizeof(char), length, mInnerLogFile);
+            if (buffer != OneTimeLogCacheBuffer) {
+                delete[] buffer;
+            }
 
+            fflush(mInnerLogFile);
+        }
         mLogMutex.unlock();
     }
 

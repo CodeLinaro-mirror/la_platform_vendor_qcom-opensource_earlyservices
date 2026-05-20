@@ -260,7 +260,7 @@ int V4l2Codec::stopInput() {
 			return -EINVAL;
 
 	{
-		std::unique_lock<std::mutex> lock(mBufLock);
+		std::unique_lock<std::mutex> lock(mInputBufLock);
 		while (!mPendingInputBufs.empty()) {
 			auto buf = mPendingInputBufs.front();
 			mInputBufs.push_back(buf);
@@ -275,7 +275,7 @@ int V4l2Codec::stopOutput() {
 		return -EINVAL;
 
 	{
-		std::unique_lock<std::mutex> lock(mBufLock);
+		std::unique_lock<std::mutex> lock(mOutputBufLock);
 		while (!mPendingOutputBufs.empty()) {
 			auto buf = mPendingOutputBufs.front();
 			mOutputBufs.push_back(buf);
@@ -310,7 +310,7 @@ int V4l2Codec::stopMetaInput() {
 			return -EINVAL;
 
 	{
-		std::unique_lock<std::mutex> lock(mBufLock);
+		std::unique_lock<std::mutex> lock(mInputBufLock);
 		while (!mPendingMetaInputBufs.empty()) {
 			auto buf = mPendingMetaInputBufs.front();
 			mMetaInputBufs.push_back(buf);
@@ -328,7 +328,7 @@ int V4l2Codec::stopMetaOutput() {
 	}
 
 	{
-		std::unique_lock<std::mutex> lock(mBufLock);
+		std::unique_lock<std::mutex> lock(mOutputBufLock);
 		while (!mPendingMetaOutputBufs.empty()) {
 			auto buf = mPendingMetaOutputBufs.front();
 			mMetaOutputBufs.push_back(buf);
@@ -534,7 +534,7 @@ int V4l2Codec::allocateBuffers(enum port_type port) {
 			return -EINVAL;
 
 		{
-			std::unique_lock<std::mutex> lock(mBufLock);
+			std::unique_lock<std::mutex> lock(mInputBufLock);
 			if (port == INPUT_PORT)
 				mInputBufs.push_back(buf);
 			else
@@ -594,7 +594,7 @@ int V4l2Codec::allocateBuffersSingleFd(enum port_type port) {
 		plane[0].data_offset = bufSize * i;
 
 		{
-			std::unique_lock<std::mutex> lock(mBufLock);
+			std::unique_lock<std::mutex> lock(mInputBufLock);
 			mInputBufs.push_back(buf);
 		}
 		print_v4l2_buffer("AllocBuffer", buf.get());
@@ -641,7 +641,7 @@ int V4l2Codec::allocateMetaBuffers(enum port_type port) {
 			return -EINVAL;
 
 		{
-			std::unique_lock<std::mutex> lock(mBufLock);
+			std::unique_lock<std::mutex> lock(mInputBufLock);
 			if (port == INPUT_META_PORT)
 				mMetaInputBufs.push_back(buf);
 			else
@@ -655,7 +655,7 @@ int V4l2Codec::allocateMetaBuffers(enum port_type port) {
 
 void V4l2Codec::freeMetaBuffers(enum port_type port) {
 	if (port == OUTPUT_META_PORT) {
-		std::unique_lock<std::mutex> lock(mBufLock);
+		std::unique_lock<std::mutex> lock(mOutputBufLock);
 		while(!mMetaOutputBufs.empty()) {
 			auto metaBuf = mMetaOutputBufs.front();
 			print_v4l2_buffer("FreeMetaBuffer", metaBuf.get());
@@ -663,7 +663,7 @@ void V4l2Codec::freeMetaBuffers(enum port_type port) {
 			mMetaOutputBufs.pop_front();
 		}
 	} else if (port == INPUT_META_PORT) {
-		std::unique_lock<std::mutex> lock(mBufLock);
+		std::unique_lock<std::mutex> lock(mInputBufLock);
 		while (!mMetaInputBufs.empty()) {
 			auto metaBuf = mMetaInputBufs.front();
 			print_v4l2_buffer("FreeMetaBuffer", metaBuf.get());
@@ -675,7 +675,7 @@ void V4l2Codec::freeMetaBuffers(enum port_type port) {
 
 void V4l2Codec::freeBuffers(enum port_type port) {
 	if (port == OUTPUT_PORT) {
-		std::unique_lock<std::mutex> lock(mBufLock);
+		std::unique_lock<std::mutex> lock(mOutputBufLock);
 		while (!mOutputBufs.empty()) {
 			auto buf = mOutputBufs.front();
 			print_v4l2_buffer("FreeBuffer", buf.get());
@@ -691,7 +691,7 @@ void V4l2Codec::freeBuffers(enum port_type port) {
 			mPendingOutputBufs.pop_front();
 		}
 	} else if (port == INPUT_PORT) {
-		std::unique_lock<std::mutex> lock(mBufLock);
+		std::unique_lock<std::mutex> lock(mInputBufLock);
 		while (!mInputBufs.empty()) {
 			auto buf = mInputBufs.front();
 			print_v4l2_buffer("FreeBuffer", buf.get());
@@ -711,7 +711,7 @@ void V4l2Codec::freeBuffers(enum port_type port) {
 
 void V4l2Codec::freeBuffersSingleFd(enum port_type port) {
 	if (port == INPUT_PORT) {
-		std::unique_lock<std::mutex> lock(mBufLock);
+		std::unique_lock<std::mutex> lock(mInputBufLock);
 		while (!mInputBufs.empty()) {
 			auto buf = mInputBufs.front();
 			print_v4l2_buffer("FreeBuffer", buf.get());
@@ -832,7 +832,7 @@ int V4l2Codec::extractMetadata(struct v4l2_buffer* metaBuf, struct V4L2OutputFen
 				uint64_t *tagptr = reinterpret_cast<uint64_t *>
 					((reinterpret_cast<uintptr_t>(mhdr) + mphdr->offset));
 				if (!tagptr) {
-					VIDC_ERR("V4l2Codec::extractMetadata, invalid tagdata");
+					VIDC_ERR("V4l2Codec::extractMetadata, invalid tagdata\n");
 					return -EINVAL;
 				}
 				if (metaBuf->type == INPUT_META_PLANE && mV4l2Driver->isOutBufFenceEnabled() &&
@@ -850,7 +850,7 @@ int V4l2Codec::extractMetadata(struct v4l2_buffer* metaBuf, struct V4L2OutputFen
 				uint32_t *subframe = reinterpret_cast<uint32_t *>
 					((reinterpret_cast<uintptr_t>(mhdr) + mphdr->offset));
 				if (!subframe) {
-					VIDC_ERR("V4l2Codec::extractMetadata, invalid subframe data");
+					VIDC_ERR("V4l2Codec::extractMetadata, invalid subframe data\n");
 					return -EINVAL;
 				}
 				setCompleteFrame(*subframe ? false : true);
@@ -902,7 +902,7 @@ int V4l2Codec::extractMetadata(struct v4l2_buffer* metaBuf, struct V4L2OutputFen
 				uint32_t *fence = reinterpret_cast<uint32_t *>
 					((reinterpret_cast<uintptr_t>(mhdr) + mphdr->offset));
 				if (!fence) {
-					VIDC_ERR("V4l2Codec::extractMetadata, invalid fence data");
+					VIDC_ERR("V4l2Codec::extractMetadata, invalid fence data\n");
 					return -EINVAL;
 				}
 				if (metaBuf->type == INPUT_META_PLANE && mV4l2Driver->isOutBufFenceEnabled() &&
@@ -992,9 +992,10 @@ queuebufferLabel:
 }
 
 int V4l2Codec::queueBuffer(std::shared_ptr<v4l2_buffer> buffer) {
-	VIDC_MED("V4l2Codec: queueBuffer, buffer byteused = %d\n", buffer->m.planes[0].bytesused);
+	VIDC_MED("V4l2Codec::queueBuffer, buffer byteused = %d\n", buffer->m.planes[0].bytesused);
 	if (buffer->type == INPUT_META_PLANE) {
 		/* queue input metabuffer via meta port if input meta port enabled */
+		VIDC_MED("V4l2Codec::queueBuffer, INPUT_META_PLANE\n");
 		if (mV4l2Driver->isInputMetaPortEnabled()) {
 			return mV4l2Driver->queueBuf(buffer.get());
 		} else {
@@ -1060,7 +1061,7 @@ int V4l2Codec::fillMetadata(std::shared_ptr<v4l2_buffer> metaBuf) {
 		return -ENOMEM;
 
 	if (metaBuf->type != INPUT_META_PLANE && metaBuf->type != OUTPUT_META_PLANE) {
-		VIDC_ERR("V4l2Codec::fillMetadata, invalid buffer type %u", metaBuf->type);
+		VIDC_ERR("V4l2Codec::fillMetadata, invalid buffer type %u\n", metaBuf->type);
 		return -EINVAL;
 	}
 	struct msm_vidc_metabuf_header* mhdr;
@@ -1096,7 +1097,7 @@ int V4l2Codec::fillMetadata(std::shared_ptr<v4l2_buffer> metaBuf) {
 				uint64_t* tagptr = reinterpret_cast<uint64_t *>
 					((reinterpret_cast<uintptr_t>(mhdr) + mphdr->offset));
 				if (!tagptr) {
-					VIDC_ERR("V4l2Codec::fillMetadata, tagptr is null");
+					VIDC_ERR("V4l2Codec::fillMetadata, tagptr is null\n");
 					return -ENOMEM;
 				}
 
