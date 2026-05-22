@@ -148,7 +148,7 @@ static inline int start_lxc_container() {
         char *const argv[] = {
             "lxc-start",
             "-n", "lv",
-            "-l", "debug",
+            "-l", "TRACE",
             "-o", "/vendor_early_services/run/lxc.log",
             "--logfile=/vendor_early_services/run/lxc.log",
             NULL
@@ -193,6 +193,9 @@ static inline int start_lxc_daemon() {
         char *const argv[] = {
             "lxc-daemon",
             "lv",
+            "-l", "TRACE",
+            "-o", "/vendor_early_services/run/lxc_daemon.log",
+            "--logfile=/vendor_early_services/run/lxc_daemon.log",
             NULL
         };
 
