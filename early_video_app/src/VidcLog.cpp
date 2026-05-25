@@ -33,8 +33,8 @@ namespace early_video_app {
 
     const char* KPILogPath = "/sys/kernel/boot_kpi/kpi_values";
     const char* KernelMsgPath = "/dev/kmsg";
-    const char* LogLocalOutputDir = "/vendor_early_services/run/early_video_app";
-    const char* LogLocalOutputPath = "/vendor_early_services/run/early_video_app/early_video_app.log";
+    const char* LogLocalOutputDir = "/vendor_early_services/run";
+    const char* LogLocalOutputPath = "/vendor_early_services/run/early_video_app.log";
     const int OneTimeLogCacheBufferSize = 256 * 1;
     char OneTimeLogCacheBuffer[OneTimeLogCacheBufferSize];
 
@@ -160,11 +160,10 @@ namespace early_video_app {
         char buffer[1024];
         vsnprintf(buffer, sizeof(buffer), logFormat, args);
 
-        mLogMutex.lock();
+        std::lock_guard<std::mutex> lock(mLogMutex);
         // Then output to kernel log
         freopen(KernelMsgPath, "w", stdout);
         std::cout << LogAPPTag << buffer << std::endl;
-        mLogMutex.unlock();
     }
 
     bool createDirectoryRecursive(const char* path) {
@@ -180,13 +179,13 @@ namespace early_video_app {
             if (*p == '/') {
                 // Found a path separator, temporarily terminate the current level path
                 *p = '\0';
-                
+
                 // Create the current level directory
                 // If creation fails and error is not "directory already exists", return false
                 if (mkdir(tmp, 0755) != 0 && errno != EEXIST) {
                     return false;
                 }
-                
+
                 // Restore the path separator and continue to next level
                 *p = '/';
             }
@@ -205,13 +204,13 @@ namespace early_video_app {
             return;
         }
 
-        mLogMutex.lock();
+        std::lock_guard<std::mutex> lock(mLogMutex);
 
         // print log to local file in case of stdout not flush to disk in time.
         if (mInnerLogFile == NULL) {
 
             const char* logCacheDir = LogLocalOutputDir;
-            
+
             // Create log directory if it doesn't exist
             if (createDirectoryRecursive(logCacheDir)) {
                 mInnerLogFile = fopen(LogLocalOutputPath, "w+b");
@@ -219,7 +218,7 @@ namespace early_video_app {
                 }
             }
         }
-        
+
         if (mInnerLogFile != NULL) {
             int length = vsnprintf(OneTimeLogCacheBuffer, OneTimeLogCacheBufferSize, logFormat, args);
             if (length > 0) {
@@ -228,7 +227,6 @@ namespace early_video_app {
             }
         }
 
-        mLogMutex.unlock();
     }
 
 } // namespace early_video_app
