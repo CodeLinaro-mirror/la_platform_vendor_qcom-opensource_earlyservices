@@ -3184,9 +3184,6 @@ int early_init(int init)
     wait_for_pid(pid_di, WAIT_SLEEP_USECS, max);
     check_and_create_linker64();
 
-    // Send a kedone flag to let the init process continue to boot the system
-    mknod("/vendor_early_services/notify/kedone", S_IFREG | 0400, makedev(0,0));
-
 #endif // ! __ANDROID_U__
 
     selinux_android_restorecon("/vendor_early_services/early_services_init", 0);
@@ -3240,7 +3237,6 @@ int early_init(int init)
   launch_early_apps();
 #endif
   // wait for app exec
-  usleep(2000*1000);
   wait_for_early_apps();
 
   mknod("/vendor_early_services/notify/sedone", S_IFREG | 0400, makedev(0,0));
