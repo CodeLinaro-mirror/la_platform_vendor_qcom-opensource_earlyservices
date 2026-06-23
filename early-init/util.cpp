@@ -50,8 +50,8 @@
 #define MODULES_LOAD_FILE "modules.load"
 
 #ifdef __MODPROBE_V2__
-#define VND_MODULES_DIR "/vendor/lib/modules"
-#define SYS_MODULES_DIR "/system/lib/modules"
+#define VND_MODULES_DIR "/vendor_early_services/vendor/lib/modules"
+#define SYS_MODULES_DIR "/vendor_early_services/system/lib/modules"
 #endif
 
 using namespace std::literals::string_literals;
