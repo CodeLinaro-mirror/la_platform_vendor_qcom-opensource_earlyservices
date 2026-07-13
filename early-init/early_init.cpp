@@ -2068,7 +2068,7 @@ static int check_and_create_vendor_etc (void) {
     static int vendor_etc_ready = 0;
     if (vendor_etc_ready == 0) {
         if (access("/vendor_early_services/vendor/etc", F_OK) == 0) {
-            mkdirs("/vendor", 0666);
+            mkdirs("/vendor", 0777);
             if (symlink("/vendor_early_services/vendor/etc", "/vendor/etc") == 0) {
                 vendor_etc_ready = 1;
                 LOG(INFO) << "symlink /vendor/etc is created";
