@@ -230,6 +230,7 @@ using android::base::boot_clock;
 #define ES_DFLMOD_ORDER_DI    ES_VMOD_PATH"modules_di.order"
 #endif
 #define ES_DFLMOD_ORDER_2     ES_VMOD_PATH"modules_2.order"
+#define ES_SYS_MOD_ORDER      "/vendor_early_services/system/lib/modules/modules_sys.order"
 
 #define EAPP_WAIT_DEFAULT 0x00
 #define EAPP_WAIT_NONE   0x01
@@ -256,6 +257,7 @@ using android::base::boot_clock;
 #define ES_CTYPE_DEF_MOD    5
 #ifdef __MODPROBE_V2__
 #define ES_CTYPE_KO_COPY    6
+#define ES_CTYPE_SYS_MOD    7
 #endif
 
 #define ES_MOUNT_CHECK_UFS      (0)
@@ -2892,13 +2894,13 @@ static int __load_modules_parallel_v2(const std::string& fl,
       LOG(WARNING) << "ES: Please confirm!!!"
             << "we should only load modules in system side if they are depended by vendor";
       __get_load_filename_from_order(fl,load_fl);
-      failed_load = !android::earlyinit::es_load_modules_parallel("/system/lib/modules", load_count,
+      failed_load = !android::earlyinit::es_load_modules_parallel("/vendor_early_services/system/lib/modules/", load_count,
                           load_fl, (th_count > 0));
       es_load_done = true;
       break;
     case LMP_V2_VND_P:
       __get_load_filename_from_order(fl,load_fl);
-      failed_load = !android::earlyinit::es_load_modules_parallel("/vendor/lib/modules", load_count,
+      failed_load = !android::earlyinit::es_load_modules_parallel(ES_VMOD_PATH, load_count,
                           load_fl, (th_count > 0));
       LOG(INFO) << "ES : Load modules in " << load_fl ;
       es_load_done = true;
@@ -3218,8 +3220,8 @@ int early_init_kmod(const char *idx)
 #else
     load_modules_parallel(str, ES_DFLMOD_PATH, num_threads,
         _eapp_info[i].tag, flag);
-     return 0;
 #endif
+     return 0;
   }
   LOG(WARNING) << "ES : Init Kernel Mod failed for app idx " << i;
 
@@ -3307,10 +3309,19 @@ static pid_t __attribute__((unused)) fork_wait_for_child(int type, int run_if_fo
       }
 #ifdef __MODPROBE_V2__
       case ES_CTYPE_KO_COPY: {
-        copy_ko_all("/lib/modules", "/vendor/lib/modules");
+        copy_ko_all("/lib/modules", ES_VMOD_PATH);
         break;
       }
 #endif
+
+#ifdef __MODPROBE_V2__
+      case ES_CTYPE_SYS_MOD: {
+		bool load_parallel = bc_get_lmp();
+		__load_modules_parallel_v2(ES_SYS_MOD_ORDER, ES_DFLMOD_PATH,
+			 load_parallel?std::thread::hardware_concurrency():1,
+			 "sys_mod", LMP_V2_SYS_P);
+#endif
+      }
       default:
       break;
     }
@@ -3393,12 +3404,17 @@ int early_init(int init)
 #endif
      // Load Display modules in parallel
      pid_t pid_di = fork_wait_for_child(ES_CTYPE_DI_MOD, 1);
-
+#ifdef PLATFORM_VOLCANO
+     pid_t pid_sys = fork_wait_for_child(ES_CTYPE_SYS_MOD, 1);
+#endif
      wait_for_pid(pid_se, WAIT_SLEEP_USECS, max);
      //wait_for_pid(pid_def, WAIT_SLEEP_USECS, max);
      wait_for_pid(pid_fw, WAIT_SLEEP_USECS, max);
-     // Create linker64 for es-apps
+#ifdef PLATFORM_VOLCANO
+     wait_for_pid(pid_sys, WAIT_SLEEP_USECS, max);
+#endif
      wait_for_pid(pid_di, WAIT_SLEEP_USECS, max);
+     // Create linker64 for es-apps
      check_and_create_linker64();
 #else
     bool load_parallel = bc_get_lmp();
