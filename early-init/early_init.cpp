@@ -122,6 +122,7 @@
 #define AUDIO_FW_PATH           "/vendor_early_services/vendor/firmware_mnt"
 #define AUDIO_SOCCP_FW_PATH     "/vendor/soccp_firmware"
 #define AUDIO_SOCCP_FW_PATH_ES  "/vendor_early_services/vendor/soccp_firmware"
+#define AUDIO_DSP_PATH_ES       "/vendor_early_services/vendor/dsp"
 #define AUDIO_ADSP_FW_PATH      "vendor_early_services/vendor/firmware_mnt/image/adsp.mdt"
 #define LXC_ROOTFS_PATH         "/vendor_early_services/vendor/vm-system"
 #define PCM_ID_PATH             "/proc/asound/card0/id"
@@ -264,6 +265,7 @@ using android::base::boot_clock;
 #define ES_MOUNT_MODEM          (1)
 #define ES_MOUNT_LXC            (1 << 1)
 #define ES_MOUNT_SOCCP          (1 << 2)
+#define ES_MOUNT_DSP            (1 << 3)
 
 #define PIPE_RD 0
 #define PIPE_WR 1
@@ -2433,6 +2435,7 @@ static int prepare_fw_dir(int mount_flag)
   std::string modemStr("/dev/block/by-name/modem");
   std::string soccpfsStr("/dev/block/by-name/soccp");
   std::string lxcrootfsStr("/dev/block/by-name/vm-bootsys");
+  std::string dspStr("/dev/block/by-name/dsp");
   unsigned int count = 0, max = (WAIT_SET_PERM_SECS * 1000) / WAIT_SLEEP_MSEC;
   boot_clock::time_point module_start_time = boot_clock::now();
   int current_mount = 0;
@@ -2513,6 +2516,30 @@ static int prepare_fw_dir(int mount_flag)
               }
       } else {
           LOG(WARNING) << "ES : lxc rootfs Not Found!";
+      }
+  }
+
+  if (mount_flag & ES_MOUNT_DSP) {
+      if (access(AUDIO_DSP_PATH_ES, F_OK) == -1) {
+        LOG(WARNING) << "ES : AUDIO_DSP_PATH_ES doesn't exist";
+        mkdirs(AUDIO_DSP_PATH_ES, 0771);
+      }
+
+      dspStr += _boot_slot;
+
+      // wait for node creation
+      if (wait_for_file(dspStr.c_str(), WAIT_SLEEP_MSEC, max*2) == 0) {
+         // mount partition
+        if (try_mount(dspStr.c_str(), AUDIO_DSP_PATH_ES, "ext4",
+            MS_RDONLY | MS_NOSUID | MS_NODEV, "barrier=1") < 0) {
+              print_log("ES : dspStr mount failed, err %s", strerror(errno));
+        } else {
+            LOG(INFO) << "ES : dspStr mount success.";
+            current_mount |= ES_MOUNT_DSP;
+            print_log("dspStr mount success");
+        }
+      } else {
+        print_log("ES : dspStr Not Found!");
       }
   }
 
@@ -3267,7 +3294,7 @@ static pid_t __attribute__((unused)) fork_wait_for_child(int type, int run_if_fo
         prepare_fw_dir(ES_MOUNT_CHECK_UFS);
         //second create fw dir
         #ifdef PLATFORM_VOLCANO
-        prepare_fw_dir(ES_MOUNT_MODEM);
+        prepare_fw_dir(ES_MOUNT_MODEM | ES_MOUNT_DSP);
         #else
         prepare_fw_dir(ES_MOUNT_MODEM | ES_MOUNT_SOCCP);
         #endif
