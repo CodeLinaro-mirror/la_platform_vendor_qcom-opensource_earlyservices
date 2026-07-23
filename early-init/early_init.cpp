@@ -3320,8 +3320,8 @@ static pid_t __attribute__((unused)) fork_wait_for_child(int type, int run_if_fo
 		__load_modules_parallel_v2(ES_SYS_MOD_ORDER, ES_DFLMOD_PATH,
 			 load_parallel?std::thread::hardware_concurrency():1,
 			 "sys_mod", LMP_V2_SYS_P);
-#endif
       }
+#endif
       default:
       break;
     }
