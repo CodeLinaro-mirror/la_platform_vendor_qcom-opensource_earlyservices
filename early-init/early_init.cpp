@@ -172,7 +172,6 @@ using android::base::boot_clock;
 
 #define init_module(module_image, len, param_values) syscall(__NR_init_module, module_image, len, param_values)
 #define finit_module(fd, param_values, flags) syscall(__NR_finit_module, fd, param_values, flags)
-#define ADSP_LOADER_KO          "adsp_loader_dlkm"
 //#define DISP_DRM_DPU0_READY_PATH     "/sys/devices/platform/soc/ae00000.qcom,mdss_mdp/init_complete"
 #define DISP_DRM_DRIVER_CARD3_READY_PATH  "/sys/class/drm/card3/uevent"
 #define DISP_DRM_DRIVER_CARD4_READY_PATH  "/sys/class/drm/card4/uevent"
@@ -1726,30 +1725,6 @@ static int check_video_device_ready(void)
   return video_device_created;
 }
 
-static int check_audio_ar_adsp_loader_ready(char * flag) {
-    static int adsp_loader_ready = 0;
-    if (adsp_loader_ready == 0) {
-        if (access("/sys/kernel/boot_adsp/boot", F_OK) == 0) {
-	    int fd = open("/sys/kernel/boot_adsp/boot", O_WRONLY);
-	    if (fd < 0) {
-		LOG(WARNING) << "ES : trigger ADSP open sys entry failed";
-	    } else if(-1 == write(fd, flag, 1)) {
-		LOG(WARNING) << "ES : trigger ADSP Write to sys entry failed";
-	    } else {
-		adsp_loader_ready = 1;
-		write_marker("M - ES Start ADSP");
-		LOG(INFO) << "ES : trigger ADSP firmware loading triggered";
-	    }
-	    if (fd > 0)
-		close(fd);
-        } else {
-            LOG(WARNING) << "ES : /sys/kernel/boot_adsp/boot not exist";
-        }
-    }
-    return adsp_loader_ready;
-
-}
-
 static int check_audio_ar_pkt_ready(void)
 {
   static int audio_pkt_device_created = 0;
@@ -2117,9 +2092,6 @@ static int check_and_create_vendor_soccp_firmware (void) {
 static int check_audio_ar_ready(void)
 {
   return (int)(
-#ifdef PLATFORM_VOLCANO
-               check_audio_ar_adsp_loader_ready("1") &&
-#endif
                check_audio_ar_pkt_ready() &&
                check_audio_ar_ion_ready() &&
                check_audio_ar_ion_cma_ready() &&
@@ -2756,7 +2728,6 @@ static int load_modules_parallel(const std::string& fl,
   std::string mlist;
   int load_count = 0;
   int fail_count = 0;
-  static const char ADSP_KO[] = ADSP_LOADER_KO;
   LOG(INFO) << "start Loading modules path: " << mod_path << " file: " << fl;
   if (!android::base::ReadFileToString(fl, &mlist, false))
     return -1;
