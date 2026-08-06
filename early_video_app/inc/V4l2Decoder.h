@@ -41,6 +41,8 @@ public:
 	int drain();
 	int resume();
 	struct v4l2_format* getOutputFormat();
+	int getOutputImgWidth();
+	int getOutputImgHeight();
 	int getFenceFds(struct V4L2OutputFenceInfo* fenceInfo);
 	int getFenceFd(int fence_id);
 };

@@ -10,6 +10,10 @@ SPDX-License-Identifier: BSD-3-Clause-Clear
 #define __MSM_V4L2_DRIVER_H__
 
 #include <thread>
+#include <vector>
+#include <mutex>
+#include <condition_variable>
+#include <chrono>
 
 #ifdef ANDROID
 #include <linux/msm_ion.h>
@@ -260,6 +264,10 @@ class V4l2Driver {
 		int threadLoop();
 		int createPollThread();
 		int stopPollThread();
+		void onOutputPollEvent(v4l2_event& event);
+		int outputThreadLoop();
+		int createPollOutputThread();
+		int stopPollOutputThread();
 		int ionAlloc(int size);
 		void ionFree(int fd);
 		void setEarlyNotifyIntrptCount(uint32_t count);
@@ -276,15 +284,21 @@ class V4l2Driver {
 		bool isOutputMetadataEnabled();
 		void enableOutBufFence(bool enable);
 		bool isOutBufFenceEnabled();
-		
+
 	private:
 		int mFd = -1;
 		int mIonFd = -1;
 		int mMediaFd = -1;
 		int mRequestFd[VIDEO_MAX_FRAME] = {-1};
 		std::shared_ptr<std::thread> mPollThread;
-		bool mThreadRunning = false;
-		bool mPollThreadExit = false;
+		std::shared_ptr<std::thread> mPollOutputThread;
+        std::vector<v4l2_event> mPollOutputEventVector;
+		std::mutex mOutputEventVectorMutex;
+		std::condition_variable mOutputEventVectorSignal;
+		std::atomic<bool> mThreadRunning{false};
+		std::atomic<bool> mPollThreadExit{false};
+		std::atomic<bool> mOutputThreadRunning{false};
+		std::atomic<bool> mPollOutputThreadExit{false};
 		std::shared_ptr<V4l2DriverCb> mCb;
 		bool mInputRequestEnabled = false;
 		bool mInputMetaPortEnabled = false;

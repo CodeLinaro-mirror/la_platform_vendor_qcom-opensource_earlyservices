@@ -176,6 +176,7 @@ using android::base::boot_clock;
 #define DISP_DRM_DRIVER_CARD3_READY_PATH  "/sys/class/drm/card3/uevent"
 #define DISP_DRM_DRIVER_CARD4_READY_PATH  "/sys/class/drm/card4/uevent"
 #define DISP_DRM_DRIVER_CARD5_READY_PATH  "/sys/class/drm/card5/uevent"
+#define DISP_DRM_DRIVER_CARD6_READY_PATH  "/sys/class/drm/card6/uevent"
 #define DISP_DRM_DRIVER_RENDER_READY_PATH  "/sys/class/drm/renderD128/uevent"
 
 #ifdef PLATFORM_GEN4
@@ -340,7 +341,8 @@ const static struct {
   int (*is_ready)(void);
   int wait;
 } _eapp_info[] = {
- {"early_video_app", "modules_early_video_app.order", "early_video_app", check_video_device_ready, EAPP_MOD_WAIT_FW},
+ {"early_video_primary", "modules_early_video_app.order", "early_video_primary", check_video_device_ready, EAPP_MOD_WAIT_FW},
+ {"early_video_secondary", "modules_early_video_app.order", "early_video_secondary", check_video_device_ready, EAPP_MOD_WAIT_FW},
 #ifdef PLATFORM_GEN4
  {"qcxserver", "modules_qcx.order", "qcx", check_ais_device_ready, EAPP_MOD_WAIT_FW},
  {"qcarcam_edrm_rvc", "modules_rv_gen4.order", "rvc", check_rvc_device_ready, EAPP_MOD_WAIT_FW},
@@ -375,12 +377,14 @@ enum drm_udev_cards {
   card3,
   card4,
   card5,
+  card6,
 #else
   card2 = 0,
   renderD128,
   card3,
   card4,
   card5,
+  card6,
 #endif
   cards_max
 };
@@ -399,12 +403,14 @@ struct drm_cards_info {
   {"/sys/class/drm/card3/uevent", "card3", "/dev/dri", "/dev/dri/card3", false},
   {"/sys/class/drm/card4/uevent", "card4", "/dev/dri", "/dev/dri/card4", false},
   {"/sys/class/drm/card5/uevent", "card5", "/dev/dri", "/dev/dri/card5", false},
+  {"/sys/class/drm/card6/uevent", "card6", "/dev/dri", "/dev/dri/card6", false},
 #else
   {"/sys/class/drm/card2/uevent", "card2", "/dev/dri", "/dev/dri/card2", false},
   {"/sys/class/drm/renderD128/uevent", "renderD128", "/dev/dri", "/dev/dri/renderD128", false},
   {"/sys/class/drm/card3/uevent", "card3", "/dev/dri", "/dev/dri/card3", false},
   {"/sys/class/drm/card4/uevent", "card4", "/dev/dri", "/dev/dri/card4", false},
   {"/sys/class/drm/card5/uevent", "card5", "/dev/dri", "/dev/dri/card5", false},
+  {"/sys/class/drm/card6/uevent", "card6", "/dev/dri", "/dev/dri/card6", false},
 #endif
 };
 
@@ -2186,7 +2192,8 @@ static int check_display_driver_ready(void)
 #if defined(PLATFORM_CANOE)
   int retry_count = 20;
   while (retry_count--) {
-    if(access(DISP_DRM_DRIVER_CARD3_READY_PATH, F_OK) == 0 && access(DISP_DRM_DRIVER_CARD5_READY_PATH, F_OK) == 0)
+    if(access(DISP_DRM_DRIVER_CARD3_READY_PATH, F_OK) == 0 && access(DISP_DRM_DRIVER_CARD5_READY_PATH, F_OK) == 0
+      && access(DISP_DRM_DRIVER_CARD6_READY_PATH, F_OK) == 0)
     {
       LOG(INFO) << "Function: " << __func__ << ", Line: " << __LINE__ << " check driver sucess------\n";
       ret = 1;

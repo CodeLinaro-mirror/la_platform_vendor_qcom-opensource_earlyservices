@@ -280,7 +280,7 @@ int V4l2Driver::Open(unsigned int type) {
 		return -EINVAL;
 	}
 	scanDevDirectory("/dev");
-	scanDevDirectory("/early_services/dev");
+	scanDevDirectory("/dev/dri");
 
 	printKPILog("%s%s%s", LogKPITag, LogAPPTag, "open video driver device");
 #ifdef ANDROID
@@ -864,25 +864,32 @@ int V4l2Driver::threadLoop() {
 	struct pollfd pollFds[2];
 
 	VIDC_MED("V4l2Driver::threadLoop, begin\n");
-	mThreadRunning = true;
+	mThreadRunning.store(true);
 	pollFds[0].events = POLLIN | POLLRDNORM | POLLOUT | POLLWRNORM | POLLRDBAND | POLLPRI | POLLERR;
 	pollFds[0].fd = mFd;
 
-	while (!mPollThreadExit) {
+	while (!mPollThreadExit.load()) {
+		memset(&event, 0, sizeof(event));
+		pollFds[0].revents = 0;
 		rc = poll(pollFds, 1, 2000);
 		if (mCb == NULL) {
 			VIDC_ERR("V4l2Driver::threadLoop, callback not set, poll event result: %d, polled event = 0x%x\n", rc, pollFds[0].revents);
 			usleep(MAX_WAIT_TIMEOUT);
 			continue;
 		}
-		if (rc == -ETIMEDOUT) {
+		if (rc == 0) {
 			VIDC_MED("V4l2Driver::threadLoop, poll timedout\n");
 			continue;
 		}
-		else if (rc < 0 && errno != EINTR && errno != EAGAIN) {
+		else if (rc < 0) {
 			VIDC_ERR("V4l2Driver::threadLoop, poll error %d\n", rc);
-			mCb->onV4l2Error(EAGAIN);
-			break;
+			if (errno == EINTR || errno == EAGAIN) {
+				continue;
+			}
+			else {
+				mCb->onV4l2Error(errno);
+				break;
+			}
 		}
 		if (pollFds[0].revents & POLLERR) {
 			VIDC_ERR("V4l2Driver::threadLoop, poll error received\n");
@@ -891,48 +898,25 @@ int V4l2Driver::threadLoop() {
 			break;
 		}
 		if (pollFds[0].revents & POLLPRI) {
-			memset(&event, 0, sizeof(event));
 			rc = IOCTL(mFd, VIDIOC_DQEVENT, &event);
 			if (rc == 0) {
 				VIDC_MED("V4l2Driver::threadLoop, Received v4l2 event, type %#x\n", event.type);
-				mCb->onV4l2EventDone(&event);
+				if (event.type == V4L2_EVENT_EOS) {
+					VIDC_HIGH("V4l2Driver::threadLoop, Received V4L2_EVENT_EOS\n");
+					onOutputPollEvent(event);
+					break;
+				}
+				else {
+					mCb->onV4l2EventDone(&event);
+				}
+			}
+			else {
+				VIDC_HIGH("V4l2Driver::threadLoop, VIDIOC_DQEVENT failed, rc = %d\n", rc);
 			}
 		}
 		if ((pollFds[0].revents & POLLIN) || (pollFds[0].revents & POLLRDNORM)) {
 			VIDC_MED("V4l2Driver::threadLoop, Received v4l2 POLLIN or POLLRDNORM\n");
-			memset(&buffer, 0, sizeof(buffer));
-			memset(&plane[0], 0, sizeof(plane));
-			buffer.type = OUTPUT_MPLANE;
-			buffer.m.planes = plane;
-			buffer.length = 1;
-			buffer.memory = V4L2_MEMORY_DMABUF;
-			do {
-				if (mOutBufFenceEnabled) {
-					dequeueInputMetaBuffersEarly();
-				}
-				rc = IOCTL(mFd, VIDIOC_DQBUF, &buffer);
-				if (rc != 0) {
-					break;
-				}
-				if (mOutputMetaPortEnabled && mOutputMetadataEnabled) {
-					memset(&metabuffer, 0, sizeof(metabuffer));
-					metabuffer.type = OUTPUT_META_PLANE;
-					metabuffer.memory = V4L2_MEMORY_DMABUF;
-					rc = IOCTL(mFd, VIDIOC_DQBUF, &metabuffer);
-					if (rc != 0) {
-						VIDC_ERR("V4l2Driver::threadLoop, VIDIOC_DQBUF failed\n");
-						mError = true;
-					}
-					if (metabuffer.index != buffer.index) {
-						VIDC_ERR("V4l2Driver::threadLoop, meta buffer index not matching\n");
-						mError = true;
-					}
-					rc = mCb->onV4l2BufferDone(&metabuffer);
-					mError = (rc != 0);
-				}
-				rc = mCb->onV4l2BufferDone(&buffer);
-				mError = (rc != 0);
-			} while (1);
+			onOutputPollEvent(event);
 		}
 		if ((pollFds[0].revents & POLLOUT) || (pollFds[0].revents & POLLWRNORM)) {
 			VIDC_MED("V4l2Driver::threadLoop, Received v4l2 POLLOUT or POLLWRNORM\n");
@@ -991,36 +975,56 @@ int V4l2Driver::threadLoop() {
 				VIDC_MED("V4l2Driver::threadLoop, Received v4l2 POLLOUT or POLLWRNORM\n");
 				rc = mCb->onV4l2BufferDone(&buffer);
 				mError = (rc != 0);
-			} while (1);
+			} while (!mPollOutputThreadExit.load());
 		}
 	}
 	VIDC_MED("V4l2Driver::threadLoop, end\n");
 	return 0;
 }
 
-void ThreadFunc(V4l2Driver& driver) {
+void V4l2Driver::onOutputPollEvent(v4l2_event& event) {
+	if (mPollOutputThread == nullptr) {
+		createPollOutputThread();
+	}
+	{
+		std::lock_guard<std::mutex> lock(mOutputEventVectorMutex);
+		if (mPollOutputEventVector.size() > 0) {
+			v4l2_event lastEvent = mPollOutputEventVector.back();
+			if (event.type != lastEvent.type) {
+				mPollOutputEventVector.push_back(event);
+			}
+		}
+		else {
+			mPollOutputEventVector.push_back(event);
+		}
+		VIDC_LOW("V4l2Driver::onOutputPollEvent, mPollOutputEventVector.size = %d\n", mPollOutputEventVector.size());
+	}
+	mOutputEventVectorSignal.notify_all();
+}
+
+void PollThreadFunc(V4l2Driver& driver) {
 	driver.threadLoop();
 }
 
 int V4l2Driver::createPollThread() {
 	VIDC_MED("V4l2Driver::createPollThread\n");
-	mPollThreadExit = false;
-	mThreadRunning = false;
-	mPollThread = std::make_shared<std::thread>(ThreadFunc, std::ref(*this));
+	mPollThreadExit.store(false);
+	mThreadRunning.store(false);
+	mPollThread = std::make_shared<std::thread>(PollThreadFunc, std::ref(*this));
 	if (!mPollThread) {
 		VIDC_ERR("V4l2Driver::createPollThread, poll thread create failed\n");
 		return -EINVAL;
 	}
 	else {
 		int count = 0;
-		while (!mThreadRunning) {
+		while (!mThreadRunning.load()) {
 			VIDC_MED("V4l2Driver::createPollThread, wait for poll thread running\n");
 			usleep(10 * 1000); // 10 ms
 			count++;
 			if (count >= 100)
 				break;
 		}
-		if (!mThreadRunning) {
+		if (!mThreadRunning.load()) {
 			VIDC_ERR("V4l2Driver::createPollThread, poll thread not running\n");
 			return -EINVAL;
 		}
@@ -1031,13 +1035,12 @@ int V4l2Driver::createPollThread() {
 
 int V4l2Driver::stopPollThread() {
 	VIDC_MED("V4l2Driver::stopPollThread\n");
-	if (!mPollThread || mPollThreadExit) {
-		VIDC_MED("V4l2Driver::stopPollThread, invalid poll thread. exit %d\n",
-		mPollThreadExit);
+	if (!mPollThread || mPollThreadExit.load()) {
+		VIDC_MED("V4l2Driver::stopPollThread, invalid poll thread. exit %d\n", mPollThreadExit.load());
 		return -EINVAL;
 	}
 
-	mPollThreadExit = true;
+	mPollThreadExit.store(true);
 	VIDC_MED("V4l2Driver::stopPollThread, join thread\n");
 	if (mPollThread != nullptr and mPollThread->joinable()) {
 		mPollThread->join();
@@ -1045,6 +1048,133 @@ int V4l2Driver::stopPollThread() {
 	mPollThread = nullptr;
 
 	VIDC_MED("V4l2Driver::stopPollThread, exit poll thread\n");
+	return 0;
+}
+
+void OutputThreadFunc(V4l2Driver& driver) {
+	driver.outputThreadLoop();
+}
+
+int V4l2Driver::createPollOutputThread() {
+	VIDC_MED("V4l2Driver::createPollOutputThread\n");
+	if (mPollOutputThread != nullptr) {
+		VIDC_MED("V4l2Driver::createPollOutputThread, poll thread already created\n");
+		return -EINVAL;
+	}
+	mPollOutputThreadExit.store(false);
+	mOutputThreadRunning.store(false);
+	mPollOutputThread = std::make_shared<std::thread>(OutputThreadFunc, std::ref(*this));
+	if (!mPollOutputThread) {
+		VIDC_ERR("V4l2Driver::createPollOutputThread, poll thread create failed\n");
+		return -EINVAL;
+	}
+	else {
+		int count = 0;
+		while (!mOutputThreadRunning.load()) {
+			VIDC_MED("V4l2Driver::createPollOutputThread, wait for poll thread running\n");
+			usleep(10 * 1000); // 10 ms
+			count++;
+			if (count >= 100)
+				break;
+		}
+		if (!mOutputThreadRunning.load()) {
+			VIDC_ERR("V4l2Driver::createPollOutputThread, poll thread not running\n");
+			return -EINVAL;
+		}
+	}
+	VIDC_MED("V4l2Driver::createPollOutputThread, poll thread started\n");
+	return 0;
+}
+
+int V4l2Driver::stopPollOutputThread() {
+	VIDC_MED("V4l2Driver::stopPollOutputThread\n");
+	if (!mPollOutputThread || mPollOutputThreadExit.load()) {
+		VIDC_MED("V4l2Driver::stopPollOutputThread, invalid poll thread. exit %d\n", mPollOutputThreadExit.load());
+		return -EINVAL;
+	}
+
+	mPollOutputThreadExit.store(true);
+	VIDC_MED("V4l2Driver::stopPollOutputThread, join thread\n");
+	if (mPollOutputThread != nullptr and mPollOutputThread->joinable()) {
+		mPollOutputThread->join();
+	}
+	mPollOutputThread = nullptr;
+
+	VIDC_MED("V4l2Driver::stopPollOutputThread, exit poll thread\n");
+	return 0;
+}
+
+int V4l2Driver::outputThreadLoop() {
+	int rc = 0;
+	struct v4l2_buffer buffer;
+	struct v4l2_buffer metabuffer;
+	struct v4l2_plane plane[VIDEO_MAX_PLANES];
+
+	VIDC_MED("V4l2Driver::threadOutputLoop, begin\n");
+	mOutputThreadRunning.store(true);
+
+	while (!mPollOutputThreadExit.load()) {
+		std::unique_lock<std::mutex> lock(mOutputEventVectorMutex);
+		bool result = mOutputEventVectorSignal.wait_for(lock, std::chrono::microseconds(MAX_WAIT_TIMEOUT), [&]{
+				return (!mPollOutputEventVector.empty() || mPollOutputThreadExit.load());
+			});
+		if (!result || mPollOutputThreadExit.load()) {
+			lock.unlock();
+			continue;
+		}
+		if (mCb == NULL) {
+			VIDC_ERR("V4l2Driver::threadOutputLoop, callback not set\n");
+			lock.unlock();
+			usleep(MAX_WAIT_TIMEOUT);
+			continue;
+		}
+
+		v4l2_event event = mPollOutputEventVector.front();
+		mPollOutputEventVector.erase(mPollOutputEventVector.begin());
+		VIDC_LOW("V4l2Driver::threadOutputLoop, mPollOutputEventVector.size = %d\n", mPollOutputEventVector.size());
+		lock.unlock();
+		if (event.type == V4L2_EVENT_EOS) {
+			VIDC_HIGH("V4l2Driver::threadOutputLoop, V4L2_EVENT_EOS dequeue\n");
+			mCb->onV4l2EventDone(&event);
+			break;
+		}
+
+		VIDC_LOW("V4l2Driver::threadOutputLoop, OUTPUT_MPLANE dequeue\n");
+		memset(&buffer, 0, sizeof(buffer));
+		memset(&plane[0], 0, sizeof(plane));
+		buffer.type = OUTPUT_MPLANE;
+		buffer.m.planes = plane;
+		buffer.length = 1;
+		buffer.memory = V4L2_MEMORY_DMABUF;
+		do {
+			if (mOutBufFenceEnabled) {
+				dequeueInputMetaBuffersEarly();
+			}
+			rc = IOCTL(mFd, VIDIOC_DQBUF, &buffer);
+			if (rc != 0) {
+				break;
+			}
+			if (mOutputMetaPortEnabled && mOutputMetadataEnabled) {
+				memset(&metabuffer, 0, sizeof(metabuffer));
+				metabuffer.type = OUTPUT_META_PLANE;
+				metabuffer.memory = V4L2_MEMORY_DMABUF;
+				rc = IOCTL(mFd, VIDIOC_DQBUF, &metabuffer);
+				if (rc != 0) {
+					VIDC_ERR("V4l2Driver::threadOutputLoop, VIDIOC_DQBUF failed\n");
+					mError = true;
+				}
+				if (metabuffer.index != buffer.index) {
+					VIDC_ERR("V4l2Driver::threadOutputLoop, meta buffer index not matching\n");
+					mError = true;
+				}
+				rc = mCb->onV4l2BufferDone(&metabuffer);
+				mError = (rc != 0);
+			}
+			rc = mCb->onV4l2BufferDone(&buffer);
+			mError = (rc != 0);
+		} while (!mPollOutputThreadExit.load());
+	}
+	VIDC_MED("V4l2Driver::threadOutputLoop, end\n");
 	return 0;
 }
 

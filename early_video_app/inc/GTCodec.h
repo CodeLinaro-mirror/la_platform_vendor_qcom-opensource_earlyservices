@@ -50,6 +50,8 @@ class GTCodec {
 		int gtCodecConfigInput();
 		int gtCodecConfigOutput();
 		struct v4l2_format* getOutputFormat();
+		int getOutputImgWidth();
+		int getOutputImgHeight();
 		int gtCodecStartOutput();
 		int gtCodecStartInput();
 		int gtCodecStartMetaOutput();
@@ -109,16 +111,16 @@ class GTCodec {
 	protected:
 		std::shared_ptr<V4l2Codec> mV4l2Codec;
 
-		bool mDrainSent = false;
-		bool mDrainPending = false;
-		bool mReconfigEventReceived = false;
-		bool mErrorReceived = false;
-		bool mStatsThreadExit = false;
-		bool mStatsThreadRunning = false;
-		bool mDrainLastFlagReceived = false;
-		bool mIsQueueSingleBufferEnabled = false;
-		bool mImmediateStopPostDrainEnabled = false;
-		bool mLastFlagEventEnabled = false;
+		std::atomic<bool> mDrainSent{false};
+		std::atomic<bool> mDrainPending{false};
+		std::atomic<bool> mReconfigEventReceived{false};
+		std::atomic<bool> mErrorReceived{false};
+		std::atomic<bool> mStatsThreadExit{false};
+		std::atomic<bool> mStatsThreadRunning{false};
+		std::atomic<bool> mDrainLastFlagReceived{false};
+		std::atomic<bool> mIsQueueSingleBufferEnabled{false};
+		std::atomic<bool> mImmediateStopPostDrainEnabled{false};
+		std::atomic<bool> mLastFlagEventEnabled{false};
 
 		int mTotalFramesDone = 0;
 

@@ -137,6 +137,7 @@ int V4l2Decoder::init(unsigned int codec) {
 
 void V4l2Decoder::deinit() {
 	mV4l2Driver->stopPollThread();
+	mV4l2Driver->stopPollOutputThread();
 	mV4l2Driver->unsubscribeEvent(V4L2_EVENT_EOS);
 	mV4l2Driver->unsubscribeEvent(V4L2_EVENT_SOURCE_CHANGE);
 	mV4l2Driver->Close();
@@ -152,7 +153,7 @@ int V4l2Decoder::setOperatingRate(unsigned int numer, unsigned int denom) {
 
 	control.id = V4L2_CID_MPEG_VIDC_OPERATING_RATE;
 	control.value = (denom / numer) << 16;
-	VIDC_MED("V4l2Decoder::setOperatingRate, setopRate id %d val %d", control.id, control.value);
+	VIDC_MED("V4l2Decoder::setOperatingRate, setopRate id %d val %d\n", control.id, control.value);
 	if (mV4l2Driver->setControl(&control)) {
 		VIDC_ERR("V4l2Decoder::setOperatingRate, set control failed\n");
 		return -EINVAL;
@@ -167,7 +168,7 @@ int V4l2Decoder::setFrameRate(unsigned int numer, unsigned int denom) {
 
 	control.id = V4L2_CID_MPEG_VIDC_FRAME_RATE;
 	control.value = (denom / numer) << 16;
-	VIDC_MED("V4l2Decoder::setFrameRate, setFrameRate id %d val %d", control.id, control.value);
+	VIDC_MED("V4l2Decoder::setFrameRate, setFrameRate id %d val %d\n", control.id, control.value);
 	if (mV4l2Driver->setControl(&control)) {
 		VIDC_ERR("V4l2Decoder::setFrameRate, set control failed\n");
 		return -EINVAL;
@@ -337,7 +338,9 @@ int V4l2Decoder::configureOutput() {
 			return false;
 		}
 
-		return ctrl.value == 1 ? true : false;
+		bool result = ctrl.value == 1 ? true : false;
+		VIDC_MED("V4l2Decoder::configureOutput, result = %d\n", result);
+		return result;
 	};
 
 	/*
@@ -350,6 +353,9 @@ int V4l2Decoder::configureOutput() {
 
 		numNotification = mV4l2Driver->getEarlyNotifyIntrptCount();
 		queryctrl.id = V4L2_CID_MPEG_VIDC_EARLY_NOTIFY_LINE_COUNT;
+		if (numNotification == 0) {
+			return -EINVAL;
+		}
 
 		rc = mV4l2Driver->queryControl(&queryctrl);
 		if (rc && queryctrl.step != 0)
@@ -405,6 +411,15 @@ int V4l2Decoder::configureOutput() {
 	mCropTop = sel.r.top;
 	mCropWidth = sel.r.width;
 	mCropHeight = sel.r.height;
+
+	memset(&sel, 0, sizeof(sel));
+	sel.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+	sel.target = V4L2_SEL_TGT_CROP;
+	if (mV4l2Driver->getSelection(&sel))
+		return -EINVAL;
+	mOutputImgWidth = sel.r.width;
+	mOutputImgHeight = sel.r.height;
+	VIDC_HIGH("V4l2Decoder::configureOutput, mOutputImgWidth = %d, mOutputImgHeight = %d\n", mOutputImgWidth, mOutputImgHeight);
 
 	memset(&reqBufs, 0, sizeof(reqBufs));
 	reqBufs.type = OUTPUT_MPLANE;
@@ -462,6 +477,14 @@ int V4l2Decoder::configureOutput() {
 
 struct v4l2_format* V4l2Decoder::getOutputFormat() {
 	return &mOutputFormat;
+}
+
+int V4l2Decoder::getOutputImgWidth() {
+	return mOutputImgWidth;
+}
+
+int V4l2Decoder::getOutputImgHeight() {
+	return mOutputImgHeight;
 }
 
 static inline bool isLinearColorFmt(unsigned int colorformat) {
@@ -610,7 +633,7 @@ int V4l2Decoder::reconfigureOutput() {
 			buf = allocateBuffer(i, OUTPUT_PORT, mOutputSize);
 			metaBuf = allocateMetaBuffer(i, OUTPUT_META_PORT, mMetaOutputSize);
 			{
-				std::unique_lock<std::mutex> lock(mBufLock);
+				std::unique_lock<std::mutex> lock(mOutputBufLock);
 				mOutputBufs.push_back(buf);
 				if (metaBuf)
 					mMetaOutputBufs.push_back(metaBuf);

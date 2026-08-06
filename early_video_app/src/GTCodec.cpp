@@ -49,7 +49,7 @@ int GTCodec::gtCodecRunSSR() {
 		fwrite(mSSRValueString, sizeof(char), strlen(mSSRValueString), fp);
 		fclose(fp);
 	} else {
-		VIDC_ERR("GTCodec::gtCodecRunSSR, error in opening trigger_ssr file. could be Missing mount fs.");
+		VIDC_ERR("GTCodec::gtCodecRunSSR, error in opening trigger_ssr file. could be Missing mount fs.\n");
 		return -1;
 	}
 
@@ -75,7 +75,7 @@ int GTCodec::gtCodecRunStabilityCmd() {
 		fwrite(mStabilityValueString, sizeof(char), strlen(mStabilityValueString), fp);
 		fclose(fp);
 	} else {
-		VIDC_ERR("GTCodec::gtCodecRunStabilityCmd, error in opening trigger_stability file. could be Missing mount fs.");
+		VIDC_ERR("GTCodec::gtCodecRunStabilityCmd, error in opening trigger_stability file. could be Missing mount fs.\n");
 		return -1;
 	}
 	return 0;
@@ -146,6 +146,20 @@ struct v4l2_format* GTCodec::getOutputFormat() {
 	return nullptr;
 }
 
+int GTCodec::getOutputImgWidth() {
+	if (mV4l2Codec != nullptr) {
+		return mV4l2Codec->getOutputImgWidth();
+	}
+	return 0;
+}
+
+int GTCodec::getOutputImgHeight() {
+	if (mV4l2Codec != nullptr) {
+		return mV4l2Codec->getOutputImgHeight();
+	}
+	return 0;
+}
+
 int GTCodec::gtCodecStartOutput() {
 	return mV4l2Codec->startOutput();
 }
@@ -207,12 +221,12 @@ int GTCodec::getTotalFramesDone() {
 }
 
 int GTCodec::queueSingleBufferEnable(bool enable) {
-	mIsQueueSingleBufferEnabled = enable;
+	mIsQueueSingleBufferEnabled.store(enable);
 	return 0;
 }
 
 int GTCodec::enableImmediateStopPostDrain(bool enable) {
-	mImmediateStopPostDrainEnabled = enable;
+	mImmediateStopPostDrainEnabled.store(enable);
 	return 0;
 }
 
@@ -331,7 +345,7 @@ float GTCodec::getAvgBitRate() {
 }
 
 void GTCodec::setLastFlagEvent(int value) {
-	mLastFlagEventEnabled = value;
+	mLastFlagEventEnabled.store(value);
 }
 
 void GTCodec::handleStats() {
@@ -345,8 +359,8 @@ void GTCodec::handleStats() {
 }
 
 void GTCodec::threadLoop() {
-	mStatsThreadRunning = true;
-	while (!mStatsThreadExit)
+	mStatsThreadRunning.store(true);
+	while (!mStatsThreadExit.load())
 	{
 		handleStats();
 		std::this_thread::sleep_for(std::chrono::milliseconds(1000));
@@ -355,8 +369,8 @@ void GTCodec::threadLoop() {
 }
 
 int GTCodec::createStatsThread() {
-	mStatsThreadExit = false;
-	mStatsThreadRunning = false;
+	mStatsThreadExit.store(false);
+	mStatsThreadRunning.store(false);
 	mStatsThread = std::make_shared<std::thread>(ThreadFunc, std::ref(*this));
 	if (!mStatsThread) {
 		VIDC_ERR("GTCodec::createStatsThread, thread create failed\n");
@@ -364,14 +378,14 @@ int GTCodec::createStatsThread() {
 	}
 	else {
 		int count = 0;
-		while (!mStatsThreadRunning) {
+		while (!mStatsThreadRunning.load()) {
 			VIDC_MED("GTCodec::createStatsThread, wait for thread running\n");
 			usleep(5 * 1000);
 			count++;
 			if (count >= 100)
 				break;
 		}
-		if (!mStatsThreadRunning) {
+		if (!mStatsThreadRunning.load()) {
 			VIDC_ERR("GTCodec::createStatsThread, thread not running\n");
 			return -EINVAL;
 		}
@@ -386,7 +400,7 @@ int GTCodec::stopStatsThread() {
 		return -EINVAL;
 	}
 
-	mStatsThreadExit = true;
+	mStatsThreadExit.store(true);
 	VIDC_MED("GTCodec::stopStatsThread, join thread\n");
 	if (mStatsThread != nullptr and mStatsThread->joinable()) {
 		mStatsThread->join();

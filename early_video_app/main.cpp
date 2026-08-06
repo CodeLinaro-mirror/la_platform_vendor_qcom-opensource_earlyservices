@@ -13,39 +13,60 @@ SPDX-License-Identifier: BSD-3-Clause-Clear
 using namespace early_video_app;
 
 int main(int argc, char **argv) {
-    const char* optstr = "i:o:";
-    int c;
-    extern int opterr;
-    opterr = 0;
-    vidcUpdateLogLevel();
-    VIDC_HIGH("main, enter\n");
-    printKPILog("%s%s%s", LogKPITag, LogAPPTag, "app start");
-
-    while (1) {
-        int option_index = 0;
-        static struct option long_options[] =
-        {
-            {nullptr, 0, nullptr, 0}
-        };
-        c = getopt_long(argc, argv, "i:o:", long_options, &option_index);
+    const char* shortOptions = "i:c:d:t:l:";
+    struct option longOptions[] = {
+        {"--input", required_argument, nullptr, 'i'},
+        {"--config", required_argument, nullptr, 'c'},
+        {"--displaycard", required_argument, nullptr, 'd'},
+        {"--logtag", required_argument, nullptr, 't'},
+        {"--loglevel", required_argument, nullptr, 'l'},
+        {nullptr, 0, nullptr, 0}
+    };
+    char* sourceFilePath = nullptr;
+    char* sourceConfigFilePath = nullptr;
+    char* displayCard = nullptr;
+    char* customLogTag = nullptr;
+    int customLogLevel = VIDC_MSGLEVEL_ERROR | VIDC_MSGLEVEL_HIGH;
+    while (true) {
+        int optionIndex = 0;
+        int c = getopt_long(argc, argv, shortOptions, longOptions, &optionIndex);
         if (c == -1) {
             break;
         }
 
         switch (c) {
-            case 0:
+            case 'i': {
+                sourceFilePath = optarg;
                 break;
-            case 'i':
+            }
+            case 'c': {
+                sourceConfigFilePath = optarg;
                 break;
-            case 'o':
+            }
+            case 'd': {
+                displayCard = optarg;
                 break;
-            default:
+            }
+            case 't': {
+                customLogTag = optarg;
                 break;
+            }
+            case 'l': {
+                char* end;
+                customLogLevel = strtol(optarg, &end, 10);
+                break;
+            }
+            default: {
+                break;
+            }
         }
     }
-    printKPILog("%s%s%s", LogKPITag, LogAPPTag, "run decoder");
+    vidcUpdateLogTag(customLogTag);
+    vidcUpdateLogLevel(customLogLevel);
+    VIDC_HIGH("main, enter\n");
+    printKPILog("%s%s%s", LogKPITag, LogAPPTag, "app start");
     VIDC_MED("main, run decoder\n");
-    int result = GTDecoder::runDecoder();
+    int result = GTDecoder::runDecoder(sourceFilePath, sourceConfigFilePath, displayCard);
     if (result != 0) {
         printKPILog("%s%s%s", LogKPITag, LogAPPTag, "run decoder failed");
         VIDC_ERR("main: run decoder failed, result = %d\n", result);

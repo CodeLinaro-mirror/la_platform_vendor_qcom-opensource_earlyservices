@@ -21,9 +21,9 @@ int GTDecoderCallback::onBufferDone(struct v4l2_buffer* buffer) {
 	bool found = false;
 	unsigned int index = 0xFFFFFFF;
 	std::list<std::shared_ptr<v4l2_buffer>>::iterator it;
-	std::unique_lock<std::mutex> lock(mGTDecoder->mV4l2Codec->mBufLock);
 	if (buffer->type == INPUT_MPLANE) {
 		VIDC_MED("GTDecoderCallback::onBufferDone, INPUT_MPLANE\n");
+		std::unique_lock<std::mutex> lock(mGTDecoder->mV4l2Codec->mInputBufLock);
 		for (std::list<std::shared_ptr<v4l2_buffer>>::iterator it =
 				mGTDecoder->mV4l2Codec->mPendingInputBufs.begin();
 			it != mGTDecoder->mV4l2Codec->mPendingInputBufs.end(); ++it) {
@@ -38,6 +38,7 @@ int GTDecoderCallback::onBufferDone(struct v4l2_buffer* buffer) {
 		}
 	} else if (buffer->type == OUTPUT_MPLANE) {
 		VIDC_MED("GTDecoderCallback::onBufferDone, OUTPUT_MPLANE\n");
+		std::unique_lock<std::mutex> lock(mGTDecoder->mV4l2Codec->mOutputBufLock);
 		for (std::list<std::shared_ptr<v4l2_buffer>>::iterator it = mGTDecoder->mV4l2Codec->mPendingOutputBufs.begin();
 			it != mGTDecoder->mV4l2Codec->mPendingOutputBufs.end(); ++it) {
 			if (buffer->index == (*it)->index) {
@@ -49,10 +50,14 @@ int GTDecoderCallback::onBufferDone(struct v4l2_buffer* buffer) {
 					if (pBuffer == MAP_FAILED) {
 						VIDC_ERR("GTDecoderCallback::onBufferDone, mmap failed, not dumping\n");
 					} else {
-						VIDC_MED("GTDecoderCallback::onBufferDone, output data, buffer->m.planes[0].bytesused = %d, buffer->m.planes[0].data_offset = %d\n",
-							buffer->m.planes[0].bytesused, buffer->m.planes[0].data_offset);
+						VIDC_MED("GTDecoderCallback::onBufferDone, output data, buffer->sequence = %d, buffer->m.planes[0].bytesused = %d, buffer->m.planes[0].data_offset = %d\n",
+							buffer->sequence, buffer->m.planes[0].bytesused, buffer->m.planes[0].data_offset);
 						struct v4l2_format* outputFormat = mGTDecoder->getOutputFormat();
 						mGTDecoder->mGTDecoderIOAdapter->setOutputFormat(outputFormat);
+
+						int outputImgWidth = mGTDecoder->getOutputImgWidth();
+						int outputImgHeight = mGTDecoder->getOutputImgHeight();
+						mGTDecoder->mGTDecoderIOAdapter->setOutputImgResolution(outputImgWidth, outputImgHeight);
 
 						int frameRate = mGTDecoder->mV4l2Codec->getFrameRate();
 						mGTDecoder->mGTDecoderIOAdapter->setOutputFrameRate(frameRate);
@@ -60,7 +65,7 @@ int GTDecoderCallback::onBufferDone(struct v4l2_buffer* buffer) {
 						bool isKeyFrame = buffer->flags & V4L2_BUF_FLAG_KEYFRAME;
 						VIDC_MED("GTDecoderCallback::onBufferDone, output data, frameRate = %d, isKeyFrame = %d\n", frameRate, isKeyFrame);
 
-						mGTDecoder->mGTDecoderIOAdapter->onOutput(pBuffer, buffer->m.planes[0].bytesused, buffer->m.planes[0].data_offset, isKeyFrame);
+						mGTDecoder->mGTDecoderIOAdapter->onOutput(pBuffer, buffer->m.planes[0].bytesused - buffer->m.planes[0].data_offset, buffer->m.planes[0].data_offset, isKeyFrame);
 						munmap((void *)pBuffer, buffer->m.planes[0].length);
 					}
 				}
@@ -101,13 +106,13 @@ int GTDecoderCallback::onBufferDone(struct v4l2_buffer* buffer) {
 				mGTDecoder->mFBDcount++;
 				mGTDecoder->addFrameStats(buffer->m.planes[0].bytesused);
 				/* if last flag event not enabled, driver sends last flag info via FBDs */
-				if ((buffer->flags & V4L2_BUF_FLAG_LAST) && !mGTDecoder->mLastFlagEventEnabled) {
+				if ((buffer->flags & V4L2_BUF_FLAG_LAST) && !mGTDecoder->mLastFlagEventEnabled.load()) {
 					buffer->flags &= ~V4L2_BUF_FLAG_LAST;
-					if (mGTDecoder->mReconfigEventReceived) {
-						mGTDecoder->mDrcLastFlagReceived = true;
+					if (mGTDecoder->mReconfigEventReceived.load()) {
+						mGTDecoder->mDrcLastFlagReceived.store(true);
 						VIDC_MED("GTDecoderCallback::onBufferDone, drc last flag received\n");
-					} else if (mGTDecoder->mDrainSent) {
-						mGTDecoder->mDrainLastFlagReceived = true;
+					} else if (mGTDecoder->mDrainSent.load()) {
+						mGTDecoder->mDrainLastFlagReceived.store(true);
 						VIDC_MED("GTDecoderCallback::onBufferDone, drain last flag received\n");
 					}
 				}
@@ -136,18 +141,19 @@ int GTDecoderCallback::onBufferDone(struct v4l2_buffer* buffer) {
 		}
 	} else if (buffer->type == INPUT_META_PLANE) {
 		VIDC_MED("GTDecoderCallback::onBufferDone, INPUT_META_PLANE\n");
+		std::unique_lock<std::mutex> lock(mGTDecoder->mV4l2Codec->mInputBufLock);
 		for (std::list<std::shared_ptr<v4l2_buffer>>::iterator it =
 				mGTDecoder->mV4l2Codec->mPendingMetaInputBufs.begin();
 			it != mGTDecoder->mV4l2Codec->mPendingMetaInputBufs.end(); ++it) {
 			if (buffer->index == (*it)->index) {
 				found = true;
 				print_v4l2_buffer("DQBUF DONE", buffer);
-				mGTDecoder->mV4l2Codec->mMetaInputBufs.push_back(*it);
+				auto inputMetaBuf = *it;
+				mGTDecoder->mV4l2Codec->mMetaInputBufs.push_back(inputMetaBuf);
 				mGTDecoder->mV4l2Codec->mPendingMetaInputBufs.remove(*it);
 				if (mGTDecoder->mV4l2Codec->isOutBufFenceEnabled()) {
 					auto fenceIdInfo = std::make_shared<struct V4L2OutputFenceInfo>();
 					/* Extract fence id, output buffer tag info, and get fence fd */
-					auto inputMetaBuf = *it;
 					mGTDecoder->mV4l2Codec->extractMetadata(inputMetaBuf.get(), fenceIdInfo.get());
 					if (fenceIdInfo->outputBufTag == INVALID_VALUE || fenceIdInfo->fenceIds.empty()) {
 						VIDC_ERR("GTDecoderCallback::onBufferDone, INPUT_META: failed to fetch output buffer tag or fence id\n");
@@ -171,6 +177,7 @@ int GTDecoderCallback::onBufferDone(struct v4l2_buffer* buffer) {
 		}
 	} else if (buffer->type == OUTPUT_META_PLANE) {
 		VIDC_MED("GTDecoderCallback::onBufferDone, OUTPUT_META_PLANE\n");
+		std::unique_lock<std::mutex> lock(mGTDecoder->mV4l2Codec->mOutputBufLock);
 		for (std::list<std::shared_ptr<v4l2_buffer>>::iterator it =
 				mGTDecoder->mV4l2Codec->mPendingMetaOutputBufs.begin();
 			it != mGTDecoder->mV4l2Codec->mPendingMetaOutputBufs.end(); ++it) {
@@ -178,7 +185,7 @@ int GTDecoderCallback::onBufferDone(struct v4l2_buffer* buffer) {
 				found = true;
 				print_v4l2_buffer("DQBUF DONE", buffer);
 				mGTDecoder->mV4l2Codec->extractMetadata(buffer, nullptr);
-				if ((buffer->flags & V4L2_BUF_FLAG_LAST) && !mGTDecoder->mLastFlagEventEnabled)
+				if ((buffer->flags & V4L2_BUF_FLAG_LAST) && !mGTDecoder->mLastFlagEventEnabled.load())
 					buffer->flags &= ~V4L2_BUF_FLAG_LAST;
 				if (mGTDecoder->mV4l2Codec->mOutputStreamonDone) {
 					mGTDecoder->mV4l2Codec->mMetaOutputBufs.push_back(*it);
@@ -206,16 +213,16 @@ void GTDecoderCallback::onEventDone(struct v4l2_event* event) {
 	if (event->type == V4L2_EVENT_SOURCE_CHANGE &&
 		event->u.src_change.changes == V4L2_EVENT_SRC_CH_RESOLUTION) {
 		VIDC_MED("GTDecoderCallback::onEventDone, source change event received\n");
-		mGTDecoder->mReconfigEventReceived = true;
+		mGTDecoder->mReconfigEventReceived.store(true);
 		mGTDecoder->mV4l2Codec->mFirstReconfigReceived = true;
 	}
 	/* if last flag event is enabled, driver sends last flag info via event */
-	if (event->type == V4L2_EVENT_EOS && mGTDecoder->mLastFlagEventEnabled) {
-		if (mGTDecoder->mReconfigEventReceived && !mGTDecoder->mDrcLastFlagReceived) {
-			mGTDecoder->mDrcLastFlagReceived = true;
+	if (event->type == V4L2_EVENT_EOS && mGTDecoder->mLastFlagEventEnabled.load()) {
+		if (mGTDecoder->mReconfigEventReceived.load() && !mGTDecoder->mDrcLastFlagReceived.load()) {
+			mGTDecoder->mDrcLastFlagReceived.store(true);
 			VIDC_MED("GTDecoderCallback::onEventDone Drc last flag event received\n");
-		} else if (mGTDecoder->mDrainSent && !mGTDecoder->mDrainLastFlagReceived) {
-			mGTDecoder->mDrainLastFlagReceived = true;
+		} else if (mGTDecoder->mDrainSent.load() && !mGTDecoder->mDrainLastFlagReceived.load()) {
+			mGTDecoder->mDrainLastFlagReceived.store(true);
 			VIDC_MED("GTDecoderCallback::onEventDone, Drain last flag event received\n");
 		} else {
 			VIDC_ERR("GTDecoderCallback::onEventDone, unexpected last flag event\n");
@@ -225,7 +232,7 @@ void GTDecoderCallback::onEventDone(struct v4l2_event* event) {
 
 int GTDecoderCallback::onError(int error) {
 	VIDC_ERR("GTDecoderCallback::onError\n");
-	mGTDecoder->mErrorReceived = true;
+	mGTDecoder->mErrorReceived.store(true);
 	if (error) {
 		VIDC_ERR("GTDecoderCallback::onError, %d\n", error);
 		return -EINVAL;

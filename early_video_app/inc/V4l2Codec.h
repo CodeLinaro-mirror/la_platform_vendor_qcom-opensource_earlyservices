@@ -70,6 +70,8 @@ class V4l2Codec {
 		virtual int drain() = 0;
 		virtual int resume() = 0;
 		virtual struct v4l2_format* getOutputFormat() = 0;
+		virtual int getOutputImgWidth() = 0;
+		virtual int getOutputImgHeight() = 0;
 		virtual int getFenceFds(struct V4L2OutputFenceInfo* fenceInfo) = 0;
 		virtual int getFenceFd(int fence_id) = 0;
 		virtual int setDSResolution(unsigned int width, unsigned int height) = 0;
@@ -146,7 +148,8 @@ class V4l2Codec {
 
 		bool mOutputStreamonDone;
 		bool mFirstReconfigReceived;
-		std::mutex mBufLock;
+		std::mutex mInputBufLock;
+		std::mutex mOutputBufLock;
 		std::list<std::shared_ptr<V4L2ControlInfo>> mControls;
 		std::list<std::shared_ptr<V4L2ControlInfo>> mMetaControls;
 		std::list<std::shared_ptr<v4l2_buffer>> mInputBufs;
@@ -190,6 +193,8 @@ class V4l2Codec {
 		unsigned int mMultiplier = 1;
 		int mWidth = 0;
 		int mHeight = 0;
+		int mOutputImgWidth = 0;
+		int mOutputImgHeight = 0;
 		int mStride = 0;
 		int mScanline = 0;
 		int mDownscaleWidth = 0;

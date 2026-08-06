@@ -14,7 +14,6 @@ SPDX-License-Identifier: BSD-3-Clause-Clear
 #include <ctime>
 #include <chrono>
 #include <filesystem>
-#include <format>
 #include <cstdio>
 
 #include "../inc/GTDecoder.h"
@@ -29,8 +28,12 @@ void ThreadFunc(GTCodec& codec) {
 	codec.threadLoop();
 }
 
-int GTDecoder::runDecoder() {
+int GTDecoder::runDecoder(const char* inputFilePath, const char* inputConfigFilePath, const char* displayCard) {
     VIDC_HIGH("GTDecoder::runDecoder\n");
+	if (inputFilePath == NULL || inputConfigFilePath == NULL || displayCard == NULL) {
+        VIDC_ERR("GTDecoder::runDecoder, key params illegal!\n");
+		return -EINVAL;
+	}
 
 	unsigned int colorFmt = V4L2_PIX_FMT_QC08C;//V4L2_PIX_FMT_NV12, V4L2_PIX_FMT_QC08C;
     std::shared_ptr<GTDecoder> decoder = std::make_shared<GTDecoder>(V4L2_PIX_FMT_H264, colorFmt);
@@ -41,6 +44,8 @@ int GTDecoder::runDecoder() {
     else {
         VIDC_MED("GTDecoder::runDecoder, Decoder created successfully\n");
     }
+	decoder->setSouce(inputFilePath, inputConfigFilePath);
+	decoder->setDisplayCard(displayCard);
 
 	/*create event thread*/
     std::shared_ptr<EventHandler> eventHandler = decoder->getEventHandler();
@@ -53,15 +58,6 @@ int GTDecoder::runDecoder() {
         VIDC_MED("GTDecoder::runDecoder, event thread create successfully\n");
     }
 
-    result = decoder->gtCodecInit();
-	if (result != 0) {
-        VIDC_ERR("GTDecoder::runDecoder, codec init failed!, result = %d\n", result);
-		return result;
-	}
-    else {
-        VIDC_MED("GTDecoder::runDecoder, codec init successfully\n");
-    }
-
 	result = decoder->gtRegisterCallbacks();
 	if (result != 0) {
         VIDC_ERR("GTDecoder::runDecoder, register callback failed!, result = %d\n", result);
@@ -69,6 +65,15 @@ int GTDecoder::runDecoder() {
 	}
     else {
         VIDC_MED("GTDecoder::runDecoder, register callback successfully\n");
+    }
+
+    result = decoder->gtCodecInit();
+	if (result != 0) {
+        VIDC_ERR("GTDecoder::runDecoder, codec init failed!, result = %d\n", result);
+		return result;
+	}
+    else {
+        VIDC_MED("GTDecoder::runDecoder, codec init successfully\n");
     }
 
 	result = decoder->gtCodecSetColorFmt();
@@ -227,7 +232,7 @@ GTDecoder::GTDecoder(unsigned int codec, unsigned int colorFmt) :
 }
 
 GTDecoder::~GTDecoder() {
-	VIDC_MED("GTDecoder, Destructor");
+	VIDC_MED("GTDecoder, Destructor\n");
 	if (mGTDecoderIOAdapter != NULL) {
 		mGTDecoderIOAdapter->close();
 		mGTDecoderIOAdapter = NULL;
@@ -240,6 +245,15 @@ GTDecoder::~GTDecoder() {
 		mV4l2Codec->deinit();
 		mV4l2Codec = NULL;
 	}
+}
+
+void GTDecoder::setSouce(const char* inputFilePath, const char* inputConfigFilePath) {
+	mSourceFilePath = inputFilePath;
+	mSourceConfigFilePath = inputConfigFilePath;
+}
+
+void GTDecoder::setDisplayCard(const char* displayCard) {
+	mDisplayCard = displayCard;
 }
 
 std::shared_ptr<EventHandler> GTDecoder::getEventHandler() {
@@ -353,7 +367,7 @@ int GTDecoder::queueBuffers() {
 		std::shared_ptr<v4l2_buffer> Input = nullptr;
 		std::shared_ptr<v4l2_buffer> Output = nullptr;
 
-		if (mErrorReceived) {
+		if (mErrorReceived.load()) {
 			VIDC_ERR("GTDecoder::queueBuffers: received error\n");
 			break;
 		}
@@ -363,8 +377,8 @@ int GTDecoder::queueBuffers() {
 		 * for full reconfigure, wait for event and last flag
 		 */
 		if (!mV4l2Codec->mOutputStreamonDone) {
-			if (mReconfigEventReceived) {
-				mReconfigEventReceived = false;
+			if (mReconfigEventReceived.load()) {
+				mReconfigEventReceived.store(false);
 				VIDC_MED("GTDecoder::queueBuffers: src change event arrived\n");
 				ret = mEventHandler->queueEvent(EVENT_CONFIGURE_OUTPUT, true);
 
@@ -398,10 +412,10 @@ int GTDecoder::queueBuffers() {
 				}
 			}
 		}
-		if (mV4l2Codec->mOutputStreamonDone && mReconfigEventReceived) {
-			if (mDrcLastFlagReceived) {
-				mDrcLastFlagReceived = false;
-				mReconfigEventReceived = false;
+		if (mV4l2Codec->mOutputStreamonDone && mReconfigEventReceived.load()) {
+			if (mDrcLastFlagReceived.load()) {
+				mDrcLastFlagReceived.store(false);
+				mReconfigEventReceived.store(false);
 				VIDC_MED("GTDecoder::queueBuffers, last flag for reconfig arrived\n");
 				ret = mEventHandler->queueEvent(EVENT_RECONFIGURE, true);
 				if (ret) {
@@ -416,8 +430,8 @@ int GTDecoder::queueBuffers() {
 			while (1) {
 				bool found = false;
 				{
-					std::unique_lock<std::mutex> lock(mV4l2Codec->mBufLock);
-					if (mIsQueueSingleBufferEnabled) {
+					std::unique_lock<std::mutex> lock(mV4l2Codec->mOutputBufLock);
+					if (mIsQueueSingleBufferEnabled.load()) {
 						if (mV4l2Codec->mPendingOutputBufs.size() == 1) {
 							break;
 						}
@@ -455,7 +469,7 @@ int GTDecoder::queueBuffers() {
 				}
 				if (found) {
 					{
-						std::unique_lock<std::mutex> lock(mV4l2Codec->mBufLock);
+						std::unique_lock<std::mutex> lock(mV4l2Codec->mOutputBufLock);
 
 						if (outputMetadataEnabled) {
 							mV4l2Codec->mMetaOutputBufs.remove(metaOutput);
@@ -484,10 +498,10 @@ int GTDecoder::queueBuffers() {
 				}
 			}
 
-			if (mDrainPending) {
-				mDrainPending = false;
+			if (mDrainPending.load()) {
+				mDrainPending.store(false);
 				VIDC_MED("GTDecoder::queueBuffers, sending drain\n");
-				mDrainSent = true;
+				mDrainSent.store(true);
 				ret = mV4l2Codec->drain();
 				if (ret) {
 					VIDC_ERR("GTDecoder::queueBuffers, drain failed\n");
@@ -496,16 +510,12 @@ int GTDecoder::queueBuffers() {
 			}
 		}
 
-		if (mDrainSent) {
-			if (mDrainLastFlagReceived) {
-				mDrainLastFlagReceived = false;
-				mDrainSent = false;
+		if (mDrainSent.load()) {
+			if (mDrainLastFlagReceived.load()) {
+				mDrainLastFlagReceived.store(false);
+				mDrainSent.store(false);
 				VIDC_MED("GTDecoder::queueBuffers, last flag for drain arrived\n");
-				ret = mV4l2Codec->resume();
-				if (ret) {
-					VIDC_ERR("GTDecoder::queueBuffers, resume failed\n");
-					return -EINVAL;
-				}
+				return 0;//here quit safely after all frame decoded and rendered.
 			}
 			else {
 				usleep(10 * 1000);
@@ -514,7 +524,7 @@ int GTDecoder::queueBuffers() {
 		}
 
 		{
-			std::unique_lock<std::mutex> lock(mV4l2Codec->mBufLock);
+			std::unique_lock<std::mutex> lock(mV4l2Codec->mInputBufLock);
 			inputAvailable = !mV4l2Codec->mInputBufs.empty();
 		}
 		/* unlock and sleep */
@@ -526,7 +536,7 @@ int GTDecoder::queueBuffers() {
 			bool inputMetadataEnabled = mV4l2Codec->isInputMetadataEnabled();
 			bool found = false;
 
-			std::unique_lock<std::mutex> lock(mV4l2Codec->mBufLock);
+			std::unique_lock<std::mutex> lock(mV4l2Codec->mInputBufLock);
 			Input = mV4l2Codec->mInputBufs.front();
 			if (Input == nullptr) {
 				VIDC_ERR("GTDecoder::queueBuffers, input buffer is null\n");
@@ -591,11 +601,11 @@ int GTDecoder::queueBuffers() {
         }
 		auto mapping = spBuffer->map();
 		if (mGTDecoderIOAdapter == nullptr) {
-			mGTDecoderIOAdapter = std::make_shared<GTDecoderIOAdapter>();
+			mGTDecoderIOAdapter = std::make_shared<GTDecoderIOAdapter>(mSourceFilePath, mSourceConfigFilePath, mDisplayCard);
 		}
 		InputData inputData;
-		bool result = mGTDecoderIOAdapter->getInput(&inputData);
-		if (result) {
+		int result = mGTDecoderIOAdapter->getInput(&inputData);
+		if (result > 0) {
 			memcpy(mapping->vaddr(), inputData.data, inputData.length);
 			spBuffer->setFilledRange(0, inputData.length);
 			spBuffer->setTimeStamp(inputData.frameIndex * 1000000lu);
@@ -611,13 +621,12 @@ int GTDecoder::queueBuffers() {
 			VIDC_MED("GTDecoder::queueBuffers, input data length: %d, spBuffer->timestamp():%d, inputData.isCodecConfig = %d, inputData.isLastFrame = %d\n",
 				inputData.length, spBuffer->timestamp(), inputData.isCodecConfig, inputData.isLastFrame);
 		}
+		else if (result == 0) {
+			VIDC_HIGH("GTDecoder::queueBuffers, no more data got\n");
+		}
 		else {
-			VIDC_MED("GTDecoder::queueBuffers, no more data got\n");
-			ret = mV4l2Codec->drain();
-			if (ret != 0) {
-				return -EINVAL;
-			}
-			return 0;
+			VIDC_HIGH("GTDecoder::queueBuffers, no valid input\n");
+			return -EINVAL;
 		}
 
 		buffer->timestamp.tv_sec = static_cast<int64_t>(spBuffer->timestamp()) / 1000000ll;
@@ -634,11 +643,11 @@ int GTDecoder::queueBuffers() {
 		if (buffer->m.planes[0].bytesused == buffer->m.planes[0].data_offset) {
 			if (!mV4l2Codec->mOutputStreamonDone) {
 				VIDC_MED("GTDecoder::queueBuffers, post pone drain\n");
-				mDrainPending = true;
+				mDrainPending.store(true);
 			}
 			else {
-				VIDC_MED("GTDecoder::queueBuffers, sending drain ..\n");
-				mDrainSent = true;
+				VIDC_HIGH("GTDecoder::queueBuffers, sending drain ..\n");
+				mDrainSent.store(true);
 				ret = mV4l2Codec->drain();
 				if (ret) {
 					VIDC_ERR("GTDecoder::queueBuffers, drain failed\n");
@@ -672,6 +681,7 @@ int GTDecoder::queueBuffers() {
 				VIDC_ERR("GTDecoder::queueBuffers, queue buffer failed for input\n");
 				return -EINVAL;
 			}
+			VIDC_LOW("GTDecoder::queueBuffers, queue buffer for input\n");
 		}
 		frameCounter++;
 		if (mIFPC) {
@@ -686,7 +696,7 @@ int GTDecoder::queueBuffers() {
 			FILE *fp = fopen("/sys/kernel/debug/regulator/aaf804c.qcom,gdsc-video_cc_mvs0c_gdsc/enable", "r");
 			if (fp != NULL) {
 				fread(&vidc_gdsc_enable, sizeof(char), 1, fp);
-				VIDC_MED("GTDecoder::queueBuffers, reg - GDSC enable = %c", vidc_gdsc_enable);
+				VIDC_MED("GTDecoder::queueBuffers, reg - GDSC enable = %c\n", vidc_gdsc_enable);
 				fclose(fp);
 			}
 			else {
@@ -695,7 +705,7 @@ int GTDecoder::queueBuffers() {
 					while (fread(&found, sizeof(char), 1, fp) == 1) {
 						if (found == '-') {
 							fread(&vidc_gdsc_enable, sizeof(char), 1, fp);
-							VIDC_MED("GTDecoder::queueBuffers, genPD - GDSC enable = %c", vidc_gdsc_enable);
+							VIDC_MED("GTDecoder::queueBuffers, genPD - GDSC enable = %c\n", vidc_gdsc_enable);
 							break;
 						}
 					}

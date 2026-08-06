@@ -32,12 +32,14 @@ class GTDecoder : public GTCodec {
 		GTDecoder(unsigned int codec, unsigned int colorFmt);
 		~GTDecoder();
 
-		static int runDecoder();
+		static int runDecoder(const char* inputFilePath, const char* inputConfigFilePath, const char* displayCard);
 
 		int gtRegisterCallbacks();
 		void handleSeek(int seekTo);
 		int queueBuffers();
 		void queueAllBuffers(unsigned int totalFrames);
+		void setSouce(const char* inputFilePath, const char* inputConfigFilePath);
+		void setDisplayCard(const char* displayCard);
 		int setControl(unsigned int ctrlId, int value);
 		int setDSResolution(unsigned int downscaleWidth, unsigned int downscaleHeight);
 		std::shared_ptr<EventHandler> getEventHandler();
@@ -57,11 +59,14 @@ class GTDecoder : public GTCodec {
 		std::shared_ptr<EventHandler> mEventHandler;
 		std::shared_ptr<GTDecoderIOAdapter> mGTDecoderIOAdapter = nullptr;
 
+		const char* mSourceFilePath = nullptr;
+		const char* mSourceConfigFilePath = nullptr;
+		const char* mDisplayCard = nullptr;
 		int mSeekFrom = -1;
 		int mSeekTo = -1;
 		bool inputQbufSleep = 0;
 		int mFenceErrorCount = 0;
-		bool mDrcLastFlagReceived = false;
+		std::atomic<bool> mDrcLastFlagReceived{false};
 		bool mIsReallocateOutputBufferEnabled = false;
 };
 
